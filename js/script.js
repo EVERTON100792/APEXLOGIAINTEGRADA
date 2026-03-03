@@ -3689,16 +3689,11 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
     processingWorker.terminate();
     // --- FIM DA Lá“GICA DO WORKER ---
 
-    // Tenta encaixar sobras em cargas existentes que ainda táªm espaá§o.
+    // Tenta encaixar sobras em cargas existentes que ainda táªm espaá§á£o.
     const { refinedLoads: initialRefinedLoads, remainingLeftovers: initialLeftovers } = refineLoadsWithSimpleFit(optimizationResult.loads, optimizationResult.leftovers);
 
-    // Reintegra os grupos excluá­dos da otimizaá§á£o inicial (Rota 11711) para serem processados na cascata (Van)
-    if (groupsExcludedFromFiorino.length > 0) {
-        initialLeftovers.push(...groupsExcludedFromFiorino);
-    }
-
     // ========================================================================
-    // INáCIO DA NOVA Lá“GICA DE CASCATA (Fiorino -> Van -> 3/4 -> Toco)
+    // INÍCIO DA NOVA LÓGICA DE CASCATA (Fiorino -> Van -> 3/4 -> Toco)
     // ========================================================================
     let primaryLoads = initialRefinedLoads;
     let leftoverGroups = initialLeftovers;
@@ -3706,31 +3701,49 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
     let tertiaryLoads = [];
     let quaternaryLoads = [];
 
-    primaryLoads.forEach(l => l.vehicleType = vehicleType);
-
-    // Funá§á£o auxiliar para chamar a otimizaá§á£o (usando a heurá­stica rá¡pida para as cascatas)
+    // Função auxiliar para chamar a otimização (usando a heurística rápida para as cascatas)
     const runCascadeOptimization = (groups, cascadeVehicleType) => {
         if (groups.length === 0) return { loads: [], leftovers: [] };
         console.log(`CASCATA: Tentando montar ${cascadeVehicleType} com ${groups.length} grupos de sobras.`);
-        // Usamos a heurá­stica simples (Ná­vel 1) para as etapas da cascata para manter a velocidade.
+        // Usamos a heurística simples (Nível 1) para as etapas da cascata para manter a velocidade.
         return runHeuristicOptimization(groups, cascadeVehicleType);
     };
 
+    // CORREÇÃO: Processa explicitamente os grupos de cidades não permitidas para Fiorino
+    // em cascata Van -> 3/4 -> Toco, independente do tipo de veículo principal.
+    // Isso garante que sobras por "cidades" não param no fiorino e continuam sendo processadas.
+    if (groupsExcludedFromFiorino.length > 0) {
+        console.log(`CASCATA CIDADES: Processando ${groupsExcludedFromFiorino.length} grupos excluídos do Fiorino por cidade.`);
+        const vanResultForExcluded = runCascadeOptimization(groupsExcludedFromFiorino, 'van');
+        secondaryLoads.push(...vanResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'van' })));
+
+        const tqResultForExcluded = runCascadeOptimization(vanResultForExcluded.leftovers, 'tresQuartos');
+        tertiaryLoads.push(...tqResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
+
+        const tocoResultForExcluded = runCascadeOptimization(tqResultForExcluded.leftovers, 'toco');
+        quaternaryLoads.push(...tocoResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'toco' })));
+
+        // Quaisquer sobras finais dos grupos excluídos se juntam às sobras gerais do processamento principal
+        leftoverGroups.push(...tocoResultForExcluded.leftovers);
+    }
+
+    primaryLoads.forEach(l => l.vehicleType = vehicleType);
+
     switch (vehicleType) {
         case 'fiorino':
-            // Sobras de Fiorino tentam virar Van
+            // Sobras do Fiorino (pedidos de cidades permitidas que não couberam) tentam virar Van
             const vanResult = runCascadeOptimization(leftoverGroups, 'van');
-            secondaryLoads = vanResult.loads.map(l => ({ ...l, vehicleType: 'van' }));
+            secondaryLoads.push(...vanResult.loads.map(l => ({ ...l, vehicleType: 'van' })));
             leftoverGroups = vanResult.leftovers;
 
             // Sobras de Van tentam virar 3/4
             const tqResultFromFiorino = runCascadeOptimization(leftoverGroups, 'tresQuartos');
-            tertiaryLoads = tqResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' }));
+            tertiaryLoads.push(...tqResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
             leftoverGroups = tqResultFromFiorino.leftovers;
 
             // Sobras de 3/4 tentam virar Toco
             const tocoResultFromFiorino = runCascadeOptimization(leftoverGroups, 'toco');
-            quaternaryLoads = tocoResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'toco' }));
+            quaternaryLoads.push(...tocoResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'toco' })));
             leftoverGroups = tocoResultFromFiorino.leftovers;
             break;
 
