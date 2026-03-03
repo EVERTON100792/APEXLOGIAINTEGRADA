@@ -2103,6 +2103,71 @@ function processar() {
             pedidosGeraisAtuais = [...pedidosParaProcessamentoVarejo];
             renderAllUI(); // NOVO: Chama a função de renderização centralizada
 
+            // --- INÍCIO: INTEGRAÇÃO SUPABASE VAREJO (Apenas Disponíveis e Bloqueados) ---
+            try {
+                const sbClient = window.supabaseClient || (window.supabase ? window.supabase : null);
+                if (sbClient) {
+                    // Extrai pedidos de Toco
+                    let todosToco = [];
+                    if (typeof gruposToco === 'object') {
+                        Object.values(gruposToco).forEach(grupo => {
+                            if (grupo.pedidos && Array.isArray(grupo.pedidos)) {
+                                todosToco.push(...grupo.pedidos);
+                            }
+                        });
+                    }
+
+                    // A UI do APEX considera Varejo Disponível e Bloqueado a soma de:
+                    // 1. pedidosGeraisAtuais (Vans/Fiorino Disponíveis)
+                    // 2. pedidosComCFNumericoIsolado (Bloqueados Regra)
+                    // 3. pedidosManualmenteBloqueadosAtuais (Bloqueados Manuais)
+                    // 4. todosToco (Grupos de Toco que podem estar disponíveis ou bloqueados)
+                    const todosVarejoFiltrado = [
+                        ...pedidosGeraisAtuais,
+                        ...(typeof pedidosComCFNumericoIsolado !== 'undefined' ? pedidosComCFNumericoIsolado : []),
+                        ...(typeof pedidosManualmenteBloqueadosAtuais !== 'undefined' ? pedidosManualmenteBloqueadosAtuais : []),
+                        ...todosToco
+                    ];
+
+                    // Filtramos apenas Estados Alvos (SP e PR)
+                    const pedidosVarejoSP_PR = todosVarejoFiltrado.filter(p => {
+                        const isEstadoAlvo = String(p.UF || '').trim().toUpperCase() === 'SP' ||
+                            String(p.UF || '').trim().toUpperCase() === 'PR';
+                        const hasKeys = p.Num_Pedido && p.Dat_Ped;
+                        return isEstadoAlvo && hasKeys;
+                    });
+
+                    if (pedidosVarejoSP_PR.length > 0) {
+                        const payloadSupabase = pedidosVarejoSP_PR.map(p => {
+                            let dataFormatada = p.Dat_Ped;
+                            if (p.Dat_Ped instanceof Date && !isNaN(p.Dat_Ped)) {
+                                dataFormatada = p.Dat_Ped.toISOString().split('T')[0];
+                            }
+                            return {
+                                num_pedido: String(p.Num_Pedido).trim(),
+                                data_pedido: dataFormatada,
+                                uf: String(p.UF || '').trim().toUpperCase(),
+                                quilos: parseFloat(p.Quilos_Saldo) || 0,
+                                rota: String(p.Cod_Rota || '').trim(),
+                                cliente: String(p.Cliente || '').trim(),
+                                nome_cliente: String(p.Nome_Cliente || '').trim(),
+                                cidade: String(p.Cidade || '').trim()
+                            };
+                        });
+
+                        sbClient.from('historico_pedidos_varejo')
+                            .upsert(payloadSupabase, { onConflict: 'num_pedido' })
+                            .then(({ error }) => {
+                                if (error) console.error("Erro ao salvar histórico de varejo no Supabase:", error);
+                                else console.log(`Sucesso: ${payloadSupabase.length} pedidos de Varejo (SP/PR) eviados para o Supabase.`);
+                            });
+                    }
+                }
+            } catch (supaErr) {
+                console.error("Exceção na integração Supabase Varejo:", supaErr);
+            }
+            // --- FIM: INTEGRAÇÃO SUPABASE VAREJO ---
+
             statusDiv.innerHTML = `<p class="text-success">Processamento concluá­do!</p>`;
         } catch (error) {
             // Garante que a lista de bloqueados seja exibida mesmo em caso de erro parcial
@@ -6211,7 +6276,15 @@ function drop(event) {
     if (!dropZoneCard) return;
     dropZoneCard.classList.remove('drag-over');
 
-    const { clienteId, sourceId } = JSON.parse(event.dataTransfer.getData("text/plain"));
+    let droppedData;
+    try {
+        droppedData = JSON.parse(event.dataTransfer.getData("text/plain"));
+    } catch (e) {
+        // Se o conteúdo arrastado não for um JSON gerado pelo nosso drag interno (ex: texto do excel)
+        console.warn("Drag and Drop ignorado: O conteúdo arrastado não é compatível.", e);
+        return;
+    }
+    const { clienteId, sourceId } = droppedData;
     const targetId = dropZoneCard.dataset.loadId;
 
     if (sourceId === targetId) return;
@@ -10488,3 +10561,403 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// --- INÍCIO: RELATÓRIO MENSAL DE VAREJO ---
+async function carregarRelatorioVarejo() {
+    const inputMes = document.getElementById('filtroMesVarejo').value;
+    if (!inputMes) {
+        if (typeof showToast === 'function') {
+            showToast('Por favor, selecione o mês e o ano para a análise.', 'warning');
+        } else {
+            alert('Por favor, selecione o mês e o ano para a análise.');
+        }
+        return;
+    }
+
+    // Montar as datas de início e fim baseadas no input YYYY-MM
+    const [ano, mes] = inputMes.split('-');
+    const dataInicio = `${ano}-${mes}-01`;
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const dataFim = `${ano}-${mes}-${ultimoDia}`;
+
+    const loader = document.getElementById('loaderRelatorioVarejo');
+    const resultadoDiv = document.getElementById('resultadoRelatorioVarejo');
+    const sbClient = window.supabaseClient || window.supabase || null;
+
+    if (!sbClient) {
+        resultadoDiv.innerHTML = `<div class="alert alert-danger">Erro: Conexão com a nuvem (Supabase) não estabelecida.</div>`;
+        return;
+    }
+
+    loader.classList.remove('d-none');
+    resultadoDiv.classList.add('d-none');
+
+    try {
+        // Buscar apenas os dados do mês selecionado
+        const { data, error } = await sbClient.from('historico_pedidos_varejo')
+            .select('num_pedido, uf, quilos, rota, data_pedido, cliente, nome_cliente, cidade')
+            .gte('data_pedido', dataInicio)
+            .lte('data_pedido', dataFim);
+
+        if (error) throw error;
+
+        // Armazenar os dados globalmente para exportação
+        window.currentVarejoData = data || [];
+
+        // Calcular os totais
+        let totalSP = 0;
+        let totalPR = 0;
+        let totalGeral = 0;
+
+        window.currentVarejoData.forEach(item => {
+            const peso = parseFloat(item.quilos) || 0;
+            if (item.uf === 'SP') totalSP += peso;
+            else if (item.uf === 'PR') totalPR += peso;
+            totalGeral += peso;
+        });
+
+        // Montar a UI dos KPIs baseada no Premium V10
+        const formatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+
+        // Exibe botão de apagar mês se tiver dados
+        const btnApagarMes = document.getElementById('btnApagarMesVarejo');
+        if (btnApagarMes) {
+            if (window.currentVarejoData.length > 0) {
+                btnApagarMes.classList.remove('d-none');
+            } else {
+                btnApagarMes.classList.add('d-none');
+            }
+        }
+
+        // Obter as quantidades de pedidos
+        const countGeral = window.currentVarejoData.length;
+        const countSP = window.currentVarejoData.filter(i => i.uf === 'SP').length;
+        const countPR = window.currentVarejoData.filter(i => i.uf === 'PR').length;
+
+        resultadoDiv.innerHTML = `
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="kpi-card-modern available stat-card-clickable" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'GERAL')" title="Clique para exportar Excel de todo o Varejo">
+                        <i class="bi bi-box-seam kpi-icon-watermark"></i>
+                        <div class="kpi-label"><i class="bi bi-truck"></i> Total Geral (Varejo)</div>
+                        <div class="kpi-metric-group">
+                            <span class="kpi-metric-value text-primary">${formatter.format(totalGeral)}</span>
+                            <span class="kpi-metric-unit">KG</span>
+                        </div>
+                        <div class="kpi-footer border-0 pt-0 mt-1">
+                            <span><i class="bi bi-box-seam me-1"></i> ${countGeral} pedidos</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="kpi-card-modern stat-card-clickable" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'SP')" title="Clique para exportar Excel apenas de São Paulo">
+                        <i class="bi bi-building kpi-icon-watermark"></i>
+                        <div class="kpi-label"><i class="bi bi-geo-alt-fill text-info"></i> São Paulo</div>
+                        <div class="kpi-metric-group">
+                            <span class="kpi-metric-value">${formatter.format(totalSP)}</span>
+                            <span class="kpi-metric-unit">KG</span>
+                        </div>
+                        <div class="kpi-footer border-0 pt-0 mt-1 d-flex justify-content-between">
+                            <span>${totalGeral > 0 ? ((totalSP / totalGeral) * 100).toFixed(1) : 0}%</span>
+                            <span><i class="bi bi-box-seam me-1"></i> ${countSP} pedidos</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="kpi-card-modern stat-card-clickable" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'PR')" title="Clique para exportar Excel apenas do Paraná">
+                        <i class="bi bi-tree kpi-icon-watermark"></i>
+                        <div class="kpi-label"><i class="bi bi-geo-alt-fill text-success"></i> Paraná</div>
+                        <div class="kpi-metric-group">
+                            <span class="kpi-metric-value">${formatter.format(totalPR)}</span>
+                            <span class="kpi-metric-unit">KG</span>
+                        </div>
+                        <div class="kpi-footer border-0 pt-0 mt-1 d-flex justify-content-between">
+                            <span>${totalGeral > 0 ? ((totalPR / totalGeral) * 100).toFixed(1) : 0}%</span>
+                            <span><i class="bi bi-box-seam me-1"></i> ${countPR} pedidos</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botões de exportação -->
+            <div class="d-flex gap-2 mt-3">
+                <button class="btn btn-sm btn-outline-success w-50" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'GERAL')">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Excel Geral
+                </button>
+                <button class="btn btn-sm btn-outline-danger w-50" onclick="exportarRelatorioVarejoPDF('${ano}-${mes}', 'GERAL')">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> PDF Geral
+                </button>
+            </div>
+            <div class="d-flex gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-info w-50" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'SP')">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Excel SP
+                </button>
+                <button class="btn btn-sm btn-outline-info w-50" onclick="exportarRelatorioVarejoPDF('${ano}-${mes}', 'SP')">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> PDF SP
+                </button>
+            </div>
+            <div class="d-flex gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-warning w-50" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'PR')">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Excel PR
+                </button>
+                <button class="btn btn-sm btn-outline-warning w-50" onclick="exportarRelatorioVarejoPDF('${ano}-${mes}', 'PR')">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> PDF PR
+                </button>
+            </div>
+        `;
+
+    } catch (err) {
+        console.error('Erro ao buscar dados do Supabase:', err);
+        resultadoDiv.innerHTML = `<div class="alert alert-danger">Erro ao buscar dados: ${err.message}</div>`;
+    } finally {
+        loader.classList.add('d-none');
+        resultadoDiv.classList.remove('d-none');
+    }
+}
+// --- FIM: RELATÓRIO MENSAL DE VAREJO ---
+
+
+// Função para Exportar PDF — Relatório Profissional de Varejo
+function exportarRelatorioVarejoPDF(periodo, filtroUF = 'GERAL') {
+    if (!window.currentVarejoData || window.currentVarejoData.length === 0) {
+        if (typeof showToast === 'function') showToast('Não há dados para exportar.', 'warning');
+        else alert('Não há dados para exportar.');
+        return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    if (!jsPDF) { alert('Biblioteca jsPDF não disponível.'); return; }
+
+    const exportData = filtroUF === 'GERAL'
+        ? window.currentVarejoData
+        : window.currentVarejoData.filter(i => i.uf === filtroUF);
+
+    if (exportData.length === 0) {
+        if (typeof showToast === 'function') showToast(`Sem dados para ${filtroUF}.`, 'warning');
+        return;
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const totalKg = exportData.reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
+    const [ano, mes] = periodo.split('-');
+    const mesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const periodoLabel = `${mesNomes[parseInt(mes, 10) - 1]} / ${ano}`;
+    const filtroLabel = filtroUF === 'GERAL' ? 'Geral (SP + PR)' : (filtroUF === 'SP' ? 'São Paulo' : 'Paraná');
+    const geradoEm = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    // ── Cabeçalho ──────────────────────────────────────────────────────────────
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 22, 'F');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.text('RELATÓRIO DE VAREJO — APEX LOG', 14, 10);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(180, 180, 180);
+    doc.text(`Período: ${periodoLabel}  |  Filtro: ${filtroLabel}  |  Gerado em: ${geradoEm}`, 14, 17);
+
+    // ── KPI Summary ────────────────────────────────────────────────────────────
+    const kpiY = 28;
+    const kpiW = (pageWidth - 28) / 3;
+
+    const totalSP = window.currentVarejoData.filter(i => i.uf === 'SP').reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
+    const totalPR = window.currentVarejoData.filter(i => i.uf === 'PR').reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
+    const totalGeral = totalSP + totalPR;
+    const fmt = v => v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+    // Monta apenas os cards relevantes para o filtro selecionado
+    const allCards = [
+        { label: 'TOTAL GERAL', value: `${fmt(totalGeral)} KG`, sub: `${window.currentVarejoData.length} pedidos`, color: [37, 99, 235], uf: 'GERAL' },
+        { label: 'SÃO PAULO', value: `${fmt(totalSP)} KG`, sub: `${window.currentVarejoData.filter(i => i.uf === 'SP').length} pedidos  |  ${totalGeral > 0 ? ((totalSP / totalGeral) * 100).toFixed(1) : 0}%`, color: [6, 182, 212], uf: 'SP' },
+        { label: 'PARANÁ', value: `${fmt(totalPR)} KG`, sub: `${window.currentVarejoData.filter(i => i.uf === 'PR').length} pedidos  |  ${totalGeral > 0 ? ((totalPR / totalGeral) * 100).toFixed(1) : 0}%`, color: [16, 185, 129], uf: 'PR' },
+    ];
+
+    const visibleCards = filtroUF === 'GERAL'
+        ? allCards  // todos os 3 cards
+        : allCards.filter(c => c.uf === filtroUF);  // apenas o card do UF selecionado
+
+    const kpiCount = visibleCards.length;
+    const kpiWAdj = (pageWidth - 28 - (kpiCount - 1) * 4) / kpiCount;
+
+    visibleCards.forEach(({ label, value, sub, color }, idx) => {
+        const x = 14 + idx * (kpiWAdj + 4);
+        doc.setFillColor(...color);
+        doc.roundedRect(x, kpiY, kpiWAdj, 22, 2, 2, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text(label, x + 4, kpiY + 6);
+
+        doc.setFontSize(11);
+        doc.text(value, x + 4, kpiY + 14);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(230, 255, 255);
+        doc.text(sub, x + 4, kpiY + 20);
+    });
+
+    // ── Tabela de dados ────────────────────────────────────────────────────────
+    const rows = exportData.map(item => {
+        let dateStr = item.data_pedido;
+        if (dateStr && dateStr.includes('-')) {
+            const p = dateStr.split('-');
+            dateStr = `${p[2]}/${p[1]}/${p[0]}`;
+        }
+        return [
+            item.rota || '',
+            item.cliente || '',
+            item.nome_cliente || '',
+            item.num_pedido,
+            (parseFloat(item.quilos) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }),
+            dateStr,
+            item.uf,
+            item.cidade || ''
+        ];
+    });
+
+    doc.autoTable({
+        startY: kpiY + 27,
+        head: [['Rota', 'Cliente', 'Nome Cliente', 'Num Pedido', 'Quilos', 'Data Pedido', 'UF', 'Cidade']],
+        body: rows,
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 2, textColor: [30, 30, 30] },
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+        alternateRowStyles: { fillColor: [245, 247, 252] },
+        columnStyles: {
+            0: { cellWidth: 14 },
+            1: { cellWidth: 20 },
+            2: { cellWidth: 55 },
+            3: { cellWidth: 24 },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 26 },
+            6: { cellWidth: 12, halign: 'center' },
+            7: { cellWidth: 'auto' }
+        },
+        foot: [['', '', '', `Total: ${exportData.length} pedidos`, `${totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} KG`, '', '', '']],
+        footStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+        showFoot: 'lastPage',
+        didDrawPage: (hookData) => {
+            // Rodapé de página
+            const pCount = doc.internal.getNumberOfPages();
+            const pCurrent = hookData.pageNumber;
+            doc.setFontSize(7);
+            doc.setTextColor(150);
+            doc.text(`Página ${pCurrent} de ${pCount}  —  APEX LOG  —  ${geradoEm}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 5, { align: 'center' });
+        }
+    });
+
+    const nomeArquivo = filtroUF !== 'GERAL' ? `Relatorio_Varejo_${filtroUF}_${periodo}.pdf` : `Relatorio_Varejo_Geral_${periodo}.pdf`;
+    doc.save(nomeArquivo);
+    if (typeof showToast === 'function') showToast(`PDF exportado: ${nomeArquivo}`, 'success');
+}
+
+
+// Função para Exportar Excel
+function exportarRelatorioVarejoExcel(periodo, filtroUF = 'GERAL') {
+    if (!window.currentVarejoData || window.currentVarejoData.length === 0) {
+        if (typeof showToast === 'function') showToast('Não há dados para exportar.', 'warning');
+        else alert('Não há dados para exportar.');
+        return;
+    }
+
+    try {
+        let exportData = window.currentVarejoData;
+        if (filtroUF !== 'GERAL') {
+            exportData = exportData.filter(item => item.uf === filtroUF);
+        }
+
+        if (exportData.length === 0) {
+            if (typeof showToast === 'function') showToast(`Não há dados de ${filtroUF} para exportar.`, 'warning');
+            else alert(`Não há dados de ${filtroUF} para exportar.`);
+            return;
+        }
+
+        // Criar uma aba do Excel formatada
+        const wsData = exportData.map(item => {
+            // Formatar data para DD/MM/YYYY
+            let dateStr = item.data_pedido;
+            if (dateStr && dateStr.includes('-')) {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+
+            return {
+                'Rota': item.rota || '',
+                'Cliente': item.cliente || '',
+                'Nome Cliente': item.nome_cliente || '',
+                'Num Pedido': item.num_pedido,
+                'Quilos': parseFloat(item.quilos) || 0,
+                'Data Pedido': dateStr,
+                'UF': item.uf,
+                'Cidade': item.cidade || ''
+            };
+        });
+
+        const nomeArquivo = filtroUF !== 'GERAL' ? `Relatorio_Varejo_${filtroUF}_${periodo}.xlsx` : `Relatorio_Varejo_Geral_${periodo}.xlsx`;
+        const abaExcel = filtroUF !== 'GERAL' ? `Varejo_${filtroUF}_${periodo}` : `Varejo_${periodo}`;
+
+        const ws = XLSX.utils.json_to_sheet(wsData);
+        // Ajustar largura das colunas
+        ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 12 }, { wch: 15 }, { wch: 6 }, { wch: 25 }];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, abaExcel.substring(0, 31)); // excel aba max length é 31
+
+        // Disparar o download
+        XLSX.writeFile(wb, nomeArquivo);
+
+        if (typeof showToast === 'function') showToast(`Relatório ${filtroUF === 'GERAL' ? '' : filtroUF} exportado com sucesso!`, 'success');
+    } catch (e) {
+        console.error('Erro ao exportar Excel:', e);
+        if (typeof showToast === 'function') showToast('Erro ao exportar relatório.', 'error');
+        else alert('Erro ao exportar relatório.');
+    }
+}
+
+// Função para Apagar o Mês do Banco de Dados
+async function apagarMesVarejo() {
+    const inputMes = document.getElementById('filtroMesVarejo').value;
+    if (!inputMes) return;
+
+    const confirmacao = confirm(`Tem certeza que deseja apagar DEFINITIVAMENTE todos os dados de Varejo (SP/PR) referentes a ${inputMes}? Eles serão deletados da nuvem.`);
+    if (!confirmacao) return;
+
+    const [ano, mes] = inputMes.split('-');
+    const dataInicio = `${ano}-${mes}-01`;
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    const dataFim = `${ano}-${mes}-${ultimoDia}`;
+
+    const sbClient = window.supabaseClient || window.supabase || null;
+    if (!sbClient) {
+        if (typeof showToast === 'function') showToast('Erro de conexão com Supabase.', 'error');
+        else alert('Erro de conexão com Supabase.');
+        return;
+    }
+
+    try {
+        const { error } = await sbClient.from('historico_pedidos_varejo')
+            .delete()
+            .gte('data_pedido', dataInicio)
+            .lte('data_pedido', dataFim);
+
+        if (error) throw error;
+
+        if (typeof showToast === 'function') showToast('Dados de Varejo apagados com sucesso!', 'success');
+        else alert('Dados de Varejo apagados com sucesso!');
+
+        // Limpar a view depois de apagar
+        document.getElementById('resultadoRelatorioVarejo').innerHTML = '';
+        const btnApagarMes = document.getElementById('btnApagarMesVarejo');
+        if (btnApagarMes) btnApagarMes.classList.add('d-none');
+    } catch (err) {
+        console.error('Erro ao deletar Mês de Varejo:', err);
+        if (typeof showToast === 'function') showToast('Falha ao deletar dados.', 'error');
+        else alert('Falha ao deletar dados.');
+    }
+}

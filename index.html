@@ -902,6 +902,12 @@
                 <span>Gerador de E-mails</span>
             </a>
 
+            <!-- LINK RELATÓRIO MENSAL DE VAREJO -->
+            <a href="#" class="sidebar-link" data-bs-toggle="offcanvas" data-bs-target="#relatorioVarejoOffcanvas">
+                <i class="bi bi-bar-chart-steps text-warning"></i>
+                <span>Relatório Varejo SP/PR</span>
+            </a>
+
             <!-- Dropdown Logic for Sidebar (Basic Collapse) -->
             <div class="sidebar-link-group">
                 <a href="#" class="sidebar-link" data-bs-toggle="collapse" data-bs-target="#analises-collapse">
@@ -3119,6 +3125,56 @@
             }
         }
     </style>
+    <!-- OFFCANVAS RELATÓRIO MENSAL DE VAREJO -->
+    <div class="offcanvas offcanvas-end offcanvas-glass text-light" tabindex="-1" id="relatorioVarejoOffcanvas"
+        aria-labelledby="relatorioVarejoLabel" style="width: 500px; max-width: 100vw;">
+        <div class="offcanvas-header border-bottom border-light border-opacity-10 pb-3">
+            <h5 class="offcanvas-title d-flex align-items-center gap-2" id="relatorioVarejoLabel">
+                <i class="bi bi-bar-chart-steps text-warning fs-4"></i>
+                <span class="fw-bold tracking-wide">Volume Varejo (SP/PR)</span>
+            </h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"
+                aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column gap-4 p-4">
+
+            <!-- Card de Filtro: Ano e Mês -->
+            <div class="cloud-session-card p-3">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-calendar-event text-info"></i>
+                    <h6 class="mb-0 fw-bold">Período de Análise</h6>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <input type="month" id="filtroMesVarejo"
+                            class="form-control bg-dark-glass text-light border-secondary">
+                    </div>
+                    <div class="col-6 d-flex gap-2">
+                        <button class="btn btn-magic w-100" onclick="carregarRelatorioVarejo()">
+                            <i class="bi bi-search me-1"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loader -->
+                <div id="loaderRelatorioVarejo" class="d-none text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted small mt-2">Buscando histórico na nuvem...</p>
+                </div>
+
+                <!-- Empty State / Resultados -->
+                <div id="resultadoRelatorioVarejo" class="d-flex flex-column gap-3">
+                    <div class="empty-state-premium">
+                        <i class="bi bi-clouds empty-state-icon"></i>
+                        <h6 class="text-light fw-bold">Pronto para Análise</h6>
+                        <p class="text-muted small mb-0 px-3">Selecione o mês desejado e clique em buscar para
+                            visualizar o
+                            histórico de peso recebido.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
 </body>
 
 </html>
