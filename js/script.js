@@ -328,6 +328,9 @@ var agendamentoClientCodes = new Set([
 ]);
 
 const specialClientNames = ['IRMAOS MUFFATO S.A', 'IRMAOS MUFFATO & CIA LTDA', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD S/A COM. E IMPORTACAO', 'PRIMATO COOPERATIVA AGROINDUSTRIAL'];
+// APEX ADMIN: expose globally for runtime overrides
+window.specialClientNames = specialClientNames;
+window.agendamentoClientCodes = agendamentoClientCodes;
 
 // ================================================================================================
 //  INáCIO DO SEU Cá“DIGO JAVASCRIPT ORIGINAL (SEM MODIFICAá‡á•ES NA Lá“GICA)
@@ -445,10 +448,16 @@ function getVehicleConfig(vehicleType) {
     return configs;
 }
 
-// Helper para verificar/mockar config de Especial se não existir
+// Helper para verificar/mockar config de Especial se nÃ£o existir
+// APEX ADMIN: reads Supabase vehicle config overrides if available
 function getVehicleConfigSafe(vehicleType) {
     if (vehicleType === 'especial') {
         return { minKg: 0, softMaxKg: 99999, softMaxCubage: 99999, hardMaxKg: 99999, hardMaxCubage: 99999 };
+    }
+    // Check for admin override from Supabase (loaded into window._apexAdminVehicleConfig by admin.js)
+    const adminCfg = window._apexAdminVehicleConfig;
+    if (adminCfg && adminCfg[vehicleType]) {
+        return adminCfg[vehicleType];
     }
     return getVehicleConfig(vehicleType);
 }
@@ -1095,6 +1104,9 @@ const rotaVeiculoMap = {
     '11361': { type: 'tresQuartos', title: 'Rota 11361' }, '11501': { type: 'tresQuartos', title: 'Rotas 11501, 11502 & 11511', combined: ['11502', '11511'] }, '11502': { type: 'tresQuartos', title: 'Rotas 11501, 11502 & 11511', combined: ['11501', '11511'] }, '11511': { type: 'tresQuartos', title: 'Rotas 11501, 11502 & 11511', combined: ['11501', '11502'] }, '11541': { type: 'tresQuartos', title: 'Rota 11541' }
 };
 
+// APEX ADMIN: expose globally so admin.js can read route map
+window.rotaVeiculoMap = rotaVeiculoMap;
+
 // Mapa de rotas e suas cidades permitidas para Fiorino (Global)
 const rotasEspeciaisFiorino = {
     '11711': [
@@ -1119,6 +1131,8 @@ const rotasEspeciaisFiorino = {
         'ORTIGUEIRA', 'IMBAU', 'TELEMACO BORBA'
     ]
 };
+// APEX ADMIN: expose globally for runtime fiorino cities overrides
+window.rotasEspeciaisFiorino = rotasEspeciaisFiorino;
 
 const fileInput = document.getElementById('fileInput');
 const processarBtn = document.getElementById('processarBtn');
@@ -2142,6 +2156,15 @@ function processar() {
                             let dataFormatada = p.Dat_Ped;
                             if (p.Dat_Ped instanceof Date && !isNaN(p.Dat_Ped)) {
                                 dataFormatada = p.Dat_Ped.toISOString().split('T')[0];
+                            } else if (typeof dataFormatada === 'string' && dataFormatada.includes('/')) {
+                                // Convert DD/MM/YYYY to YYYY-MM-DD for Supabase sorting/filtering
+                                const parts = dataFormatada.split('/');
+                                if (parts.length === 3) {
+                                    const d = parts[0].padStart(2, '0');
+                                    const m = parts[1].padStart(2, '0');
+                                    const y = parts[2].length === 2 ? '20' + parts[2] : parts[2];
+                                    dataFormatada = `${y}-${m}-${d}`;
+                                }
                             }
                             return {
                                 num_pedido: String(p.Num_Pedido).trim(),
@@ -2175,6 +2198,11 @@ function processar() {
             // --- FIM: INTEGRAÇÃO SUPABASE VAREJO ---
 
             statusDiv.innerHTML = `<p class="text-success">Processamento concluá­do!</p>`;
+
+            // Grava o data/hora do "Ultimo Processamento"
+            if (window.apexAdmin && typeof window.apexAdmin.logLastProcessar === 'function') {
+                window.apexAdmin.logLastProcessar().catch(e => console.error('Erro ao salvar ultimo processamento', e));
+            }
         } catch (error) {
             // Garante que a lista de bloqueados seja exibida mesmo em caso de erro parcial
             const resultadoBloqueadosDiv = document.getElementById('resultado-bloqueados');
@@ -4559,6 +4587,9 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 
                 ${oldestDateHtml}
                 
+
+                <!-- APEX Client Observation Notes -->
+                <div id="apex-obs-${load.id}" class="apex-obs-block" data-clients="${load.pedidos.map(p => String(p.Cliente || '').trim()).join(',')}" style="display:none"></div>
                 <div class="text-end mt-2 me-2 mb-1" style="font-size: 0.7rem; opacity: 0.6;">
                     ID: ${load.id}
                 </div>
