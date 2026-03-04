@@ -140,10 +140,20 @@ $adminHtml = @'
             <button class="acc-btn acc-btn-ghost" onclick="accResetarRotas()">Resetar Tudo</button>
           </div>
         </div>
-        <div class="acc-table-scroll" style="max-height:500px">
+        <div class="acc-table-scroll acc-mt">
           <table class="acc-table">
-            <thead><tr><th>Codigo</th><th>Rota</th><th>Veiculo</th></tr></thead>
-            <tbody id="acc-rotas-tbody"><tr><td colspan="3" style="text-align:center;color:#64748b;padding:2rem">Carregando rotas...</td></tr></tbody>
+            <thead>
+              <tr>
+                <th style="width: 80px">Código</th>
+                <th style="width: 150px">Nome Padrão</th>
+                <th style="width: 250px">Nome Custom</th>
+                <th style="width: 120px">Veículo</th>
+                <th style="width: 100px">Posição</th>
+              </tr>
+            </thead>
+            <tbody id="acc-rotas-tbody">
+              <tr><td colspan="5" style="text-align:center;color:#64748b;padding:2rem">Carregando rotas...</td></tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -215,15 +225,19 @@ $adminHtml = @'
 </div>
 <script src="js/admin.js"></script>
 </body>
+<script>
+  // Script bridge if needed for the admin panel to talk to main UI
+</script>
+</html>
 '@
 
 # Find the last </body> and replace it
 $lastBodyIdx = $content.LastIndexOf('</body>')
 if ($lastBodyIdx -ge 0) {
-    $newContent = $content.Substring(0, $lastBodyIdx) + $adminHtml + "`r`n</html>"
-    [System.IO.File]::WriteAllText($htmlPath, $newContent, [System.Text.Encoding]::UTF8)
-    Write-Host "SUCCESS: Admin HTML injected ($($adminHtml.Length) chars)"
+  $newContent = $content.Substring(0, $lastBodyIdx) + $adminHtml
+  [System.IO.File]::WriteAllText($htmlPath, $newContent, [System.Text.Encoding]::UTF8)
+  Write-Host "SUCCESS: Admin HTML injected ($($adminHtml.Length) chars)"
 }
 else {
-    Write-Host "ERROR: </body> not found"
+  Write-Host "ERROR: </body> not found"
 }

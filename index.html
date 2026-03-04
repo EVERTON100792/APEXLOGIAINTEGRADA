@@ -1156,6 +1156,11 @@
                                             class="bi bi-truck"></i>VAN - 3/4 SP <span id="badge-van-sp"
                                             class="badge bg-white text-primary ms-2 rounded-pill d-none">0</span></button>
                                 </li>
+                                <li class="nav-item" role="presentation"><button class="nav-link tab-van"
+                                        data-bs-toggle="tab" data-bs-target="#van-ms-tab-pane"><i
+                                            class="bi bi-truck"></i>VAN - 3/4 MS <span id="badge-van-ms"
+                                            class="badge bg-white text-primary ms-2 rounded-pill d-none">0</span></button>
+                                </li>
 
                                 <li class="nav-item" role="presentation"><button class="nav-link tab-toco"
                                         data-bs-toggle="tab" data-bs-target="#toco-tab-pane"><i
@@ -1260,6 +1265,29 @@
                                     </div>
                                     <hr class="no-print">
                                     <div id="resultado-van-sp" class="mt-3"></div>
+                                </div>
+
+                                <div class="tab-pane fade workspace-tab-pane" id="van-ms-tab-pane" role="tabpanel">
+                                    <div
+                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
+                                            <strong>(Mato Grosso do Sul)</strong> para montar as cargas de Van.
+                                        </p>
+                                        <div class="btn-group">
+                                            <button class="btn btn-primary"
+                                                onclick="imprimirCargasGeneric('resultado-van-ms', 'Cargas de Van - MS')">
+                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3 no-print" id="botoes-van-ms">
+                                        <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
+                                            <p>Nenhuma rota de Van (MS) disponível. Processe um arquivo para começar.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <hr class="no-print">
+                                    <div id="resultado-van-ms" class="mt-3"></div>
                                 </div>
 
                                 <div class="tab-pane fade" id="toco-tab-pane" role="tabpanel">
@@ -3233,6 +3261,17 @@
 
                         </li>
 
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn" data-bs-toggle="tab" data-bs-target="#pane-ms" type="button"
+                                role="tab">
+
+                                <i class="bi bi-geo-alt-fill me-2"></i>Mato Grosso do Sul
+
+                            </button>
+
+                        </li>
+
                     </ul>
 
                 </div>
@@ -3349,6 +3388,38 @@
 
                     </div>
 
+                    <!-- Pane MS -->
+
+                    <div class="tab-pane fade varejo-tab-pane" id="pane-ms" role="tabpanel">
+
+                        <div id="kpiMS" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaMS" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Pedidos - Mato Grosso do Sul</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsMS" class="varejo-btn-export xls d-none"
+                                        onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'MS')"><i
+                                            class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfMS" class="varejo-btn-export pdf d-none"
+                                        onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'MS')"><i
+                                            class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaMSContent"></div>
+
+                        </div>
+
+                    </div>
+
                 </div>
 
             </div>
@@ -3359,6 +3430,8 @@
 
 
 
+
+    <!-- APEX_ADMIN_START -->
     <!-- APEX COMMAND CENTER: PIN MODAL -->
     <div id="apex-pin-modal" style="display:none">
         <div class="acc-pin-card">
@@ -3444,7 +3517,8 @@
                                 <select id="acc-uf-select" class="acc-select">
                                     <option value="SP">Sao Paulo (SP)</option>
                                     <option value="PR">Parana (PR)</option>
-                                    <option value="AMBOS">SP e PR</option>
+                                    <option value="MS">Mato Grosso do Sul (MS)</option>
+                                    <option value="AMBOS">SP, PR e MS</option>
                                 </select>
                                 <button class="acc-btn acc-btn-warning" onclick="accLimparUF()">Limpar</button>
                             </div>
@@ -3492,7 +3566,7 @@
                 </div>
                 <div class="acc-card acc-mt">
                     <h3 class="acc-card-title">Log de Acoes</h3>
-                    <div class="acc-table-scroll" style="max-height: 400px;">
+                    <div class="acc-table-scroll" style="max-height: 400px; overflow-y: auto;">
                         <table class="acc-table">
                             <thead>
                                 <tr>
@@ -3517,25 +3591,27 @@
             <div id="acc-pane-rotas" class="acc-pane">
                 <div class="acc-card">
                     <div class="acc-card-header-row">
-                        <h3 class="acc-card-title">Override de Veiculo por Rota</h3>
+                        <h3 class="acc-card-title">Configurar Nomes de Rotas</h3>
                         <div class="acc-row-inline">
                             <button class="acc-btn acc-btn-primary" onclick="accSalvarRotas()">Salvar
                                 Alteracoes</button>
                             <button class="acc-btn acc-btn-ghost" onclick="accResetarRotas()">Resetar Tudo</button>
                         </div>
                     </div>
-                    <div class="acc-table-scroll" style="max-height:500px">
+                    <div class="acc-table-scroll acc-mt" style="max-height: 500px; overflow-y: auto;">
                         <table class="acc-table">
                             <thead>
                                 <tr>
-                                    <th>Codigo</th>
-                                    <th>Rota</th>
-                                    <th>Veiculo</th>
+                                    <th style="width: 80px">Codigo</th>
+                                    <th style="width: 150px">Nome Padrao</th>
+                                    <th style="width: 250px">Nome Custom</th>
+                                    <th style="width: 120px">Veiculo</th>
+                                    <th style="width: 100px">Posicao</th>
                                 </tr>
                             </thead>
                             <tbody id="acc-rotas-tbody">
                                 <tr>
-                                    <td colspan="3" style="text-align:center;color:#64748b;padding:2rem">Carregando
+                                    <td colspan="5" style="text-align:center;color:#64748b;padding:2rem">Carregando
                                         rotas...</td>
                                 </tr>
                             </tbody>
@@ -3648,6 +3724,22 @@
                         <div class="acc-stat-label">LocalStorage</div>
                     </div>
                 </div>
+
+                <!-- Database Capacity Bar -->
+                <div class="acc-card acc-mt">
+                    <div class="acc-card-header-row">
+                        <h3 class="acc-card-title">Capacidade de Registros (Supabase)</h3>
+                        <span id="acc-health-pct" class="acc-amber" style="font-size: 0.85rem;">0%</span>
+                    </div>
+                    <div class="acc-capacity-container">
+                        <div id="acc-health-bar" class="acc-capacity-bar" style="width: 0%"></div>
+                    </div>
+                    <div class="acc-hint acc-mt-sm">
+                        O limite de <strong id="acc-health-limit">100.000</strong> pedidos é uma recomendação para
+                        manter os relatórios e a mesa de trabalho instantâneos.
+                    </div>
+                </div>
+
                 <div class="acc-card acc-mt">
                     <h3 class="acc-card-title">Ultimo Processamento</h3>
                     <p id="acc-health-lastprocess" class="acc-mono">--</p>
@@ -3657,122 +3749,211 @@
                     <div id="acc-health-errors" class="acc-error-log"></div>
                 </div>
             </div>
-            <!-- REGRAS DE NEGOCIO PANE -->
+
+            <!-- PANE: Regras -->
             <div id="acc-pane-regras" class="acc-pane">
+                <div class="acc-grid-2">
+                    <!-- Column 1: Fiorino and Clients -->
+                    <div style="display:flex;flex-direction:column;gap:1rem">
+                        <!-- Fiorino Cities -->
+                        <div class="acc-card">
+                            <div class="acc-card-header-row">
+                                <h3 class="acc-card-title">Cidades Fiorino por Rota</h3>
+                                <button class="acc-btn acc-btn-primary acc-btn-sm"
+                                    onclick="accSalvarFiorinoCities()">Salvar Tudo</button>
+                            </div>
+                            <div class="acc-form-group">
+                                <div class="acc-row-inline">
+                                    <input id="acc-fc-new-code" class="acc-input" type="text"
+                                        placeholder="Nova Rota (ex: 101)" style="width:140px">
+                                    <button class="acc-btn acc-btn-sm" onclick="accAdicionarRotaFiorino()">+ Add
+                                        Rota</button>
+                                </div>
+                            </div>
+                            <div id="acc-fiorino-routes" class="acc-regras-list">
+                                <p style="color:#64748b;font-size:0.82rem">Carregando rotas fiorino...</p>
+                            </div>
+                        </div>
 
-                <!-- Cidades Fiorino -->
-                <div class="acc-card">
-                    <div class="acc-card-header-row">
-                        <h3 class="acc-card-title">Cidades Permitidas Fiorino por Rota</h3>
-                        <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accSalvarFiorinoCities()">Salvar
-                            Cidades</button>
+                        <!-- Special Clients -->
+                        <div class="acc-card">
+                            <h3 class="acc-card-title">Clientes Especiais (Destaque)</h3>
+                            <div class="acc-form-group">
+                                <div class="acc-row-inline">
+                                    <input id="acc-sc-new" class="acc-input" type="text" placeholder="NOME DO CLIENTE">
+                                    <button class="acc-btn acc-btn-primary"
+                                        onclick="accAdicionarClienteEspecial()">Adicionar</button>
+                                </div>
+                            </div>
+                            <div id="acc-special-clients-list" class="acc-tags-container">
+                                <!-- Loaded dynamically -->
+                            </div>
+                        </div>
                     </div>
-                    <p class="acc-hint">Edite as cidades que podem fazer Fiorino em cada rota. Separe por virgula em
-                        MAIUSCULO. Novas cidades adicionadas aqui ficam validas automaticamente.</p>
-                    <div class="acc-row-inline acc-mt-sm" style="margin-bottom:0.75rem">
-                        <input id="acc-fc-new-code" class="acc-input" style="max-width:140px"
-                            placeholder="Codigo da rota">
-                        <button class="acc-btn acc-btn-sm" onclick="accAdicionarRotaFiorino()">+ Adicionar Rota</button>
-                    </div>
-                    <div id="acc-fiorino-routes" style="display:flex;flex-direction:column;gap:0.5rem">
-                        <p style="color:#64748b;font-size:0.82rem">Carregando...</p>
+
+                    <!-- Column 2: Agendamento and Observations -->
+                    <div style="display:flex;flex-direction:column;gap:1rem">
+                        <!-- Agendamento Overrides -->
+                        <div class="acc-card">
+                            <h3 class="acc-card-title">Overrides de Agendamento</h3>
+                            <div class="acc-form-group">
+                                <div class="acc-row-inline">
+                                    <input id="acc-ag-code" class="acc-input" type="text" placeholder="Cod Cliente"
+                                        style="width:100px">
+                                    <select id="acc-ag-val" class="acc-select">
+                                        <option value="Sim">Sim (Agendar)</option>
+                                        <option value="Nao">Nao (Ignorar)</option>
+                                    </select>
+                                    <button class="acc-btn acc-btn-primary"
+                                        onclick="accAdicionarAgendamento()">Salvar</button>
+                                </div>
+                            </div>
+                            <div class="acc-table-scroll" style="max-height: 200px">
+                                <table class="acc-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cliente</th>
+                                            <th>Agendar?</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="acc-agend-tbody">
+                                        <!-- Loaded dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Client Observations -->
+                        <div class="acc-card">
+                            <h3 class="acc-card-title">Observacoes de Clientes</h3>
+                            <div class="acc-form-group">
+                                <input id="acc-obs-code" class="acc-input" type="text" placeholder="Codigo do Cliente"
+                                    style="margin-bottom:0.5rem">
+                                <textarea id="acc-obs-text" class="acc-textarea"
+                                    placeholder="Observacao (aparecera nos cards)"></textarea>
+                                <button class="acc-btn acc-btn-primary acc-mt-sm" style="width:100%"
+                                    onclick="accSalvarObsCliente()">Salvar Observacao</button>
+                            </div>
+                            <div class="acc-table-scroll" style="max-height: 250px">
+                                <table class="acc-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Cod</th>
+                                            <th>Observacao</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="acc-obs-tbody">
+                                        <!-- Loaded dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Clientes Especiais -->
-                <div class="acc-card acc-mt">
-                    <div class="acc-card-header-row">
-                        <h3 class="acc-card-title">Clientes Especiais</h3>
-                    </div>
-                    <p class="acc-hint">Clientes listados aqui recebem tratamento especial na distribuicao. Adicione
-                        pelo nome exato em MAIUSCULO.</p>
-                    <div class="acc-row-inline" style="margin-bottom:0.75rem">
-                        <input id="acc-sc-new" class="acc-input" placeholder="Nome do cliente (MAIUSCULO)">
-                        <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accAdicionarClienteEspecial()">+
-                            Adicionar</button>
-                    </div>
-                    <div id="acc-special-clients-list" style="display:flex;flex-wrap:wrap;gap:0.5rem">
-                        <p style="color:#64748b;font-size:0.82rem">Carregando...</p>
-                    </div>
-                </div>
+            <style>
+                /* Regras Pane Specific Styles */
+                .acc-regras-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.75rem;
+                    max-height: 300px;
+                    overflow-y: auto;
+                    margin-top: 0.5rem;
+                    padding-right: 0.5rem;
+                }
 
-                <!-- Agendamento -->
-                <div class="acc-card acc-mt">
-                    <div class="acc-card-header-row">
-                        <h3 class="acc-card-title">Overrides de Agendamento</h3>
-                    </div>
-                    <p class="acc-hint">Defina se um codigo de cliente tem agendamento (Sim) ou nao (Nao). Sobrescreve a
-                        lista padrao. Salvo no Supabase e aplicado para todos os usuarios.</p>
-                    <div class="acc-row-inline" style="margin-bottom:0.75rem">
-                        <input id="acc-ag-code" class="acc-input" style="max-width:160px"
-                            placeholder="Codigo do cliente">
-                        <select id="acc-ag-val" class="acc-select">
-                            <option value="Sim">Sim - com agendamento</option>
-                            <option value="Nao">Nao - sem agendamento</option>
-                        </select>
-                        <button class="acc-btn acc-btn-primary acc-btn-sm"
-                            onclick="accAdicionarAgendamento()">Definir</button>
-                    </div>
-                    <div class="acc-table-scroll">
-                        <table class="acc-table">
-                            <thead>
-                                <tr>
-                                    <th>Codigo</th>
-                                    <th>Agendamento</th>
-                                    <th>Acao</th>
-                                </tr>
-                            </thead>
-                            <tbody id="acc-agend-tbody">
-                                <tr>
-                                    <td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Nenhum
-                                        override.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                .acc-regra-row {
+                    background: #050c1a;
+                    border: 1px solid #1e3a5f;
+                    border-radius: 8px;
+                    padding: 0.75rem;
+                }
 
+                .acc-regra-label {
+                    font-size: 0.75rem;
+                    color: #64748b;
+                    margin-bottom: 0.4rem;
+                    font-weight: 600;
+                }
 
-                <!-- Observacoes de Clientes -->
-                <div class="acc-card acc-mt">
-                    <div class="acc-card-header-row">
-                        <h3 class="acc-card-title">Observacoes por Cliente</h3>
-                    </div>
-                    <p class="acc-hint">Cadastre uma nota por codigo de cliente. Ela aparece automaticamente abaixo do
-                        card da carga quando o cliente estiver presente na planilha processada. Ex: "Agendar pelo
-                        WhatsApp (41) 99999-9999"</p>
-                    <div class="acc-row-inline" style="margin-bottom:0.75rem">
-                        <input id="acc-obs-code" class="acc-input" style="max-width:160px"
-                            placeholder="Codigo do cliente">
-                        <input id="acc-obs-text" class="acc-input" style="flex:1"
-                            placeholder="Ex: Agendar pelo WhatsApp (41) 99999-9999">
-                        <button class="acc-btn acc-btn-primary acc-btn-sm"
-                            onclick="accSalvarObsCliente()">Salvar</button>
-                    </div>
-                    <div class="acc-table-scroll">
-                        <table class="acc-table">
-                            <thead>
-                                <tr>
-                                    <th>Codigo</th>
-                                    <th>Observacao</th>
-                                    <th>Acao</th>
-                                </tr>
-                            </thead>
-                            <tbody id="acc-obs-tbody">
-                                <tr>
-                                    <td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Nenhuma
-                                        observacao cadastrada.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div><!-- /acc-pane-regras -->
+                .acc-textarea {
+                    width: 100%;
+                    background: #050c1a;
+                    border: 1px solid #1e3a5f;
+                    border-radius: 6px;
+                    color: #e2e8f0;
+                    font-size: 0.8rem;
+                    padding: 0.5rem;
+                    min-height: 60px;
+                    resize: vertical;
+                    font-family: inherit;
+                }
+
+                .acc-textarea:focus {
+                    outline: none;
+                    border-color: #f59e0b;
+                }
+
+                .acc-tags-container {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.5rem;
+                    margin-top: 0.5rem;
+                }
+
+                .acc-tag-row {
+                    display: flex;
+                    align-items: center;
+                    background: #1e3a5f;
+                    border-radius: 20px;
+                    padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+                    gap: 0.5rem;
+                }
+
+                .acc-tag {
+                    font-size: 0.75rem;
+                    color: #fff;
+                    font-weight: 600;
+                }
+
+                .acc-badge-yes {
+                    background: #065f46;
+                    color: #34d399;
+                    font-size: 0.7rem;
+                    padding: 0.1rem 0.4rem;
+                    border-radius: 4px;
+                    font-weight: 700;
+                }
+
+                .acc-badge-no {
+                    background: #7f1d1d;
+                    color: #f87171;
+                    font-size: 0.7rem;
+                    padding: 0.1rem 0.4rem;
+                    border-radius: 4px;
+                    font-weight: 700;
+                }
+
+                /* Client Obs Badge for Main UI */
+                .apex-client-obs-badge {
+                    background: rgba(245, 158, 11, 0.15);
+                    border: 1px solid rgba(245, 158, 11, 0.3);
+                    color: #fbbf24;
+                    font-size: 0.75rem;
+                    padding: 0.4rem 0.6rem;
+                    border-radius: 6px;
+                    margin-top: 0.5rem;
+                    line-height: 1.4;
+                }
+            </style>
         </div>
     </div>
-
-
     <script src="js/admin.js"></script>
+    <!-- APEX_ADMIN_END -->
 </body>
 
 </html>

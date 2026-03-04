@@ -368,6 +368,45 @@ $adminCss = @'
 
 /* Hint text */
 .acc-hint { font-size: 0.78rem; color: #64748b; margin-bottom: 0.75rem; }
+
+/* Capacity Bar */
+.acc-capacity-container {
+    width: 100%;
+    height: 12px;
+    background: #050c1a;
+    border: 1px solid #1e3a5f;
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+.acc-capacity-bar {
+    height: 100%;
+    width: 0%;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease;
+    position: relative;
+    background-size: 30px 30px;
+    background-image: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.15) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(255, 255, 255, 0.15) 75%,
+        transparent 75%,
+        transparent
+    );
+    animation: acc-stripes 2s linear infinite;
+}
+
+@keyframes acc-stripes {
+    from { background-position: 0 0; }
+    to { background-position: 30px 0; }
+}
+
+.acc-bar-safe { background-color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+.acc-bar-warning { background-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+.acc-bar-danger { background-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
 '@
 
 Add-Content -Path $cssPath -Value $adminCss -Encoding UTF8

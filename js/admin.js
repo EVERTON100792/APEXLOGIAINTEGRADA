@@ -228,13 +228,18 @@
     window.accLimparUF = async function () {
         const uf = document.getElementById('acc-uf-select').value;
         if (!uf) { showAdminAlert('Selecione uma UF.', 'warning'); return; }
-        if (!confirm(`Apagar pedidos de ${uf === 'AMBOS' ? 'SP e PR' : uf}?`)) return;
+
+        let displayUF = uf;
+        if (uf === 'AMBOS') displayUF = 'SP, PR e MS';
+        if (!confirm(`Apagar pedidos de ${displayUF}?`)) return;
 
         const sb = window.supabaseClient || window.supabase;
         let query = sb.from('historico_pedidos_varejo').delete();
+
         if (uf === 'SP') query = query.eq('uf', 'SP');
         else if (uf === 'PR') query = query.eq('uf', 'PR');
-        else query = query.in('uf', ['SP', 'PR']);
+        else if (uf === 'MS') query = query.eq('uf', 'MS');
+        else query = query.in('uf', ['SP', 'PR', 'MS']);
 
         // Use select() to count actual deleted rows
         const { data: deleted, error } = await query.select();
@@ -392,7 +397,6 @@
         await loadDbStats();
         showAdminAlert(`✅ Snapshot "${nome}" restaurado com ${snap.snapshot_data.length.toLocaleString('pt-BR')} registros.`, 'success');
     };
-
     // ─── TAB 2: Rotas e Veículos ──────────────────────────────────────────────
     async function loadRotasData() {
         const sb = window.supabaseClient || window.supabase;
@@ -405,21 +409,38 @@
 
         const rows = Object.entries(map).sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
         if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Processe uma planilha primeiro para ver as rotas.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;padding:1rem">Processe uma planilha primeiro para ver as rotas.</td></tr>';
             return;
         }
 
         tbody.innerHTML = rows.map(([code, info]) => {
-            const override = overrides[code] || info.type;
+            const ov = overrides[code] || {};
+            const vehicleType = ov.type || info.type;
+            const customName = ov.name || '';
+            const order = (ov.order !== undefined && ov.order !== null) ? ov.order : '';
+
             return `<tr>
-                <td><code>${code}</code></td>
-                <td>${info.title || code}</td>
-                <td>
-                    <select class="acc-select" data-rota="${code}" onchange="window._apexRotaChanges = window._apexRotaChanges || {}; window._apexRotaChanges['${code}'] = this.value;">
+                <td style="width: 80px"><code>${code}</code></td>
+                <td style="color:#94a3b8;font-size:0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${info.title || code}">${info.title || code}</td>
+                <td style="width: 250px">
+                    <input class="acc-input" data-rota="${code}" type="text" 
+                        placeholder="Novo nome para a rota..." value="${customName}" 
+                        style="width:100%; height: 32px; background: #050c1a; border: 1px solid #1e3a5f; color: #fff; padding: 4px 8px; cursor: text; pointer-events: auto !important; position: relative; z-index: 5;"
+                        oninput="window._apexRotaChanges = window._apexRotaChanges || {}; window._apexRotaChanges['${code}'] = window._apexRotaChanges['${code}'] || {}; window._apexRotaChanges['${code}'].name = this.value;">
+                </td>
+                <td style="width: 120px">
+                    <select class="acc-select" data-rota="${code}" style="width: 100%; height: 32px; cursor: pointer; pointer-events: auto !important;"
+                        onchange="window._apexRotaChanges = window._apexRotaChanges || {}; window._apexRotaChanges['${code}'] = window._apexRotaChanges['${code}'] || {}; window._apexRotaChanges['${code}'].type = this.value;">
                         ${['fiorino', 'van', 'tresQuartos', 'toco'].map(v =>
-                `<option value="${v}" ${override === v ? 'selected' : ''}>${v === 'tresQuartos' ? '3/4' : v.charAt(0).toUpperCase() + v.slice(1)}</option>`
+                `<option value="${v}" ${vehicleType === v ? 'selected' : ''}>${v === 'tresQuartos' ? '3/4' : v.charAt(0).toUpperCase() + v.slice(1)}</option>`
             ).join('')}
                     </select>
+                </td>
+                <td style="width: 100px">
+                    <input class="acc-input" data-rota="${code}" type="number" 
+                        placeholder="Ord" value="${order}" min="1" max="999"
+                        style="width:100%; height: 32px; background: #050c1a; border: 1px solid #1e3a5f; color: #fff; text-align: center; cursor: text; pointer-events: auto !important;"
+                        oninput="window._apexRotaChanges = window._apexRotaChanges || {}; window._apexRotaChanges['${code}'] = window._apexRotaChanges['${code}'] || {}; window._apexRotaChanges['${code}'].order = parseInt(this.value) || null;">
                 </td>
             </tr>`;
         }).join('');
@@ -432,7 +453,12 @@
         const sb = window.supabaseClient || window.supabase;
         const { data: curr } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'route_overrides').single();
         const existing = curr?.config_value || {};
-        const merged = { ...existing, ...changes };
+
+        // Deep merge changes into existing config
+        const merged = { ...existing };
+        for (const [code, delta] of Object.entries(changes)) {
+            merged[code] = { ...(existing[code] || {}), ...delta };
+        }
 
         const { error } = await sb.from('apex_admin_config')
             .update({ config_value: merged, updated_at: new Date().toISOString() })
@@ -440,25 +466,49 @@
 
         if (error) { showAdminAlert('Erro: ' + error.message, 'danger'); return; }
 
-        // Apply locally to rotaVeiculoMap immediately
+        // Apply locally to in-memory map immediately
         if (window.rotaVeiculoMap) {
-            for (const [code, type] of Object.entries(changes)) {
-                if (window.rotaVeiculoMap[code]) window.rotaVeiculoMap[code].type = type;
+            for (const [code, delta] of Object.entries(changes)) {
+                if (window.rotaVeiculoMap[code]) {
+                    if (delta.type) window.rotaVeiculoMap[code].type = delta.type;
+                    if (delta.name !== undefined) window.rotaVeiculoMap[code].customName = delta.name;
+                    if (delta.order !== undefined) window.rotaVeiculoMap[code].order = delta.order;
+                }
             }
         }
 
-        await logAction(`Override de rotas: ${Object.keys(changes).length} rota(s)`, 0);
+        // Update the global override cache used by script.js
+        window._apexRouteOverrides = merged;
+
+        await logAction(`Override de rotas: ${Object.keys(changes).length} rota(s) atualizadas`, 0);
         window._apexRotaChanges = {};
-        showAdminAlert(`✅ ${Object.keys(changes).length} rota(s) atualizadas. Re-processe para aplicar.`, 'success');
+        showAdminAlert(`✅ ${Object.keys(changes).length} rota(s) atualizadas. Re-processe para aplicar as mudanças visuais.`, 'success');
     };
 
     window.accResetarRotas = async function () {
-        if (!confirm('Remover TODOS os overrides e voltar aos padrões?')) return;
+        if (!confirm('Deseja realmente resetar TODOS os nomes e customizações de rotas? Esta ação não pode ser desfeita.')) return;
+
         const sb = window.supabaseClient || window.supabase;
-        await sb.from('apex_admin_config').update({ config_value: {}, updated_at: new Date().toISOString() }).eq('config_key', 'route_overrides');
+        const { error } = await sb.from('apex_admin_config')
+            .update({ config_value: {}, updated_at: new Date().toISOString() })
+            .eq('config_key', 'route_overrides');
+
+        if (error) { showAdminAlert('Erro: ' + error.message, 'danger'); return; }
+
+        // Limpa estado local
+        window._apexRouteOverrides = {};
         window._apexRotaChanges = {};
+
+        if (window.rotaVeiculoMap) {
+            Object.values(window.rotaVeiculoMap).forEach(v => {
+                delete v.customName;
+                delete v.order;
+            });
+        }
+
+        await logAction('Resetar todos os overrides de rotas', 0);
         await loadRotasData();
-        showAdminAlert('✅ Overrides de rota removidos.', 'success');
+        showAdminAlert('✅ Todos os nomes e ordens foram resetados.', 'success');
     };
 
     // ─── TAB 3: Configurações do Sistema ─────────────────────────────────────
@@ -547,6 +597,9 @@
         const hash = await sha256(novo);
         const sb = window.supabaseClient || window.supabase;
         await sb.from('apex_admin_config').update({ config_value: `"${hash}"` }).eq('config_key', 'admin_pin_hash');
+
+        await logAction('Alteração de PIN de Administração', 0);
+
         document.getElementById('acc-new-pin').value = '';
         document.getElementById('acc-confirm-pin').value = '';
         showAdminAlert('✅ PIN alterado com sucesso.', 'success');
@@ -563,10 +616,30 @@
     // ─── TAB 4: Saúde do Sistema ──────────────────────────────────────────────
     async function loadHealthData() {
         const sb = window.supabaseClient || window.supabase;
+        const CAPACITY_LIMIT = 100000; // Recommended limit for performance
 
         // Record count
         const { count } = await sb.from('historico_pedidos_varejo').select('*', { count: 'exact', head: true });
-        setEl('acc-health-count', (count || 0).toLocaleString('pt-BR'));
+        const total = count || 0;
+        setEl('acc-health-count', total.toLocaleString('pt-BR'));
+
+        // Update Capacity Bar
+        const pct = Math.min((total / CAPACITY_LIMIT) * 100, 100);
+        const bar = document.getElementById('acc-health-bar');
+        const pctEl = document.getElementById('acc-health-pct');
+        const limitEl = document.getElementById('acc-health-limit');
+
+        if (bar && pctEl) {
+            bar.style.width = pct + '%';
+            pctEl.textContent = pct.toFixed(1) + '%';
+            limitEl.textContent = CAPACITY_LIMIT.toLocaleString('pt-BR');
+
+            // Change color based on usage using classes
+            bar.classList.remove('acc-bar-safe', 'acc-bar-warning', 'acc-bar-danger');
+            if (pct > 90) bar.classList.add('acc-bar-danger');
+            else if (pct > 70) bar.classList.add('acc-bar-warning');
+            else bar.classList.add('acc-bar-safe');
+        }
 
         // Months covered
         const { data: months } = await sb.from('historico_pedidos_varejo')

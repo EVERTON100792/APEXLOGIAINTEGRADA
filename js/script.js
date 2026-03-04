@@ -387,26 +387,90 @@ function isPedidoBloqueado(pedido) {
 }
 
 // Funá§á£o centralizada para ordenar rotas de forma consistente
+async function loadRouteOverrides() {
+    try {
+        const sb = window.supabaseClient || window.supabase;
+        if (!sb) return;
+        const { data, error } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'route_overrides').single();
+        if (error) {
+            console.warn("Sem overrides de rotas no Supabase:", error);
+            return;
+        }
+        window._apexRouteOverrides = data?.config_value || {};
+
+        // Aplica overrides ao mapa em memória se ele já existir
+        if (window.rotaVeiculoMap && window._apexRouteOverrides) {
+            for (const [code, ov] of Object.entries(window._apexRouteOverrides)) {
+                if (window.rotaVeiculoMap[code]) {
+                    if (ov.type) window.rotaVeiculoMap[code].type = ov.type;
+                    if (ov.name) window.rotaVeiculoMap[code].customName = ov.name;
+                    if (ov.order !== undefined) window.rotaVeiculoMap[code].order = ov.order;
+                }
+            }
+        }
+        console.log("Overrides de rotas carregados do Supabase.");
+    } catch (err) {
+        console.error("Erro em loadRouteOverrides:", err);
+    }
+}
+
+function getRouteDisplayTitle(rota, veiculo) {
+    // Defensive check: if rota is an object, try to extract a string ID
+    if (typeof rota === 'object' && rota !== null) {
+        console.warn("[ApexLog] getRouteDisplayTitle received an object:", rota);
+        rota = rota.id || rota.code || rota.Cod_Rota || String(rota);
+    }
+
+    const overrides = window._apexRouteOverrides || {};
+    // Ensure we are checking a string key
+    const rotaKey = String(rota);
+
+    if (overrides[rotaKey]?.name) {
+        return `Rota: ${overrides[rotaKey].name}`;
+    }
+    // Fallback original logic
+    if (veiculo === 'van' && !rotaVeiculoMap[rotaKey]?.title.startsWith('Rota 1')) {
+        return `Rota: ${rotaKey} (VAN-3/4- SP)`;
+    } else {
+        const veiculoNome = String(veiculo || '').replace('tresQuartos', '3/4').replace(/^\w/, c => c.toUpperCase());
+        return `Rota: ${rotaKey} (${veiculoNome})`;
+    }
+}
+
 function getSortedVarejoRoutes(rotas) {
-    const vehicleOrder = { 'fiorino': 1, 'van': 2, 'tresQuartos': 3 };
+    const vehicleOrder = { 'fiorino': 1, 'van': 2, 'tresQuartos': 3, 'toco': 4 };
     const numericSort = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+    const overrides = window._apexRouteOverrides || {};
 
     return rotas.sort((a, b) => {
         // Prioriza a Rota "0" para aparecer sempre em primeiro.
         if (a === '0' && b !== '0') return -1;
         if (b === '0' && a !== '0') return 1;
 
-        const typeA = rotaVeiculoMap[a]?.type || 'van';
-        const typeB = rotaVeiculoMap[b]?.type || 'van';
+        // 1. Ordem Customizada do Admin (Global)
+        const customOrderA = overrides[a]?.order ?? (window.rotaVeiculoMap?.[a]?.order);
+        const customOrderB = overrides[b]?.order ?? (window.rotaVeiculoMap?.[b]?.order);
 
-        const orderA = vehicleOrder[typeA] || 99; // 99 para tipos ná£o definidos
+        if (customOrderA !== undefined && customOrderB !== undefined) {
+            if (customOrderA !== customOrderB) return customOrderA - customOrderB;
+        } else if (customOrderA !== undefined) {
+            return -1;
+        } else if (customOrderB !== undefined) {
+            return 1;
+        }
+
+        // 2. Ordem por Tipo de Veículo
+        const typeA = overrides[a]?.type || rotaVeiculoMap[a]?.type || 'van';
+        const typeB = overrides[b]?.type || rotaVeiculoMap[b]?.type || 'van';
+
+        const orderA = vehicleOrder[typeA] || 99;
         const orderB = vehicleOrder[typeB] || 99;
 
         if (orderA !== orderB) {
             return orderA - orderB;
         }
 
-        // Se ambos sá£o 'van', ordena as do Paraná¡ primeiro
+        // 3. Se ambos são 'van', ordena as do Paraná primeiro
         if (typeA === 'van' && typeB === 'van') {
             const isParanaA = rotaVeiculoMap[a]?.title.startsWith('Rota 1');
             const isParanaB = rotaVeiculoMap[b]?.title.startsWith('Rota 1');
@@ -414,7 +478,7 @@ function getSortedVarejoRoutes(rotas) {
             if (!isParanaA && isParanaB) return 1;
         }
 
-        // Se os tipos sá£o iguais, ordena numericamente pela rota
+        // 4. Se tudo for igual, ordena numericamente pela rota
         return numericSort(a, b);
     });
 }
@@ -585,12 +649,16 @@ async function saveConfigurations() {
 
         configStatus.innerHTML = '<p class="text-success">Configurações salvas com sucesso!</p>';
         setTimeout(() => { configStatus.innerHTML = ''; }, 3000);
-        showToast('Configurações salvas com sucesso (Local + Nuvem)!', 'success');
+        // NOVO: Carregar Overrides de Rotas (Nomes e Ordem)
+        await loadRouteOverrides();
+
     } catch (error) {
         console.error("Erro ao salvar configuraçőes:", error);
         configStatus.innerHTML = `<p class="text-danger">Erro ao salvar: ${error.message}</p>`;
     }
 }
+
+
 
 async function loadConfigurations() { // prettier-ignore
     const configStatus = document.getElementById('configStatus');
@@ -643,6 +711,9 @@ async function loadConfigurations() { // prettier-ignore
 
         configStatus.innerHTML = '<p class="text-success">Configurações carregadas!</p>';
         setTimeout(() => { configStatus.innerHTML = ''; }, 2000);
+
+        // NOVO: Carregar Overrides de Rotas (Nomes e Ordem)
+        await loadRouteOverrides();
     } catch (error) {
         console.error("Erro ao carregar configurações:", error);
         configStatus.innerHTML = `<p class="text-warning">Erro ao carregar. Usando padrões.</p>`;
@@ -1680,7 +1751,7 @@ function bloquearPedido(numPedido) {
         pedidosBloqueados.add(String(pedidoParaBloquear));
 
         // NOVO: Move o pedido da sua lista atual para a lista de bloqueados manualmente.
-        // Isso garante que ele suma da lista de disponá­veis/cargas e apareá§a na tela de aná¡lise.
+        // Isso garante que ele suma da lista de disponá­veis/cargas e apareá§á£a na tela de aná¡lise.
         let pedidoMovido = false;
         let affectedLoadId = null; // NOVO: Rastreia a carga afetada
 
@@ -2143,16 +2214,16 @@ function processar() {
                         ...todosToco
                     ];
 
-                    // Filtramos apenas Estados Alvos (SP e PR)
-                    const pedidosVarejoSP_PR = todosVarejoFiltrado.filter(p => {
-                        const isEstadoAlvo = String(p.UF || '').trim().toUpperCase() === 'SP' ||
-                            String(p.UF || '').trim().toUpperCase() === 'PR';
-                        const hasKeys = p.Num_Pedido && p.Dat_Ped;
+                    // Filtramos apenas Estados Alvos (SP, PR e MS)
+                    const pedidosVarejoSP_PR_MS = todosVarejoFiltrado.filter(p => {
+                        const ufUpper = String(p.UF || '').trim().toUpperCase();
+                        const isEstadoAlvo = ufUpper === 'SP' || ufUpper === 'PR' || ufUpper === 'MS';
+                        const hasKeys = p.Num_Pedido && (p.Dat_Ped || p.Data_Ped || p.dat_ped);
                         return isEstadoAlvo && hasKeys;
                     });
 
-                    if (pedidosVarejoSP_PR.length > 0) {
-                        const payloadSupabase = pedidosVarejoSP_PR.map(p => {
+                    if (pedidosVarejoSP_PR_MS.length > 0) {
+                        const payloadSupabase = pedidosVarejoSP_PR_MS.map(p => {
                             let dataFormatada = p.Dat_Ped;
                             if (p.Dat_Ped instanceof Date && !isNaN(p.Dat_Ped)) {
                                 dataFormatada = p.Dat_Ped.toISOString().split('T')[0];
@@ -2246,14 +2317,28 @@ function renderActiveLoadCards() {
             if (load.vehicleType === 'fiorino') {
                 containerId = 'resultado-fiorino-geral';
             } else if (load.vehicleType === 'van' || load.vehicleType === 'tresQuartos') {
-                // Lógica para separar PR e SP
-                // Verifica a primeira rota da carga para determinar a origem
-                const firstRoute = load.pedidos && load.pedidos.length > 0 ? String(load.pedidos[0].Cod_Rota) : '';
-                // PR: Começa com 1 (ex: 10101) OU título começa com "Rota 1" (verificação mais segura se map disponível)
-                const isPR = firstRoute.startsWith('1') || (rotaVeiculoMap[firstRoute] && rotaVeiculoMap[firstRoute].title.startsWith('Rota 1'));
+                // Lógica para separar PR, SP e MS
+                const firstPedido = load.pedidos && load.pedidos.length > 0 ? load.pedidos[0] : null;
+                let region = 'SP'; // Default
 
-                if (isPR) {
+                if (firstPedido) {
+                    const uf = String(firstPedido.UF || '').trim().toUpperCase();
+                    if (uf === 'PR') region = 'PR';
+                    else if (uf === 'MS') region = 'MS';
+                    else {
+                        const firstRoute = String(firstPedido.Cod_Rota || '');
+                        if (firstRoute.startsWith('1') || (rotaVeiculoMap[firstRoute] && rotaVeiculoMap[firstRoute].title.startsWith('Rota 1'))) {
+                            region = 'PR';
+                        } else if (firstRoute.startsWith('3')) {
+                            region = 'MS';
+                        }
+                    }
+                }
+
+                if (region === 'PR') {
                     containerId = 'resultado-van-pr';
+                } else if (region === 'MS') {
+                    containerId = 'resultado-van-ms';
                 } else {
                     containerId = 'resultado-van-sp';
                 }
@@ -2332,21 +2417,33 @@ function renderAllUI() {
 }
 
 function updateTabCounts() {
-    // Helper to check if load is PR
-    const isPRLoad = (load) => {
-        const firstRoute = load.pedidos && load.pedidos.length > 0 ? String(load.pedidos[0].Cod_Rota) : '';
-        return firstRoute.startsWith('1') || (rotaVeiculoMap[firstRoute] && rotaVeiculoMap[firstRoute].title.startsWith('Rota 1'));
+    // Helper to check if load belongs to a specific region
+    const getLoadRegion = (load) => {
+        const firstPedido = load.pedidos && load.pedidos.length > 0 ? load.pedidos[0] : null;
+        if (!firstPedido) return 'SP'; // Default
+
+        const uf = String(firstPedido.UF || '').trim().toUpperCase();
+        if (uf === 'PR') return 'PR';
+        if (uf === 'MS') return 'MS';
+
+        // Fallback to route prefix
+        const firstRoute = String(firstPedido.Cod_Rota || '');
+        if (firstRoute.startsWith('1')) return 'PR';
+        if (firstRoute.startsWith('3')) return 'MS'; // Assumed prefix for MS
+        return 'SP';
     };
 
     // Calcula os totais para cada aba
     const allVanAnd34 = Object.values(activeLoads).filter(l => (l.vehicleType === 'van' || l.vehicleType === 'tresQuartos') && !l.id.startsWith('roteiro-'));
-    const vanPRCount = allVanAnd34.filter(l => isPRLoad(l)).length;
-    const vanSPCount = allVanAnd34.filter(l => !isPRLoad(l)).length;
+    const vanPRCount = allVanAnd34.filter(l => getLoadRegion(l) === 'PR').length;
+    const vanSPCount = allVanAnd34.filter(l => getLoadRegion(l) === 'SP').length;
+    const vanMSCount = allVanAnd34.filter(l => getLoadRegion(l) === 'MS').length;
 
     const counts = {
         fiorino: Object.values(activeLoads).filter(l => l.vehicleType === 'fiorino' && !l.id.startsWith('roteiro-')).length,
         vanPR: vanPRCount,
         vanSP: vanSPCount,
+        vanMS: vanMSCount,
         // Mantemos tresQuartos zerado ou somado onde fizer sentido, mas a UI agora foca em Van PR/SP
         tresQuartos: 0,
         toco: Object.keys(gruposToco).length,
@@ -2372,6 +2469,7 @@ function updateTabCounts() {
     updateBadge('badge-fiorino', counts.fiorino);
     updateBadge('badge-van-pr', counts.vanPR);
     updateBadge('badge-van-sp', counts.vanSP);
+    updateBadge('badge-van-ms', counts.vanMS);
     updateBadge('badge-tres-quartos', counts.tresQuartos);
     updateBadge('badge-toco', counts.toco);
     updateBadge('badge-pr', counts.pr);
@@ -2711,7 +2809,7 @@ function displayGerais(div, grupos) {
     // --- CORREá‡áƒO DE UX (Manter Acordeá£o Aberto) ---
     // Salva o ID do acordeá£o que está¡ aberto. O ID agora á© baseado na rota (ex: 'collapseGeral-11101'),
     // que á© um identificador está¡vel, ao contrá¡rio do á­ndice que mudava a cada redesenho.
-    // Isso garante que o acordeá£o correto permaneá§a aberto apá³s arrastar e soltar pedidos.
+    // Isso garante que o acordeá£o correto permaneá§á¡ aberto apá³s arrastar e soltar pedidos.
     const openAccordionItem = div.querySelector('.accordion-collapse.show');
     const openAccordionId = openAccordionItem ? openAccordionItem.id : null;
     // --- FIM DA MELHORIA ---
@@ -2738,13 +2836,9 @@ function displayGerais(div, grupos) {
                 combinedRoutes.forEach(r => addedButtons.add(r));
             }
 
-            // Define o tá­tulo do botá£o dinamicamente
-            let buttonTitle = config.title; // prettier-ignore
+            // Define o tá­tulo do botá£o dinamicamente (respeita overrides do Admin)
+            const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
             const isPR = config.title.startsWith('Rota 1') || String(rota).startsWith('1');
-
-            if (config.type === 'van' && !isPR) { // Se for van e ná£o for do Paraná¡
-                buttonTitle = `${rota} (VAN-3/4- SP)`;
-            }
 
             const vehicleType = config.type;
             const colorClass = vehicleType === 'fiorino' ? 'success' : (vehicleType === 'van' ? 'primary' : 'warning');
@@ -2802,13 +2896,7 @@ function displayGerais(div, grupos) {
         else if (veiculo === 'tresQuartos') veiculoClass = 'route-tresQuartos';
 
 
-        let rotaDisplay; // Rota: 11101 (Fiorino)
-        if (veiculo === 'van' && !rotaVeiculoMap[rota]?.title.startsWith('Rota 1')) {
-            rotaDisplay = `Rota: ${rota} (VAN-3/4- SP)`;
-        } else {
-            const veiculoNome = veiculo.replace('tresQuartos', '3/4').replace(/^\w/, c => c.toUpperCase());
-            rotaDisplay = `Rota: ${rota} (${veiculoNome})`;
-        }
+        let rotaDisplay = getRouteDisplayTitle(rota, veiculo);
         // CORREÇÃO: O ID do collapse agora usa a rota, que é um identificador estável.
         // Sanitiza o ID da rota para garantir que seja um seletor válido (remove espaços e caracteres especiais)
         const safeRotaId = String(rota).replace(/[^a-zA-Z0-9]/g, '-');
@@ -2881,13 +2969,7 @@ function displayAccordionGerais(div, grupos) {
         const config = rotaVeiculoMap[rota] || { type: 'van' }; // Fallback para rotas ná£o mapeadas (SP)
         const veiculo = config.type;
 
-        let rotaDisplay;
-        if (veiculo === 'van' && !config.title?.startsWith('Rota 1')) {
-            rotaDisplay = `Rota: ${rota} (VAN-3/4- SP)`;
-        } else {
-            const veiculoNome = veiculo.replace('tresQuartos', '3/4').replace(/^\w/, c => c.toUpperCase());
-            rotaDisplay = `Rota: ${rota} (${veiculoNome})`;
-        }
+        let rotaDisplay = getRouteDisplayTitle(rota, veiculo);
 
         accordionHtml += `<div class="accordion-item"><h2 class="accordion-header" id="headingGeral${index}"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGeral${index}"><strong>${rotaDisplay}</strong> &nbsp; <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span></button></h2>
                                   <div id="collapseGeral${index}" class="accordion-collapse collapse" data-bs-parent="#accordionGeral">
@@ -2937,13 +3019,7 @@ function displayPedidosCFNumerico(div, pedidos) {
         else if (veiculo === 'tresQuartos') veiculoClass = 'route-tresQuartos';
 
 
-        let rotaDisplay;
-        if (veiculo === 'van' && !rotaVeiculoMap[rota]?.title.startsWith('Rota 1')) {
-            rotaDisplay = `Rota: ${rota} (VAN-3/4- SP)`;
-        } else {
-            const veiculoNome = veiculo.replace('tresQuartos', '3/4').replace(/^\w/, c => c.toUpperCase());
-            rotaDisplay = `Rota: ${rota} (${veiculoNome})`;
-        }
+        let rotaDisplay = getRouteDisplayTitle(rota, veiculo);
 
         const collapseId = `collapseCF-${rota}`; // ID está¡vel usando a rota
         accordionHtml += `<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span></button></h2>
@@ -7307,21 +7383,10 @@ function exportarRelatorioCompletoPorRotaExcel() {
     }
 
     // Helper para nome da rota
-    const getRouteDisplayName = (rota) => {
-        const config = rotaVeiculoMap[rota] || { type: 'van', title: '' };
-        const veiculo = config.type;
-
-        if (veiculo === 'van' && !config.title?.startsWith('Rota 1')) {
-            return `Rota: ${rota} (VAN-3/4- SP)`;
-        } else {
-            const veiculoNome = veiculo.replace('tresQuartos', '3/4').replace(/^\w/, c => c.toUpperCase());
-            return `Rota: ${rota} (${veiculoNome})`;
-        }
-    };
-
     // Ordenar para corresponder á  sequáªncia da UI "Disponá­veis Varejo"
-    const vehicleOrder = { 'fiorino': 1, 'van': 2, 'tresQuartos': 3 };
+    const vehicleOrder = { 'fiorino': 1, 'van': 2, 'tresQuartos': 3, 'toco': 4 };
     const numericSort = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+    const overrides = window._apexRouteOverrides || {};
 
     todosPedidos.sort((a, b) => {
         const rotaA = String(a.Cod_Rota || '0');
@@ -7330,8 +7395,16 @@ function exportarRelatorioCompletoPorRotaExcel() {
         if (rotaA === '0' && rotaB !== '0') return -1;
         if (rotaB === '0' && rotaA !== '0') return 1;
 
-        const typeA = rotaVeiculoMap[rotaA]?.type || 'van';
-        const typeB = rotaVeiculoMap[rotaB]?.type || 'van';
+        // 1. Ordem Customizada Admin
+        const customOrderA = overrides[rotaA]?.order ?? rotaVeiculoMap[rotaA]?.order;
+        const customOrderB = overrides[rotaB]?.order ?? rotaVeiculoMap[rotaB]?.order;
+        if (customOrderA !== undefined && customOrderB !== undefined) {
+            if (customOrderA !== customOrderB) return customOrderA - customOrderB;
+        } else if (customOrderA !== undefined) { return -1; }
+        else if (customOrderB !== undefined) { return 1; }
+
+        const typeA = overrides[rotaA]?.type || rotaVeiculoMap[rotaA]?.type || 'van';
+        const typeB = overrides[rotaB]?.type || rotaVeiculoMap[rotaB]?.type || 'van';
 
         const orderA = vehicleOrder[typeA] || 99;
         const orderB = vehicleOrder[typeB] || 99;
@@ -7355,7 +7428,7 @@ function exportarRelatorioCompletoPorRotaExcel() {
 
     // Preparar dados
     const dataToExport = todosPedidos.map(p => ({
-        'Rota Descriá§á£o': getRouteDisplayName(p.Cod_Rota),
+        'Rota Descriá§á£o': getRouteDisplayTitle(p.Cod_Rota, (overrides[p.Cod_Rota]?.type || rotaVeiculoMap[p.Cod_Rota]?.type)),
         'Cá³d. Rota': p.Cod_Rota,
         'Náºmero Pedido': p.Num_Pedido,
         'Cliente': normalizeClientId(p.Cliente),
@@ -10657,10 +10730,12 @@ async function carregarRelatorioVarejo() {
         const allData = window.currentVarejoData;
         const dataSP = allData.filter(i => i.uf === 'SP');
         const dataPR = allData.filter(i => i.uf === 'PR');
+        const dataMS = allData.filter(i => i.uf === 'MS');
 
         const totalSP = dataSP.reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
         const totalPR = dataPR.reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
-        const totalGeral = totalSP + totalPR;
+        const totalMS = dataMS.reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
+        const totalGeral = totalSP + totalPR + totalMS;
         const fmt = v => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v);
 
         const mesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -10725,37 +10800,53 @@ async function carregarRelatorioVarejo() {
 
         // ── Pane: Resumo ──────────────────────────────────────────────────────
         const kpiCardsEl = document.getElementById('kpiCards');
-        if (kpiCardsEl) {
-            kpiCardsEl.innerHTML = `
-                <div class="varejo-kpi-period"><i class="bi bi-calendar3 me-2"></i>${periodoLabel}</div>
-                ${kpiCard('bi-boxes', 'Total Geral', totalGeral, allData.length, null, 'blue')}
-                ${kpiCard('bi-building', 'São Paulo', totalSP, dataSP.length, pctSP, 'cyan')}
-                ${kpiCard('bi-tree', 'Paraná', totalPR, dataPR.length, pctPR, 'green')}`;
-        }
+        const kpiCardsHtml = `
+            <div class="varejo-kpi-period"><i class="bi bi-calendar3 me-2"></i>${periodoLabel}</div>
+            ${kpiCard('bi bi-building', 'São Paulo', totalSP, dataSP.length, (totalSP / totalGeral * 100).toFixed(1), 'sp')}
+            ${kpiCard('bi bi-tree', 'Paraná', totalPR, dataPR.length, (totalPR / totalGeral * 100).toFixed(1), 'pr')}
+            ${kpiCard('bi bi-geo-alt-fill', 'Mato Grosso do Sul', totalMS, dataMS.length, (totalMS / totalGeral * 100).toFixed(1), 'ms')}
+            ${kpiCard('bi bi-award', 'Volume Mensal', totalGeral, allData.length, 100, 'geral')}
+        `;
+        document.getElementById('kpiCards').innerHTML = kpiCardsHtml;
 
-        const tabelaGeralEl = document.getElementById('tabelaGeral');
-        const tabelaGeralContent = document.getElementById('tabelaGeralContent');
-        if (tabelaGeralEl && tabelaGeralContent) {
-            tabelaGeralContent.innerHTML = buildTableHTML(allData);
-            tabelaGeralEl.classList.remove('d-none');
-            ['btnXlsGeral', 'btnPdfGeral'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('d-none'); });
-        }
+        // KPI para abas específicas
+        const buildKPI = (total, count, allTotal) => {
+            const pct = allTotal > 0 ? (total / allTotal * 100).toFixed(1) : 0;
+            return `
+                <div class="varejo-kpi-card mini">
+                    <div class="varejo-kpi-val">${fmt(total)} <span class="varejo-kpi-unit">KG</span></div>
+                    <div class="varejo-kpi-lbl">Total Volume</div>
+                </div>
+                <div class="varejo-kpi-card mini">
+                    <div class="varejo-kpi-val">${count}</div>
+                    <div class="varejo-kpi-lbl">Pedidos</div>
+                </div>
+                <div class="varejo-kpi-card mini">
+                    <div class="varejo-kpi-val">${pct}%</div>
+                    <div class="varejo-kpi-lbl">Representatividade</div>
+                </div>
+            `;
+        };
+        document.getElementById('kpiSP').innerHTML = buildKPI(totalSP, dataSP.length, totalGeral);
+        document.getElementById('kpiPR').innerHTML = buildKPI(totalPR, dataPR.length, totalGeral);
+        document.getElementById('kpiMS').innerHTML = buildKPI(totalMS, dataMS.length, totalGeral);
 
-        // ── Pane: São Paulo ───────────────────────────────────────────────────
-        const kpiSPEl = document.getElementById('kpiSP');
-        if (kpiSPEl) {
-            kpiSPEl.innerHTML = `
-                <div class="varejo-kpi-period"><i class="bi bi-calendar3 me-2"></i>${periodoLabel} · São Paulo</div>
-                ${kpiCard('bi-building', 'São Paulo', totalSP, dataSP.length, pctSP, 'cyan')}`;
-        }
+        // Renderiza tabelas
+        document.getElementById('tabelaGeralContent').innerHTML = buildTableHTML(allData);
+        document.getElementById('tabelaSPContent').innerHTML = buildTableHTML(dataSP);
+        document.getElementById('tabelaPRContent').innerHTML = buildTableHTML(dataPR);
+        document.getElementById('tabelaMSContent').innerHTML = buildTableHTML(dataMS);
 
-        const tabelaSPEl = document.getElementById('tabelaSP');
-        const tabelaSPContent = document.getElementById('tabelaSPContent');
-        if (tabelaSPEl && tabelaSPContent) {
-            tabelaSPContent.innerHTML = buildTableHTML(dataSP);
-            tabelaSPEl.classList.remove('d-none');
-            ['btnXlsSP', 'btnPdfSP'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('d-none'); });
-        }
+        // Mostra as áreas de tabela
+        ['tabelaGeral', 'tabelaSP', 'tabelaPR', 'tabelaMS'].forEach(id => {
+            document.getElementById(id).classList.remove('d-none');
+        });
+
+        // Mostra botões de export
+        ['btnXlsGeral', 'btnPdfGeral', 'btnXlsSP', 'btnPdfSP', 'btnXlsPR', 'btnPdfPR', 'btnXlsMS', 'btnPdfMS'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.classList.remove('d-none');
+        });
 
         // ── Pane: Paraná ──────────────────────────────────────────────────────
         const kpiPREl = document.getElementById('kpiPR');
@@ -10810,7 +10901,7 @@ function exportarRelatorioVarejoPDF(periodo, filtroUF = 'GERAL') {
     const [ano, mes] = periodo.split('-');
     const mesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const periodoLabel = `${mesNomes[parseInt(mes, 10) - 1]} / ${ano}`;
-    const filtroLabel = filtroUF === 'GERAL' ? 'Geral (SP + PR)' : (filtroUF === 'SP' ? 'São Paulo' : 'Paraná');
+    const filtroLabel = filtroUF === 'GERAL' ? 'Geral (SP + PR + MS)' : (filtroUF === 'SP' ? 'São Paulo' : (filtroUF === 'PR' ? 'Paraná' : 'Mato Grosso do Sul'));
     const geradoEm = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
     // ── Cabeçalho ──────────────────────────────────────────────────────────────
@@ -10829,11 +10920,12 @@ function exportarRelatorioVarejoPDF(periodo, filtroUF = 'GERAL') {
 
     // ── KPI Summary ────────────────────────────────────────────────────────────
     const kpiY = 28;
-    const kpiW = (pageWidth - 28) / 3;
+    // const kpiW = (pageWidth - 28) / 3; // Dinâmico abaixo
 
     const totalSP = window.currentVarejoData.filter(i => i.uf === 'SP').reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
     const totalPR = window.currentVarejoData.filter(i => i.uf === 'PR').reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
-    const totalGeral = totalSP + totalPR;
+    const totalMS = window.currentVarejoData.filter(i => i.uf === 'MS').reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
+    const totalGeral = totalSP + totalPR + totalMS;
     const fmt = v => v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
     // Monta apenas os cards relevantes para o filtro selecionado
@@ -10841,6 +10933,7 @@ function exportarRelatorioVarejoPDF(periodo, filtroUF = 'GERAL') {
         { label: 'TOTAL GERAL', value: `${fmt(totalGeral)} KG`, sub: `${window.currentVarejoData.length} pedidos`, color: [37, 99, 235], uf: 'GERAL' },
         { label: 'SÃO PAULO', value: `${fmt(totalSP)} KG`, sub: `${window.currentVarejoData.filter(i => i.uf === 'SP').length} pedidos  |  ${totalGeral > 0 ? ((totalSP / totalGeral) * 100).toFixed(1) : 0}%`, color: [6, 182, 212], uf: 'SP' },
         { label: 'PARANÁ', value: `${fmt(totalPR)} KG`, sub: `${window.currentVarejoData.filter(i => i.uf === 'PR').length} pedidos  |  ${totalGeral > 0 ? ((totalPR / totalGeral) * 100).toFixed(1) : 0}%`, color: [16, 185, 129], uf: 'PR' },
+        { label: 'MATO GROSSO DO SUL', value: `${fmt(totalMS)} KG`, sub: `${window.currentVarejoData.filter(i => i.uf === 'MS').length} pedidos  |  ${totalGeral > 0 ? ((totalMS / totalGeral) * 100).toFixed(1) : 0}%`, color: [245, 158, 11], uf: 'MS' },
     ];
 
     const visibleCards = filtroUF === 'GERAL'
