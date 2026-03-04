@@ -903,7 +903,7 @@
             </a>
 
             <!-- LINK RELATÓRIO MENSAL DE VAREJO -->
-            <a href="#" class="sidebar-link" data-bs-toggle="offcanvas" data-bs-target="#relatorioVarejoOffcanvas">
+            <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#relatorioVarejoOffcanvas">
                 <i class="bi bi-bar-chart-steps text-warning"></i>
                 <span>Relatório Varejo SP/PR</span>
             </a>
@@ -3125,56 +3125,223 @@
             }
         }
     </style>
-    <!-- OFFCANVAS RELATÓRIO MENSAL DE VAREJO -->
-    <div class="offcanvas offcanvas-end offcanvas-glass text-light" tabindex="-1" id="relatorioVarejoOffcanvas"
-        aria-labelledby="relatorioVarejoLabel" style="width: 500px; max-width: 100vw;">
-        <div class="offcanvas-header border-bottom border-light border-opacity-10 pb-3">
-            <h5 class="offcanvas-title d-flex align-items-center gap-2" id="relatorioVarejoLabel">
-                <i class="bi bi-bar-chart-steps text-warning fs-4"></i>
-                <span class="fw-bold tracking-wide">Volume Varejo (SP/PR)</span>
-            </h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"
-                aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body d-flex flex-column gap-4 p-4">
 
-            <!-- Card de Filtro: Ano e Mês -->
-            <div class="cloud-session-card p-3">
-                <div class="d-flex align-items-center gap-2 mb-3">
-                    <i class="bi bi-calendar-event text-info"></i>
-                    <h6 class="mb-0 fw-bold">Período de Análise</h6>
-                </div>
-                <div class="row g-2">
-                    <div class="col-6">
-                        <input type="month" id="filtroMesVarejo"
-                            class="form-control bg-dark-glass text-light border-secondary">
+
+    <!-- MODAL FULL-SCREEN RELATORIO DE VAREJO - BI Style -->
+
+    <div class="modal fade" id="relatorioVarejoOffcanvas" tabindex="-1" aria-hidden="true">
+
+        <div class="modal-dialog modal-fullscreen varejo-bi-modal">
+
+            <div class="modal-content varejo-bi-content">
+
+                <!-- Header Bar -->
+
+                <div class="varejo-bi-header">
+
+                    <div class="varejo-bi-title">
+
+                        <i class="bi bi-bar-chart-steps"></i>
+
+                        <div>
+
+                            <span class="varejo-bi-title-main">Relatorio de Varejo</span>
+
+                            <span class="varejo-bi-title-sub">Volume Mensal SP / PR</span>
+
+                        </div>
+
                     </div>
-                    <div class="col-6 d-flex gap-2">
-                        <button class="btn btn-magic w-100" onclick="carregarRelatorioVarejo()">
-                            <i class="bi bi-search me-1"></i> Buscar
+
+                    <div class="varejo-bi-filter">
+
+                        <div class="varejo-filter-group">
+
+                            <label class="varejo-filter-label"><i class="bi bi-calendar3 me-1"></i>Periodo</label>
+
+                            <input type="month" id="filtroMesVarejo" class="varejo-filter-input">
+
+                        </div>
+
+                        <button class="varejo-search-btn" onclick="carregarRelatorioVarejo()">
+
+                            <i class="bi bi-search"></i><span>Buscar</span>
+
                         </button>
+
                     </div>
+
+                    <button class="varejo-bi-close" data-bs-dismiss="modal" aria-label="Fechar">
+
+                        <i class="bi bi-x-lg"></i>
+
+                    </button>
+
                 </div>
 
                 <!-- Loader -->
-                <div id="loaderRelatorioVarejo" class="d-none text-center py-4">
-                    <div class="spinner-border text-primary" role="status"></div>
-                    <p class="text-muted small mt-2">Buscando histórico na nuvem...</p>
+
+                <div id="loaderRelatorioVarejo" class="d-none varejo-bi-loader">
+
+                    <div class="varejo-loader-inner">
+
+                        <div class="spinner-border text-warning" role="status" style="width:2.5rem;height:2.5rem;"></div>
+
+                        <p class="mt-3 text-muted small">Consultando historico na nuvem...</p>
+
+                    </div>
+
                 </div>
 
-                <!-- Empty State / Resultados -->
-                <div id="resultadoRelatorioVarejo" class="d-flex flex-column gap-3">
-                    <div class="empty-state-premium">
-                        <i class="bi bi-clouds empty-state-icon"></i>
-                        <h6 class="text-light fw-bold">Pronto para Análise</h6>
-                        <p class="text-muted small mb-0 px-3">Selecione o mês desejado e clique em buscar para
-                            visualizar o
-                            histórico de peso recebido.</p>
+                <!-- Tabs Nav -->
+
+                <div class="varejo-bi-tabs-wrapper">
+
+                    <ul class="varejo-bi-tabs nav" id="varejoTabs" role="tablist">
+
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn active" data-bs-toggle="tab" data-bs-target="#pane-resumo" type="button" role="tab">
+
+                                <i class="bi bi-grid-3x3-gap-fill me-2"></i>Resumo Geral
+
+                            </button>
+
+                        </li>
+
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn" data-bs-toggle="tab" data-bs-target="#pane-sp" type="button" role="tab">
+
+                                <i class="bi bi-building me-2"></i>Sao Paulo
+
+                            </button>
+
+                        </li>
+
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn" data-bs-toggle="tab" data-bs-target="#pane-pr" type="button" role="tab">
+
+                                <i class="bi bi-tree me-2"></i>Parana
+
+                            </button>
+
+                        </li>
+
+                    </ul>
+
+                </div>
+
+                <!-- Tab Content -->
+
+                <div class="varejo-bi-body tab-content" id="varejoTabContent">
+
+                    <!-- Empty state shown before search -->
+
+                    <div id="resultadoRelatorioVarejo" class="varejo-empty-state">
+
+                        <i class="bi bi-cloud-upload varejo-empty-icon"></i>
+
+                        <h5 class="text-light fw-bold mt-3">Pronto para Analise</h5>
+
+                        <p class="text-muted small">Selecione o mes e clique em <strong>Buscar</strong>.</p>
+
                     </div>
+
+                    <!-- Pane Resumo -->
+
+                    <div class="tab-pane fade show active varejo-tab-pane" id="pane-resumo" role="tabpanel">
+
+                        <div id="kpiCards" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaGeral" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Todos os Pedidos</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsGeral" class="varejo-btn-export xls d-none" onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'GERAL')"><i class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfGeral" class="varejo-btn-export pdf d-none" onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'GERAL')"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaGeralContent"></div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Pane SP -->
+
+                    <div class="tab-pane fade varejo-tab-pane" id="pane-sp" role="tabpanel">
+
+                        <div id="kpiSP" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaSP" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Pedidos - Sao Paulo</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsSP" class="varejo-btn-export xls d-none" onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'SP')"><i class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfSP" class="varejo-btn-export pdf d-none" onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'SP')"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaSPContent"></div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Pane PR -->
+
+                    <div class="tab-pane fade varejo-tab-pane" id="pane-pr" role="tabpanel">
+
+                        <div id="kpiPR" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaPR" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Pedidos - Parana</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsPR" class="varejo-btn-export xls d-none" onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'PR')"><i class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfPR" class="varejo-btn-export pdf d-none" onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'PR')"><i class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaPRContent"></div>
+
+                        </div>
+
+                    </div>
+
                 </div>
 
             </div>
+
         </div>
+
+    </div>
+
+
 </body>
 
 </html>

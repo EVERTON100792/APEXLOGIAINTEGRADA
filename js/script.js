@@ -2158,8 +2158,14 @@ function processar() {
                         sbClient.from('historico_pedidos_varejo')
                             .upsert(payloadSupabase, { onConflict: 'num_pedido' })
                             .then(({ error }) => {
-                                if (error) console.error("Erro ao salvar histórico de varejo no Supabase:", error);
-                                else console.log(`Sucesso: ${payloadSupabase.length} pedidos de Varejo (SP/PR) eviados para o Supabase.`);
+                                if (error) {
+                                    console.error("Erro ao salvar histórico de varejo no Supabase:", error);
+                                    if (typeof showToast === 'function') showToast('Erro ao salvar no banco de dados.', 'danger');
+                                } else {
+                                    const count = payloadSupabase.length.toLocaleString('pt-BR');
+                                    if (typeof showToast === 'function') showToast(`✅ ${count} pedidos salvos no banco de dados`, 'success');
+                                    console.log(`Sucesso: ${payloadSupabase.length} pedidos de Varejo (SP/PR) enviados para o Supabase.`);
+                                }
                             });
                     }
                 }
@@ -6519,20 +6525,28 @@ function bulkAction(action) {
         case 'special':
             const specialInput = document.getElementById('pedidosEspeciaisInput');
             if (specialInput) {
-                // Junta os pedidos selecionados no textarea (um por linha)
+                // Preenche o textarea com os pedidos selecionados
                 specialInput.value = selectedPedidos.join('\n');
 
-                // Abre o offcanvas de montagens especiais
-                const offcanvasEl = document.getElementById('offcanvasMontagens');
-                if (offcanvasEl) {
-                    const bsOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
-                    bsOffcanvas.show();
-                }
-
-                // Dispara a montagem automaticamente
+                // Monta direto, sem abrir o modal
                 montarCargaPredefinida('pedidosEspeciaisInput', 'resultado-carga-especial', pedidosEspeciaisProcessados, 'Especial');
 
-                showToast(`${selectedPedidos.length} pedidos enviados para Montagem Especial.`, 'success');
+                // Navega para a aba de montagens especiais para mostrar o resultado
+                const especialTabBtn = document.querySelector('button[data-bs-target="#montagens-especiais-tab-pane"]')
+                    || document.querySelector('a[href="#resultado-montagens-especiais"]');
+                if (especialTabBtn) {
+                    const tabInstance = bootstrap.Tab.getOrCreateInstance(especialTabBtn);
+                    tabInstance.show();
+                }
+
+                // Rola para o resultado
+                setTimeout(() => {
+                    const resultEl = document.getElementById('resultado-montagens-especiais')
+                        || document.getElementById('resultado-carga-especial');
+                    if (resultEl) resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
+
+                showToast(`\u26a1 ${selectedPedidos.length} pedidos montados como Carga Especial!`, 'success');
             }
             clearBulkSelection();
             return;
@@ -10563,158 +10577,180 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- INÍCIO: RELATÓRIO MENSAL DE VAREJO ---
+
+// Abre o modal do relatório (chamado pelo sidebar)
+function abrirModalVarejo() {
+    const modalEl = document.getElementById('relatorioVarejoOffcanvas');
+    if (!modalEl) return;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
 async function carregarRelatorioVarejo() {
     const inputMes = document.getElementById('filtroMesVarejo').value;
     if (!inputMes) {
-        if (typeof showToast === 'function') {
-            showToast('Por favor, selecione o mês e o ano para a análise.', 'warning');
-        } else {
-            alert('Por favor, selecione o mês e o ano para a análise.');
-        }
+        if (typeof showToast === 'function') showToast('Selecione o mês e ano para a análise.', 'warning');
         return;
     }
 
-    // Montar as datas de início e fim baseadas no input YYYY-MM
     const [ano, mes] = inputMes.split('-');
+    window.__varejoPeriodo = `${ano}-${mes}`;
+
     const dataInicio = `${ano}-${mes}-01`;
     const ultimoDia = new Date(ano, mes, 0).getDate();
     const dataFim = `${ano}-${mes}-${ultimoDia}`;
 
     const loader = document.getElementById('loaderRelatorioVarejo');
-    const resultadoDiv = document.getElementById('resultadoRelatorioVarejo');
+    const emptyState = document.getElementById('resultadoRelatorioVarejo');
     const sbClient = window.supabaseClient || window.supabase || null;
 
     if (!sbClient) {
-        resultadoDiv.innerHTML = `<div class="alert alert-danger">Erro: Conexão com a nuvem (Supabase) não estabelecida.</div>`;
+        if (typeof showToast === 'function') showToast('Conexão com o banco não estabelecida.', 'danger');
         return;
     }
 
-    loader.classList.remove('d-none');
-    resultadoDiv.classList.add('d-none');
+
+    loader.style.display = 'flex';
+    if (emptyState) emptyState.style.display = 'none';
 
     try {
-        // Buscar apenas os dados do mês selecionado
-        const { data, error } = await sbClient.from('historico_pedidos_varejo')
+        const { data, error } = await sbClient
+            .from('historico_pedidos_varejo')
             .select('num_pedido, uf, quilos, rota, data_pedido, cliente, nome_cliente, cidade')
             .gte('data_pedido', dataInicio)
             .lte('data_pedido', dataFim);
 
         if (error) throw error;
 
-        // Armazenar os dados globalmente para exportação
         window.currentVarejoData = data || [];
 
-        // Calcular os totais
-        let totalSP = 0;
-        let totalPR = 0;
-        let totalGeral = 0;
+        const allData = window.currentVarejoData;
+        const dataSP = allData.filter(i => i.uf === 'SP');
+        const dataPR = allData.filter(i => i.uf === 'PR');
 
-        window.currentVarejoData.forEach(item => {
-            const peso = parseFloat(item.quilos) || 0;
-            if (item.uf === 'SP') totalSP += peso;
-            else if (item.uf === 'PR') totalPR += peso;
-            totalGeral += peso;
-        });
+        const totalSP = dataSP.reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
+        const totalPR = dataPR.reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
+        const totalGeral = totalSP + totalPR;
+        const fmt = v => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v);
 
-        // Montar a UI dos KPIs baseada no Premium V10
-        const formatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+        const mesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const periodoLabel = `${mesNomes[parseInt(mes, 10) - 1]} / ${ano}`;
 
-        // Exibe botão de apagar mês se tiver dados
-        const btnApagarMes = document.getElementById('btnApagarMesVarejo');
-        if (btnApagarMes) {
-            if (window.currentVarejoData.length > 0) {
-                btnApagarMes.classList.remove('d-none');
-            } else {
-                btnApagarMes.classList.add('d-none');
-            }
+        // ── Helper: gera tabela HTML para um conjunto de dados ───────────────
+        function buildTableHTML(rows) {
+            if (!rows.length) return `<div class="varejo-no-data"><i class="bi bi-inbox"></i><p>Nenhum pedido neste período</p></div>`;
+            const rowsHTML = rows.map(r => {
+                const dt = r.data_pedido ? new Date(r.data_pedido + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+                const kg = r.quilos ? parseFloat(r.quilos).toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—';
+                return `<tr>
+                    <td>${r.rota || '—'}</td>
+                    <td>${r.cliente || '—'}</td>
+                    <td>${r.nome_cliente || '—'}</td>
+                    <td class="text-center">${r.num_pedido || '—'}</td>
+                    <td class="text-end fw-semibold">${kg} kg</td>
+                    <td class="text-center">${dt}</td>
+                    <td class="text-center"><span class="varejo-uf-badge">${r.uf || '—'}</span></td>
+                    <td>${r.cidade || '—'}</td>
+                </tr>`;
+            }).join('');
+            const totalKg = rows.reduce((s, r) => s + (parseFloat(r.quilos) || 0), 0);
+            return `
+            <table class="varejo-data-table">
+                <thead>
+                    <tr>
+                        <th>Rota</th><th>Cliente</th><th>Nome Cliente</th>
+                        <th class="text-center">Num Pedido</th>
+                        <th class="text-end">Quilos</th>
+                        <th class="text-center">Data Pedido</th>
+                        <th class="text-center">UF</th>
+                        <th>Cidade</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHTML}</tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" class="text-end fw-bold">TOTAL:</td>
+                        <td class="text-end fw-bold total-row">${totalKg.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+            </table>`;
         }
 
-        // Obter as quantidades de pedidos
-        const countGeral = window.currentVarejoData.length;
-        const countSP = window.currentVarejoData.filter(i => i.uf === 'SP').length;
-        const countPR = window.currentVarejoData.filter(i => i.uf === 'PR').length;
+        // ── Helper: gera KPI card HTML ────────────────────────────────────────
+        function kpiCard(icon, label, total, count, pct, colorClass) {
+            return `<div class="varejo-kpi-card ${colorClass}">
+                <div class="varejo-kpi-icon"><i class="bi ${icon}"></i></div>
+                <div class="varejo-kpi-info">
+                    <div class="varejo-kpi-val">${fmt(total)} <span class="varejo-kpi-unit">KG</span></div>
+                    <div class="varejo-kpi-lbl">${label}</div>
+                    <div class="varejo-kpi-sub">${count} pedidos${pct !== null ? ` · ${pct}%` : ''}</div>
+                </div>
+            </div>`;
+        }
 
-        resultadoDiv.innerHTML = `
-            <div class="row g-3">
-                <div class="col-12">
-                    <div class="kpi-card-modern available stat-card-clickable" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'GERAL')" title="Clique para exportar Excel de todo o Varejo">
-                        <i class="bi bi-box-seam kpi-icon-watermark"></i>
-                        <div class="kpi-label"><i class="bi bi-truck"></i> Total Geral (Varejo)</div>
-                        <div class="kpi-metric-group">
-                            <span class="kpi-metric-value text-primary">${formatter.format(totalGeral)}</span>
-                            <span class="kpi-metric-unit">KG</span>
-                        </div>
-                        <div class="kpi-footer border-0 pt-0 mt-1">
-                            <span><i class="bi bi-box-seam me-1"></i> ${countGeral} pedidos</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="kpi-card-modern stat-card-clickable" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'SP')" title="Clique para exportar Excel apenas de São Paulo">
-                        <i class="bi bi-building kpi-icon-watermark"></i>
-                        <div class="kpi-label"><i class="bi bi-geo-alt-fill text-info"></i> São Paulo</div>
-                        <div class="kpi-metric-group">
-                            <span class="kpi-metric-value">${formatter.format(totalSP)}</span>
-                            <span class="kpi-metric-unit">KG</span>
-                        </div>
-                        <div class="kpi-footer border-0 pt-0 mt-1 d-flex justify-content-between">
-                            <span>${totalGeral > 0 ? ((totalSP / totalGeral) * 100).toFixed(1) : 0}%</span>
-                            <span><i class="bi bi-box-seam me-1"></i> ${countSP} pedidos</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-6">
-                    <div class="kpi-card-modern stat-card-clickable" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'PR')" title="Clique para exportar Excel apenas do Paraná">
-                        <i class="bi bi-tree kpi-icon-watermark"></i>
-                        <div class="kpi-label"><i class="bi bi-geo-alt-fill text-success"></i> Paraná</div>
-                        <div class="kpi-metric-group">
-                            <span class="kpi-metric-value">${formatter.format(totalPR)}</span>
-                            <span class="kpi-metric-unit">KG</span>
-                        </div>
-                        <div class="kpi-footer border-0 pt-0 mt-1 d-flex justify-content-between">
-                            <span>${totalGeral > 0 ? ((totalPR / totalGeral) * 100).toFixed(1) : 0}%</span>
-                            <span><i class="bi bi-box-seam me-1"></i> ${countPR} pedidos</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        const pctSP = totalGeral > 0 ? ((totalSP / totalGeral) * 100).toFixed(1) : 0;
+        const pctPR = totalGeral > 0 ? ((totalPR / totalGeral) * 100).toFixed(1) : 0;
 
-            <!-- Botões de exportação -->
-            <div class="d-flex gap-2 mt-3">
-                <button class="btn btn-sm btn-outline-success w-50" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'GERAL')">
-                    <i class="bi bi-file-earmark-excel me-1"></i> Excel Geral
-                </button>
-                <button class="btn btn-sm btn-outline-danger w-50" onclick="exportarRelatorioVarejoPDF('${ano}-${mes}', 'GERAL')">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> PDF Geral
-                </button>
-            </div>
-            <div class="d-flex gap-2 mt-2">
-                <button class="btn btn-sm btn-outline-info w-50" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'SP')">
-                    <i class="bi bi-file-earmark-excel me-1"></i> Excel SP
-                </button>
-                <button class="btn btn-sm btn-outline-info w-50" onclick="exportarRelatorioVarejoPDF('${ano}-${mes}', 'SP')">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> PDF SP
-                </button>
-            </div>
-            <div class="d-flex gap-2 mt-2">
-                <button class="btn btn-sm btn-outline-warning w-50" onclick="exportarRelatorioVarejoExcel('${ano}-${mes}', 'PR')">
-                    <i class="bi bi-file-earmark-excel me-1"></i> Excel PR
-                </button>
-                <button class="btn btn-sm btn-outline-warning w-50" onclick="exportarRelatorioVarejoPDF('${ano}-${mes}', 'PR')">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> PDF PR
-                </button>
-            </div>
-        `;
+        // ── Pane: Resumo ──────────────────────────────────────────────────────
+        const kpiCardsEl = document.getElementById('kpiCards');
+        if (kpiCardsEl) {
+            kpiCardsEl.innerHTML = `
+                <div class="varejo-kpi-period"><i class="bi bi-calendar3 me-2"></i>${periodoLabel}</div>
+                ${kpiCard('bi-boxes', 'Total Geral', totalGeral, allData.length, null, 'blue')}
+                ${kpiCard('bi-building', 'São Paulo', totalSP, dataSP.length, pctSP, 'cyan')}
+                ${kpiCard('bi-tree', 'Paraná', totalPR, dataPR.length, pctPR, 'green')}`;
+        }
+
+        const tabelaGeralEl = document.getElementById('tabelaGeral');
+        const tabelaGeralContent = document.getElementById('tabelaGeralContent');
+        if (tabelaGeralEl && tabelaGeralContent) {
+            tabelaGeralContent.innerHTML = buildTableHTML(allData);
+            tabelaGeralEl.classList.remove('d-none');
+            ['btnXlsGeral', 'btnPdfGeral'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('d-none'); });
+        }
+
+        // ── Pane: São Paulo ───────────────────────────────────────────────────
+        const kpiSPEl = document.getElementById('kpiSP');
+        if (kpiSPEl) {
+            kpiSPEl.innerHTML = `
+                <div class="varejo-kpi-period"><i class="bi bi-calendar3 me-2"></i>${periodoLabel} · São Paulo</div>
+                ${kpiCard('bi-building', 'São Paulo', totalSP, dataSP.length, pctSP, 'cyan')}`;
+        }
+
+        const tabelaSPEl = document.getElementById('tabelaSP');
+        const tabelaSPContent = document.getElementById('tabelaSPContent');
+        if (tabelaSPEl && tabelaSPContent) {
+            tabelaSPContent.innerHTML = buildTableHTML(dataSP);
+            tabelaSPEl.classList.remove('d-none');
+            ['btnXlsSP', 'btnPdfSP'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('d-none'); });
+        }
+
+        // ── Pane: Paraná ──────────────────────────────────────────────────────
+        const kpiPREl = document.getElementById('kpiPR');
+        if (kpiPREl) {
+            kpiPREl.innerHTML = `
+                <div class="varejo-kpi-period"><i class="bi bi-calendar3 me-2"></i>${periodoLabel} · Paraná</div>
+                ${kpiCard('bi-tree', 'Paraná', totalPR, dataPR.length, pctPR, 'green')}`;
+        }
+
+        const tabelaPREl = document.getElementById('tabelaPR');
+        const tabelaPRContent = document.getElementById('tabelaPRContent');
+        if (tabelaPREl && tabelaPRContent) {
+            tabelaPRContent.innerHTML = buildTableHTML(dataPR);
+            tabelaPREl.classList.remove('d-none');
+            ['btnXlsPR', 'btnPdfPR'].forEach(id => { const b = document.getElementById(id); if (b) b.classList.remove('d-none'); });
+        }
 
     } catch (err) {
         console.error('Erro ao buscar dados do Supabase:', err);
-        resultadoDiv.innerHTML = `<div class="alert alert-danger">Erro ao buscar dados: ${err.message}</div>`;
+        if (typeof showToast === 'function') showToast(`Erro: ${err.message}`, 'danger');
     } finally {
-        loader.classList.add('d-none');
-        resultadoDiv.classList.remove('d-none');
+        loader.style.display = 'none';
     }
 }
 // --- FIM: RELATÓRIO MENSAL DE VAREJO ---
+
 
 
 // Função para Exportar PDF — Relatório Profissional de Varejo
