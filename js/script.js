@@ -421,6 +421,11 @@ function getRouteDisplayTitle(rota, veiculo) {
         rota = rota.id || rota.code || rota.Cod_Rota || String(rota);
     }
 
+    // Defensive check: if veiculo is an object, try to extract the type
+    if (typeof veiculo === 'object' && veiculo !== null) {
+        veiculo = veiculo.type || veiculo.id || veiculo.name || String(veiculo);
+    }
+
     const overrides = window._apexRouteOverrides || {};
     // Ensure we are checking a string key
     const rotaKey = String(rota);
