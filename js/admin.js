@@ -107,6 +107,7 @@
         if (enteredHash === storedHash) {
             closePinModal();
             adminUnlocked = true;
+            sessionStorage.setItem('apexAdminUnlocked', 'true');
             setTimeout(openCommandCenter, 350);
         } else {
             document.getElementById('apex-pin-error').style.display = 'block';
@@ -138,6 +139,8 @@
         cc.classList.remove('visible');
         setTimeout(() => { cc.style.display = 'none'; }, 400);
         adminUnlocked = false;
+        sessionStorage.removeItem('apexAdminUnlocked');
+        sessionStorage.removeItem('apexAdminTab');
     };
 
     window.switchAdminTab = function (tabId) {
@@ -145,6 +148,8 @@
         document.querySelectorAll('.acc-pane').forEach(p => p.classList.remove('active'));
         document.querySelector(`.acc-tab[data-tab="${tabId}"]`)?.classList.add('active');
         document.getElementById(`acc-pane-${tabId}`)?.classList.add('active');
+
+        sessionStorage.setItem('apexAdminTab', tabId);
 
         if (tabId === 'saude') loadHealthData();
         if (tabId === 'config') loadConfigData();
@@ -1083,5 +1088,30 @@
             await sb.from('apex_admin_config').upsert({ config_key: 'last_processar', config_value: `"${ts}"`, updated_at: new Date().toISOString() }, { onConflict: 'config_key' });
         }
     };
+
+    // ─── Bootstrap Focus Trap Bypass ─────────────────────────────────────────
+    // Previne que modais do Bootstrap roubem o foco dos inputs do Command Center
+    document.addEventListener('focusin', function (e) {
+        const cc = document.getElementById('apex-command-center');
+        const pin = document.getElementById('apex-pin-modal');
+        if ((cc && cc.contains(e.target)) || (pin && pin.contains(e.target))) {
+            e.stopImmediatePropagation();
+        }
+    }, true);
+
+    // ─── Session Persistence Recovery ────────────────────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        if (sessionStorage.getItem('apexAdminUnlocked') === 'true') {
+            adminUnlocked = true;
+            const savedTab = sessionStorage.getItem('apexAdminTab') || 'banco';
+            // Open silently
+            const cc = document.getElementById('apex-command-center');
+            if (cc) {
+                cc.style.display = 'flex';
+                setTimeout(() => cc.classList.add('visible'), 10);
+                setTimeout(() => window.switchAdminTab(savedTab), 100);
+            }
+        }
+    });
 
 })();
