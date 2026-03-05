@@ -1,4 +1,4 @@
-﻿function toggleMobileSidebar() {
+﻿﻿function toggleMobileSidebar() {
     const sidebar = document.getElementById('sidebar-modern');
     const overlay = document.getElementById('sidebar-overlay');
     sidebar.classList.toggle('mobile-open');
@@ -3815,11 +3815,32 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
     }
 
     // Coleta as configuraá§áµes atuais dos veá­culos
+    // MODIFICADO: Usa getVehicleConfigSafe para respeitar overrides do Admin
+    const getCfg = (type) => getVehicleConfigSafe(type);
     const vehicleConfigs = {
-        fiorinoMinCapacity: parseFloat(document.getElementById('fiorinoMinCapacity').value), fiorinoMaxCapacity: parseFloat(document.getElementById('fiorinoMaxCapacity').value), fiorinoCubage: parseFloat(document.getElementById('fiorinoCubage').value), fiorinoHardMaxCapacity: parseFloat(document.getElementById('fiorinoHardMaxCapacity').value), fiorinoHardCubage: parseFloat(document.getElementById('fiorinoHardCubage').value),
-        vanMinCapacity: parseFloat(document.getElementById('vanMinCapacity').value), vanMaxCapacity: parseFloat(document.getElementById('vanMaxCapacity').value), vanCubage: parseFloat(document.getElementById('vanCubage').value), vanHardMaxCapacity: parseFloat(document.getElementById('vanHardMaxCapacity').value), vanHardCubage: parseFloat(document.getElementById('vanHardCubage').value),
-        tresQuartosMinCapacity: parseFloat(document.getElementById('tresQuartosMinCapacity').value), tresQuartosMaxCapacity: parseFloat(document.getElementById('tresQuartosMaxCapacity').value), tresQuartosCubage: parseFloat(document.getElementById('tresQuartosCubage').value),
-        tocoMinCapacity: parseFloat(document.getElementById('tocoMinCapacity').value), tocoMaxCapacity: parseFloat(document.getElementById('tocoMaxCapacity').value), tocoCubage: parseFloat(document.getElementById('tocoCubage').value)
+        fiorinoMinCapacity: getCfg('fiorino').minKg,
+        fiorinoMaxCapacity: getCfg('fiorino').softMaxKg,
+        fiorinoCubage: getCfg('fiorino').softMaxCubage,
+        fiorinoHardMaxCapacity: getCfg('fiorino').hardMaxKg,
+        fiorinoHardCubage: getCfg('fiorino').hardMaxCubage,
+
+        vanMinCapacity: getCfg('van').minKg,
+        vanMaxCapacity: getCfg('van').softMaxKg,
+        vanCubage: getCfg('van').softMaxCubage,
+        vanHardMaxCapacity: getCfg('van').hardMaxKg,
+        vanHardCubage: getCfg('van').hardMaxCubage,
+
+        tresQuartosMinCapacity: getCfg('tresQuartos').minKg,
+        tresQuartosMaxCapacity: getCfg('tresQuartos').softMaxKg,
+        tresQuartosCubage: getCfg('tresQuartos').softMaxCubage,
+        tresQuartosHardMaxCapacity: getCfg('tresQuartos').hardMaxKg,
+        tresQuartosHardCubage: getCfg('tresQuartos').hardMaxCubage,
+
+        tocoMinCapacity: getCfg('toco').minKg,
+        tocoMaxCapacity: getCfg('toco').softMaxKg,
+        tocoCubage: getCfg('toco').softMaxCubage,
+        tocoHardMaxCapacity: getCfg('toco').hardMaxKg,
+        tocoHardCubage: getCfg('toco').hardMaxCubage
     };
 
     // Envia os dados para o worker
@@ -7884,11 +7905,32 @@ async function processarRoteirizacaoLista() {
             const stageLeftovers = [];
 
             // Configuraá§áµes atuais
+            // MODIFICADO: Usa getVehicleConfigSafe para respeitar overrides do Admin
+            const getCfg = (type) => getVehicleConfigSafe(type);
             const vehicleConfigs = {
-                fiorinoMinCapacity: parseFloat(document.getElementById('fiorinoMinCapacity').value), fiorinoMaxCapacity: parseFloat(document.getElementById('fiorinoMaxCapacity').value), fiorinoCubage: parseFloat(document.getElementById('fiorinoCubage').value), fiorinoHardMaxCapacity: parseFloat(document.getElementById('fiorinoHardMaxCapacity').value), fiorinoHardCubage: parseFloat(document.getElementById('fiorinoHardCubage').value),
-                vanMinCapacity: parseFloat(document.getElementById('vanMinCapacity').value), vanMaxCapacity: parseFloat(document.getElementById('vanMaxCapacity').value), vanCubage: parseFloat(document.getElementById('vanCubage').value), vanHardMaxCapacity: parseFloat(document.getElementById('vanHardMaxCapacity').value), vanHardCubage: parseFloat(document.getElementById('vanHardCubage').value),
-                tresQuartosMinCapacity: parseFloat(document.getElementById('tresQuartosMinCapacity').value), tresQuartosMaxCapacity: parseFloat(document.getElementById('tresQuartosMaxCapacity').value), tresQuartosCubage: parseFloat(document.getElementById('tresQuartosCubage').value),
-                tocoMinCapacity: parseFloat(document.getElementById('tocoMinCapacity').value), tocoMaxCapacity: parseFloat(document.getElementById('tocoMaxCapacity').value), tocoCubage: parseFloat(document.getElementById('tocoCubage').value)
+                fiorinoMinCapacity: getCfg('fiorino').minKg,
+                fiorinoMaxCapacity: getCfg('fiorino').softMaxKg,
+                fiorinoCubage: getCfg('fiorino').softMaxCubage,
+                fiorinoHardMaxCapacity: getCfg('fiorino').hardMaxKg,
+                fiorinoHardCubage: getCfg('fiorino').hardMaxCubage,
+
+                vanMinCapacity: getCfg('van').minKg,
+                vanMaxCapacity: getCfg('van').softMaxKg,
+                vanCubage: getCfg('van').softMaxCubage,
+                vanHardMaxCapacity: getCfg('van').hardMaxKg,
+                vanHardCubage: getCfg('van').hardMaxCubage,
+
+                tresQuartosMinCapacity: getCfg('tresQuartos').minKg,
+                tresQuartosMaxCapacity: getCfg('tresQuartos').softMaxKg,
+                tresQuartosCubage: getCfg('tresQuartos').softMaxCubage,
+                tresQuartosHardMaxCapacity: getCfg('tresQuartos').hardMaxKg,
+                tresQuartosHardCubage: getCfg('tresQuartos').hardMaxCubage,
+
+                tocoMinCapacity: getCfg('toco').minKg,
+                tocoMaxCapacity: getCfg('toco').softMaxKg,
+                tocoCubage: getCfg('toco').softMaxCubage,
+                tocoHardMaxCapacity: getCfg('toco').hardMaxKg,
+                tocoHardCubage: getCfg('toco').hardMaxCubage
             };
 
             for (const cluster of clusters) {
