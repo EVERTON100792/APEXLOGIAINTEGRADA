@@ -142,15 +142,14 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
     if ((load.totalKg + groupToAdd.totalKg) > config.hardMaxKg) return false;
     if ((load.totalCubagem + groupToAdd.totalCubagem) > config.hardMaxCubage) return false;
 
-    if (groupToAdd.isSpecial) {
-        const specialClientIdsInLoad = new Set(
-            load.pedidos
-                .filter(isSpecialClient)
-                .map(p => normalizeClientId(p.Cliente))
-        );
-        const groupToAddClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
-        // REGRA: Permite no máximo 2 clientes especiais por carga (Volta ao padrão anterior, mas com validação rigorosa).
-        if (!specialClientIdsInLoad.has(groupToAddClientId) && specialClientIdsInLoad.size >= 2) {
+    if (groupToAdd.isSpecial || load.pedidos.some(isSpecialClient)) {
+        const clientIdsInLoad = new Set(load.pedidos.map(p => normalizeClientId(p.Cliente)));
+        const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
+
+        // Se a carga vai conter um cliente especial (sendo adicionado ou ja presente)
+        // O numero MAXIMO de clientes distintos na carga nao pode passar de 2.
+        clientIdsInLoad.add(newClientId);
+        if (clientIdsInLoad.size > 2) {
             return false;
         }
     }

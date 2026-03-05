@@ -161,46 +161,86 @@ $adminHtml = @'
 
     <!-- PANE: Config -->
     <div id="acc-pane-config" class="acc-pane">
+      <div class="acc-card" style="margin-bottom: 1.5rem;">
+        <div class="acc-card-header-row">
+          <h3 class="acc-card-title"><i class="bi bi-truck me-2" style="margin-right:0.5rem"></i>CONFIGURACOES DE VEICULOS</h3>
+          <button class="acc-btn acc-btn-primary" onclick="accSalvarVehicleConfig()">Salvar Alteracoes</button>
+        </div>
+        
+        <!-- Fiorino -->
+        <div style="border-bottom: 1px solid #1e293b; padding-bottom: 1.5rem; margin-top: 1rem;">
+          <strong style="color: #10b981; font-size: 1.25rem; display: block; margin-bottom: 1rem;">Fiorino</strong>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 1rem;">
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min (kg)</label><input id="acc-vc-fiorino-minKg" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Pref. (kg)</label><input id="acc-vc-fiorino-softMax" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Pref. (m3)</label><input id="acc-vc-fiorino-cubage" class="acc-input" type="number" step="0.1"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+              <div></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max Final (kg)</label><input id="acc-vc-fiorino-hardMax" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max Final (m3)</label><input id="acc-vc-fiorino-hardCubage" class="acc-input" type="number" step="0.1"></div>
+          </div>
+        </div>
+
+        <!-- Van -->
+        <div style="border-bottom: 1px solid #1e293b; padding: 1.5rem 0;">
+          <strong style="color: #3b82f6; font-size: 1.25rem; display: block; margin-bottom: 1rem;">Van</strong>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 1rem;">
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min (kg)</label><input id="acc-vc-van-minKg" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Pref. (kg)</label><input id="acc-vc-van-softMax" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Pref. (m3)</label><input id="acc-vc-van-cubage" class="acc-input" type="number" step="0.1"></div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+              <div></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max Final (kg)</label><input id="acc-vc-van-hardMax" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max Final (m3)</label><input id="acc-vc-van-hardCubage" class="acc-input" type="number" step="0.1"></div>
+          </div>
+        </div>
+
+        <!-- 3/4 -->
+        <div style="border-bottom: 1px solid #1e293b; padding: 1.5rem 0;">
+          <strong style="color: #f59e0b; font-size: 1.25rem; display: block; margin-bottom: 1rem;">3/4</strong>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min (kg)</label><input id="acc-vc-tresQuartos-minKg" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max (kg)</label><input id="acc-vc-tresQuartos-hardMax" class="acc-input" type="number" oninput="document.getElementById('acc-vc-tresQuartos-softMax').value=this.value"><input id="acc-vc-tresQuartos-softMax" type="hidden"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max (m3)</label><input id="acc-vc-tresQuartos-hardCubage" class="acc-input" type="number" step="0.1" oninput="document.getElementById('acc-vc-tresQuartos-cubage').value=this.value"><input id="acc-vc-tresQuartos-cubage" type="hidden"></div>
+          </div>
+        </div>
+
+        <!-- Toco -->
+        <div style="padding-top: 1.5rem;">
+          <strong style="color: #f8fafc; font-size: 1.25rem; display: block; margin-bottom: 1rem;">Toco</strong>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min (kg)</label><input id="acc-vc-toco-minKg" class="acc-input" type="number"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max (kg)</label><input id="acc-vc-toco-hardMax" class="acc-input" type="number" oninput="document.getElementById('acc-vc-toco-softMax').value=this.value"><input id="acc-vc-toco-softMax" type="hidden"></div>
+              <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max (m3)</label><input id="acc-vc-toco-hardCubage" class="acc-input" type="number" step="0.1" oninput="document.getElementById('acc-vc-toco-cubage').value=this.value"><input id="acc-vc-toco-cubage" type="hidden"></div>
+          </div>
+        </div>
+      </div>
+
       <div class="acc-grid-2">
         <div class="acc-card">
           <div class="acc-card-header-row">
-            <h3 class="acc-card-title">Limites de Peso dos Veiculos</h3>
-            <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accSalvarVehicleConfig()">Salvar</button>
+            <h3 class="acc-card-title">Modulos do Sistema</h3>
+            <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accSalvarModulos()">Salvar</button>
           </div>
-          <table class="acc-table acc-mt-sm">
-            <thead><tr><th>Veiculo</th><th>Min (kg)</th><th>Soft Max</th><th>Hard Max</th></tr></thead>
-            <tbody>
-              <tr><td>Fiorino</td><td><input id="acc-vc-fiorino-minKg" class="acc-input-sm" type="number"></td><td><input id="acc-vc-fiorino-softMax" class="acc-input-sm" type="number"></td><td><input id="acc-vc-fiorino-hardMax" class="acc-input-sm" type="number"></td></tr>
-              <tr><td>Van</td><td><input id="acc-vc-van-minKg" class="acc-input-sm" type="number"></td><td><input id="acc-vc-van-softMax" class="acc-input-sm" type="number"></td><td><input id="acc-vc-van-hardMax" class="acc-input-sm" type="number"></td></tr>
-              <tr><td>3/4</td><td><input id="acc-vc-tresQuartos-minKg" class="acc-input-sm" type="number"></td><td><input id="acc-vc-tresQuartos-softMax" class="acc-input-sm" type="number"></td><td><input id="acc-vc-tresQuartos-hardMax" class="acc-input-sm" type="number"></td></tr>
-              <tr><td>Toco</td><td><input id="acc-vc-toco-minKg" class="acc-input-sm" type="number"></td><td><input id="acc-vc-toco-softMax" class="acc-input-sm" type="number"></td><td><input id="acc-vc-toco-hardMax" class="acc-input-sm" type="number"></td></tr>
-            </tbody>
-          </table>
+          <div class="acc-toggle-list mt-3">
+            <label class="acc-toggle-row"><span>Relatorio Varejo</span><input type="checkbox" id="acc-mod-relatorioVarejo" class="acc-toggle-input"></label>
+            <label class="acc-toggle-row"><span>Modulo Varejo</span><input type="checkbox" id="acc-mod-varejo" class="acc-toggle-input"></label>
+            <label class="acc-toggle-row"><span>Modulo Toco</span><input type="checkbox" id="acc-mod-toco" class="acc-toggle-input"></label>
+            <label class="acc-toggle-row"><span>Cargas Fechadas</span><input type="checkbox" id="acc-mod-cargasFechadas" class="acc-toggle-input"></label>
+            <label class="acc-toggle-row"><span>Roteirizacao</span><input type="checkbox" id="acc-mod-roteirizacao" class="acc-toggle-input"></label>
+            <label class="acc-toggle-row"><span>Gerador de E-mails</span><input type="checkbox" id="acc-mod-emailGenerator" class="acc-toggle-input"></label>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:1rem">
-          <div class="acc-card">
-            <div class="acc-card-header-row">
-              <h3 class="acc-card-title">Modulos do Sistema</h3>
-              <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accSalvarModulos()">Salvar</button>
-            </div>
-            <div class="acc-toggle-list">
-              <label class="acc-toggle-row"><span>Relatorio Varejo</span><input type="checkbox" id="acc-mod-relatorioVarejo" class="acc-toggle-input"></label>
-              <label class="acc-toggle-row"><span>Modulo Varejo</span><input type="checkbox" id="acc-mod-varejo" class="acc-toggle-input"></label>
-              <label class="acc-toggle-row"><span>Modulo Toco</span><input type="checkbox" id="acc-mod-toco" class="acc-toggle-input"></label>
-              <label class="acc-toggle-row"><span>Cargas Fechadas</span><input type="checkbox" id="acc-mod-cargasFechadas" class="acc-toggle-input"></label>
-              <label class="acc-toggle-row"><span>Roteirizacao</span><input type="checkbox" id="acc-mod-roteirizacao" class="acc-toggle-input"></label>
-              <label class="acc-toggle-row"><span>Gerador de E-mails</span><input type="checkbox" id="acc-mod-emailGenerator" class="acc-toggle-input"></label>
-            </div>
+        <div class="acc-card">
+          <h3 class="acc-card-title">Alterar PIN de Acesso</h3>
+          <div class="acc-form-group acc-mt-sm">
+            <input id="acc-new-pin" class="acc-input" type="password" maxlength="4" placeholder="Novo PIN (4 digitos)">
+            <input id="acc-confirm-pin" class="acc-input" type="password" maxlength="4" placeholder="Confirmar PIN" style="margin-top:0.5rem">
+            <button class="acc-btn acc-btn-primary" style="margin-top:0.5rem;width:100%" onclick="accAlterarPin()">Alterar PIN</button>
           </div>
-          <div class="acc-card">
-            <h3 class="acc-card-title">Alterar PIN de Acesso</h3>
-            <div class="acc-form-group acc-mt-sm">
-              <input id="acc-new-pin" class="acc-input" type="password" maxlength="4" placeholder="Novo PIN (4 digitos)">
-              <input id="acc-confirm-pin" class="acc-input" type="password" maxlength="4" placeholder="Confirmar PIN" style="margin-top:0.5rem">
-              <button class="acc-btn acc-btn-primary" style="margin-top:0.5rem;width:100%" onclick="accAlterarPin()">Alterar PIN</button>
-            </div>
-            <button class="acc-btn acc-btn-danger" style="width:100%;margin-top:0.75rem" onclick="accLimparCache()">Limpar Cache do Navegador</button>
-          </div>
+          <button class="acc-btn acc-btn-danger" style="width:100%;margin-top:0.75rem" onclick="accLimparCache()">Limpar Cache do Navegador</button>
         </div>
       </div>
     </div>
@@ -222,8 +262,11 @@ $adminHtml = @'
       </div>
     </div>
   </div>
+    </div>
+  </div>
 </div>
 <script src="js/admin.js"></script>
+<!-- APEX_ADMIN_END -->
 </body>
 <script>
   // Script bridge if needed for the admin panel to talk to main UI
@@ -231,10 +274,26 @@ $adminHtml = @'
 </html>
 '@
 
+# Clean out existing injection if present
+$startMarker = '<!-- APEX_ADMIN_START -->'
+$endMarker = '<!-- APEX_ADMIN_END -->'
+
+$startIndex = $content.IndexOf($startMarker)
+$endIndex = $content.IndexOf($endMarker)
+
+if ($startIndex -ge 0 -and $endIndex -gt $startIndex) {
+  # We found an existing block, remove it
+  $lengthToRemove = ($endIndex + $endMarker.Length) - $startIndex
+  $content = $content.Remove($startIndex, $lengthToRemove)
+  Write-Host "Replaced existing admin panel injection."
+}
+
 # Find the last </body> and replace it
 $lastBodyIdx = $content.LastIndexOf('</body>')
 if ($lastBodyIdx -ge 0) {
-  $newContent = $content.Substring(0, $lastBodyIdx) + $adminHtml
+  # Ensure the injected HTML has the markers wrapping it just before </body>
+  $wrappedHtml = "$startMarker`n$adminHtml"
+  $newContent = $content.Substring(0, $lastBodyIdx) + $wrappedHtml
   [System.IO.File]::WriteAllText($htmlPath, $newContent, [System.Text.Encoding]::UTF8)
   Write-Host "SUCCESS: Admin HTML injected ($($adminHtml.Length) chars)"
 }

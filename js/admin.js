@@ -42,17 +42,24 @@
         }
     });
 
-    // ─── PIN Modal ───────────────────────────────────────────────────────────
     // Physical keyboard support for PIN modal
-    document.addEventListener('keydown', function (e) {
+    const pinKeyHandler = function (e) {
         const modal = document.getElementById('apex-pin-modal');
         if (!modal || modal.style.display === 'none') return;
-        e.preventDefault();
-        if (e.key >= '0' && e.key <= '9') { window.apexPinKey(e.key); }
-        else if (e.key === 'Backspace') { window.apexPinBackspace(); }
-        else if (e.key === 'Enter') { window.apexPinConfirm(); }
-        else if (e.key === 'Escape') { window.apexPinClose(); }
-    });
+
+        // Prevent default only if we are handling the key
+        const handledKeys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Backspace', 'Enter', 'Escape'];
+        if (handledKeys.includes(e.key)) {
+            e.preventDefault();
+            e.stopPropagation(); // Stop propagation to prevent double triggers if button is focused
+
+            if (e.key >= '0' && e.key <= '9') { window.apexPinKey(e.key); }
+            else if (e.key === 'Backspace') { window.apexPinBackspace(); }
+            else if (e.key === 'Enter') { window.apexPinConfirm(); }
+            else if (e.key === 'Escape') { window.apexPinClose(); }
+        }
+    };
+    document.addEventListener('keydown', pinKeyHandler);
 
     function openPinModal() {
         const modal = document.getElementById('apex-pin-modal');
@@ -66,6 +73,7 @@
 
     function closePinModal() {
         const modal = document.getElementById('apex-pin-modal');
+        if (!modal) return;
         modal.classList.remove('visible');
         setTimeout(() => { modal.style.display = 'none'; }, 300);
     }
@@ -77,6 +85,8 @@
         const dots = window._apexPinBuffer.length;
         document.getElementById('apex-pin-display').textContent =
             '● '.repeat(dots) + '_ '.repeat(4 - dots);
+
+        // Auto-confirm when 4 digits are entered? No, user requested "OK" button/Enter
     };
 
     window.apexPinBackspace = function () {
@@ -87,32 +97,40 @@
             '● '.repeat(dots) + '_ '.repeat(4 - dots);
     };
 
+    let isPinConfirming = false;
     window.apexPinConfirm = async function () {
+        if (isPinConfirming) return;
         const pin = window._apexPinBuffer || '';
         if (pin.length !== 4) return;
 
-        // Get stored PIN hash from Supabase
-        const sb = window.supabaseClient || window.supabase;
-        if (!sb) { alert('Supabase não disponível.'); return; }
+        isPinConfirming = true;
+        try {
+            // Get stored PIN hash from Supabase
+            const sb = window.supabaseClient || window.supabase;
+            if (!sb) { alert('Supabase não disponível.'); return; }
 
-        const { data, error } = await sb.from('apex_admin_config')
-            .select('config_value')
-            .eq('config_key', 'admin_pin_hash')
-            .single();
+            const { data, error } = await sb.from('apex_admin_config')
+                .select('config_value')
+                .eq('config_key', 'admin_pin_hash')
+                .single();
 
-        // Fallback: SHA-256 of '1234'
-        const storedHash = data?.config_value?.replace(/"/g, '') || '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
-        const enteredHash = await sha256(pin);
+            // Fallback: SHA-256 of '1234'
+            const storedHash = data?.config_value?.replace(/"/g, '') || '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4';
+            const enteredHash = await sha256(pin);
 
-        if (enteredHash === storedHash) {
-            closePinModal();
-            adminUnlocked = true;
-            sessionStorage.setItem('apexAdminUnlocked', 'true');
-            setTimeout(openCommandCenter, 350);
-        } else {
-            document.getElementById('apex-pin-error').style.display = 'block';
-            window._apexPinBuffer = '';
-            document.getElementById('apex-pin-display').textContent = '_ _ _ _';
+            if (enteredHash === storedHash) {
+                closePinModal();
+                adminUnlocked = true;
+                localStorage.setItem('apexAdminUnlocked', 'true');
+                localStorage.setItem('apexAdminSessionTime', Date.now().toString());
+                setTimeout(openCommandCenter, 350);
+            } else {
+                document.getElementById('apex-pin-error').style.display = 'block';
+                window._apexPinBuffer = '';
+                document.getElementById('apex-pin-display').textContent = '_ _ _ _';
+            }
+        } finally {
+            isPinConfirming = false;
         }
     };
 
@@ -125,6 +143,7 @@
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
+
     // ─── Command Center ───────────────────────────────────────────────────────
     function openCommandCenter() {
         const cc = document.getElementById('apex-command-center');
@@ -136,11 +155,9 @@
 
     window.closeCommandCenter = function () {
         const cc = document.getElementById('apex-command-center');
+        if (!cc) return;
         cc.classList.remove('visible');
         setTimeout(() => { cc.style.display = 'none'; }, 400);
-        adminUnlocked = false;
-        sessionStorage.removeItem('apexAdminUnlocked');
-        sessionStorage.removeItem('apexAdminTab');
     };
 
     window.switchAdminTab = function (tabId) {
@@ -149,7 +166,7 @@
         document.querySelector(`.acc-tab[data-tab="${tabId}"]`)?.classList.add('active');
         document.getElementById(`acc-pane-${tabId}`)?.classList.add('active');
 
-        sessionStorage.setItem('apexAdminTab', tabId);
+        localStorage.setItem('apexAdminTab', tabId);
 
         if (tabId === 'saude') loadHealthData();
         if (tabId === 'config') loadConfigData();
@@ -526,10 +543,10 @@
         const vehicles = ['fiorino', 'van', 'tresQuartos', 'toco'];
         // Map from admin panel field names to the original HTML input field names
         const htmlMap = {
-            fiorino: { minKg: 'fiorinoMinCapacity', softMaxKg: 'fiorinoMaxCapacity', hardMaxKg: 'fiorinoHardMaxCapacity' },
-            van: { minKg: 'vanMinCapacity', softMaxKg: 'vanMaxCapacity', hardMaxKg: 'vanHardMaxCapacity' },
-            tresQuartos: { minKg: 'tresQuartosMinCapacity', softMaxKg: 'tresQuartosMaxCapacity', hardMaxKg: 'tresQuartosHardMaxCapacity' },
-            toco: { minKg: 'tocoMinCapacity', softMaxKg: 'tocoMaxCapacity', hardMaxKg: 'tocoHardMaxCapacity' }
+            fiorino: { minKg: 'fiorinoMinCapacity', softMaxKg: 'fiorinoMaxCapacity', hardMaxKg: 'fiorinoHardMaxCapacity', cubage: 'fiorinoCubage', hardCubage: 'fiorinoHardCubage' },
+            van: { minKg: 'vanMinCapacity', softMaxKg: 'vanMaxCapacity', hardMaxKg: 'vanHardMaxCapacity', cubage: 'vanCubage', hardCubage: 'vanHardCubage' },
+            tresQuartos: { minKg: 'tresQuartosMinCapacity', softMaxKg: 'tresQuartosMaxCapacity', hardMaxKg: 'tresQuartosHardMaxCapacity', cubage: 'tresQuartosCubage', hardCubage: 'tresQuartosHardCubage' },
+            toco: { minKg: 'tocoMinCapacity', softMaxKg: 'tocoMaxCapacity', hardMaxKg: 'tocoHardMaxCapacity', cubage: 'tocoCubage', hardCubage: 'tocoHardCubage' }
         };
         vehicles.forEach(v => {
             const cfg = vc[v] || {};
@@ -539,6 +556,8 @@
             if (el('minKg')) el('minKg').value = cfg.minKg ?? htmlEl('minKg')?.value ?? '';
             if (el('softMax')) el('softMax').value = cfg.softMaxKg ?? htmlEl('softMaxKg')?.value ?? '';
             if (el('hardMax')) el('hardMax').value = cfg.hardMaxKg ?? htmlEl('hardMaxKg')?.value ?? '';
+            if (el('cubage')) el('cubage').value = cfg.softMaxCubage ?? htmlEl('cubage')?.value ?? '';
+            if (el('hardCubage')) el('hardCubage').value = cfg.hardMaxCubage ?? htmlEl('hardCubage')?.value ?? '';
         });
 
         // Load modules
@@ -561,8 +580,8 @@
                 softMaxKg: parseFloat(el('softMax')?.value) || 0,
                 hardMaxKg: parseFloat(el('hardMax')?.value) || 0,
                 minCubage: 0,
-                softMaxCubage: 99,
-                hardMaxCubage: 99
+                softMaxCubage: parseFloat(el('cubage')?.value) || 0,
+                hardMaxCubage: parseFloat(el('hardCubage')?.value) || 0
             };
         });
 
@@ -1099,11 +1118,18 @@
         }
     }, true);
 
-    // ─── Session Persistence Recovery ────────────────────────────────────────
+
+    // Initial check for persisted session
     document.addEventListener('DOMContentLoaded', () => {
-        if (sessionStorage.getItem('apexAdminUnlocked') === 'true') {
+        const isUnlocked = localStorage.getItem('apexAdminUnlocked') === 'true';
+        const sessionTime = parseInt(localStorage.getItem('apexAdminSessionTime') || '0');
+        const now = Date.now();
+
+        // Session valid for 24 hours
+        if (isUnlocked && (now - sessionTime < 1000 * 60 * 60 * 24)) {
             adminUnlocked = true;
-            const savedTab = sessionStorage.getItem('apexAdminTab') || 'banco';
+            console.log('APEX: Painel Restaurado');
+            const savedTab = localStorage.getItem('apexAdminTab') || 'banco';
             // Open silently
             const cc = document.getElementById('apex-command-center');
             if (cc) {
@@ -1111,6 +1137,9 @@
                 setTimeout(() => cc.classList.add('visible'), 10);
                 setTimeout(() => window.switchAdminTab(savedTab), 100);
             }
+        } else {
+            localStorage.removeItem('apexAdminUnlocked');
+            localStorage.removeItem('apexAdminSessionTime');
         }
     });
 
