@@ -386,19 +386,28 @@ function isPedidoBloqueado(pedido) {
     return clienteId && clientesComBloqueioRegra.has(clienteId);
 }
 
-// Funá§á£o centralizada para ordenar rotas de forma consistente
+// NOVA FUNÇÃO CENTRALIZADA: Carrega todas as regras de negócio do Supabase
 async function loadRouteOverrides() {
     try {
         const sb = window.supabaseClient || window.supabase;
         if (!sb) return;
-        const { data, error } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'route_overrides').single();
+
+        console.log("Loading Apex Business Rules from Supabase...");
+
+        // 1. Fetch all config keys at once for efficiency
+        const { data, error } = await sb.from('apex_admin_config').select('config_key, config_value');
         if (error) {
-            console.warn("Sem overrides de rotas no Supabase:", error);
+            console.warn("Erro ao carregar regras de negócio do Supabase:", error);
             return;
         }
-        window._apexRouteOverrides = data?.config_value || {};
 
-        // Aplica overrides ao mapa em memória se ele já existir
+        const configs = data.reduce((acc, row) => {
+            acc[row.config_key] = row.config_value;
+            return acc;
+        }, {});
+
+        // 2. Apply Route Overrides
+        window._apexRouteOverrides = configs['route_overrides'] || {};
         if (window.rotaVeiculoMap && window._apexRouteOverrides) {
             for (const [code, ov] of Object.entries(window._apexRouteOverrides)) {
                 if (window.rotaVeiculoMap[code]) {
@@ -408,38 +417,67 @@ async function loadRouteOverrides() {
                 }
             }
         }
-        console.log("Overrides de rotas carregados do Supabase.");
+
+        // 3. Apply Fiorino Cities
+        if (configs['fiorino_cities_extra']) {
+            window.rotasEspeciaisFiorino = { ...window.rotasEspeciaisFiorino, ...configs['fiorino_cities_extra'] };
+        }
+
+        // 4. Apply Special Clients
+        if (configs['special_clients_extra']) {
+            const extraClients = configs['special_clients_extra'] || [];
+            window.specialClientNames = [...new Set([...(window.specialClientNames || []), ...extraClients])];
+        }
+
+        // 5. Apply Agendamento Overrides
+        if (configs['agendamento_overrides']) {
+            window.agendamentoOverrides = configs['agendamento_overrides'];
+        }
+
+        // 6. Apply Client Observations
+        if (configs['client_observations']) {
+            window.clientObservations = configs['client_observations'];
+        }
+
+        console.log("Regras de negócio carregadas com sucesso.");
     } catch (err) {
         console.error("Erro em loadRouteOverrides:", err);
     }
 }
 
 function getRouteDisplayTitle(rota, veiculo) {
-    // Defensive check: if rota is an object, try to extract a string ID
-    if (typeof rota === 'object' && rota !== null) {
-        console.warn("[ApexLog] getRouteDisplayTitle received an object:", rota);
-        rota = rota.id || rota.code || rota.Cod_Rota || String(rota);
-    }
+    // 1. Resolve 'rota' string identifier
+    let rotaKey = String(rota && typeof rota === 'object' ? (rota.id || rota.code || rota.Cod_Rota || rota.rota || '') : (rota || '')).trim();
 
-    // Defensive check: if veiculo is an object, try to extract the type
-    if (typeof veiculo === 'object' && veiculo !== null) {
-        veiculo = veiculo.type || veiculo.id || veiculo.name || String(veiculo);
-    }
+    // 2. Resolve route overrides (Check both global names for consistency)
+    const overrides = window._apexRouteOverrides || window._apexAdminRouteOverrides || {};
+    const ov = overrides[rotaKey];
 
-    const overrides = window._apexRouteOverrides || {};
-    // Ensure we are checking a string key
-    const rotaKey = String(rota);
+    // 3. If there's a custom name override, use it immediately
+    if (ov?.name) return `Rota: ${ov.name}`;
 
-    if (overrides[rotaKey]?.name) {
-        return `Rota: ${overrides[rotaKey].name}`;
+    // 4. Resolve 'veiculo' string (extract from object if needed)
+    let vType = veiculo;
+    if (typeof vType === 'object' && vType !== null) {
+        vType = vType.type || vType.id || vType.name || '';
     }
-    // Fallback original logic
-    if (veiculo === 'van' && !rotaVeiculoMap[rotaKey]?.title.startsWith('Rota 1')) {
+    // Fallback to in-memory map if veiculo is missing/invalid
+    if (!vType && window.rotaVeiculoMap?.[rotaKey]) {
+        vType = window.rotaVeiculoMap[rotaKey].type;
+    }
+    vType = String(vType || 'van').toLowerCase();
+
+    // 5. Special rendering for SP Van routes
+    const mapConfig = window.rotaVeiculoMap?.[rotaKey];
+    const isPR = mapConfig?.title?.startsWith('Rota 1') || rotaKey.startsWith('1');
+
+    if (vType === 'van' && !isPR) {
         return `Rota: ${rotaKey} (VAN-3/4- SP)`;
-    } else {
-        const veiculoNome = String(veiculo || '').replace('tresQuartos', '3/4').replace(/^\w/, c => c.toUpperCase());
-        return `Rota: ${rotaKey} (${veiculoNome})`;
     }
+
+    // 6. Standard rendering
+    const veiculoNome = vType.replace('tresQuartos', '3/4').replace(/^\w/, c => c.toUpperCase());
+    return `Rota: ${rotaKey} (${veiculoNome})`;
 }
 
 function getSortedVarejoRoutes(rotas) {
@@ -493,15 +531,30 @@ function normalizeClientId(id) {
     return String(id).trim().replace(/^0+/, '');
 }
 
+// Global business rules loaded from Supabase
+window.agendamentoOverrides = {};
+window.clientObservations = {};
+
 function checkAgendamento(pedido) {
-    if (!pedido) return;
+    if (!pedido) return 'Não';
     const normalizedCode = normalizeClientId(pedido.Cliente);
     const nomeCliente = pedido.Nome_Cliente ? String(pedido.Nome_Cliente).trim().toUpperCase() : '';
-    if (nomeCliente === 'SUPERMERCADO O KILAO LTDA') {
-        pedido.Agendamento = 'Não';
-    } else {
-        pedido.Agendamento = (agendamentoClientCodes.has(normalizedCode) || nomeCliente === 'PRIMATO COOPERATIVA AGROINDUSTRIAL') ? 'Sim' : 'Não';
+
+    let status = 'Não';
+
+    // 1. Check for manual override from Supabase
+    if (window.agendamentoOverrides && window.agendamentoOverrides[normalizedCode]) {
+        status = window.agendamentoOverrides[normalizedCode];
     }
+    // 2. Fallback to hardcoded logic/list
+    else if (nomeCliente === 'SUPERMERCADO O KILAO LTDA') {
+        status = 'Não';
+    } else {
+        status = (agendamentoClientCodes.has(normalizedCode) || nomeCliente === 'PRIMATO COOPERATIVA AGROINDUSTRIAL') ? 'Sim' : 'Não';
+    }
+
+    pedido.Agendamento = status;
+    return status;
 }
 
 const isSpecialClient = (p) => p.Nome_Cliente && specialClientNames.includes(p.Nome_Cliente.toUpperCase().trim());
@@ -1990,6 +2043,11 @@ function processar() {
 
             const pedidosExcluidos = new Set();
             dadosParaProcessar.forEach(p => {
+                // Sincroniza regras de agendamento do Supabase/Admin
+                if (typeof checkAgendamento === 'function') {
+                    p.Agendamento = checkAgendamento(p);
+                }
+
                 const coluna5 = String(p.Coluna5 || '').toUpperCase();
                 if (coluna5.includes('TBL FUNCIONARIO')) {
                     pedidosFuncionarios.push(p);
@@ -3355,27 +3413,52 @@ function imprimirCargaManualIndividual(loadId) {
  */
 function imprimirCargaIndividual(loadId) {
     const load = activeLoads[loadId];
-    const cardToPrint = document.getElementById(loadId);
+    if (!load) { alert("Carga não encontrada."); return; }
+    const title = `Relatório de Carga - #${load.shortId} (${load.numero || 'S/N'})`;
 
-    if (!load || !cardToPrint) {
-        showToast(`Erro: Carga com ID ${loadId} não encontrada para impressão.`, 'error');
-        return;
+    // Process observations
+    const obsMap = window.clientObservations || window._apexClientObservations || {};
+    const clientIds = [...new Set(load.pedidos.map(p => String(p.Cliente || '').trim()))];
+    const foundObs = clientIds.map(id => ({ id, text: obsMap[id] })).filter(o => o.text);
+
+    const printWindow = createPrintWindow(title);
+
+    let clientObsHtml = '';
+    if (foundObs.length > 0) {
+        clientObsHtml = `
+            <div class="premium-observation-box" style="margin-top: 10px; background: #f0fdf4 !important; border-left: 4px solid #16a34a !important;">
+                <strong style="display:block; font-size: 8pt; color: #166534; margin-bottom: 3px; text-transform: uppercase;">Observações de Clientes (Regras Admin):</strong>
+                ${foundObs.map(o => `<div style="margin-bottom: 2px;">• <strong>[${o.id}]</strong> ${o.text}</div>`).join('')}
+            </div>`;
     }
 
-    const cardClone = cardToPrint.cloneNode(true);
-    const observationText = load.observation || '';
-    const clonePrintDiv = cardClone.querySelector('.print-only-observation');
-    if (clonePrintDiv && observationText) {
-        const printParagraph = clonePrintDiv.querySelector('p');
-        if (printParagraph) printParagraph.innerHTML = `<strong>Observações:</strong><br>${observationText.replace(/\n/g, '<br>')}`;
-        clonePrintDiv.style.display = 'block';
-    }
+    const loadObsHtml = load.observation ? `
+            <div class="premium-observation-box" style="margin-top: 10px;">
+                <strong style="display:block; font-size: 8pt; margin-bottom: 3px; text-transform: uppercase;">Observação da Carga:</strong>
+                ${load.observation.replace(/\n/g, '<br>')}
+            </div>` : '';
 
-    const vehicleNames = { fiorino: 'Fiorino', van: 'Van', tresQuartos: '3/4', toco: 'Toco' };
-    const vehicleName = vehicleNames[load.vehicleType] || load.vehicleType;
-    imprimirGeneric(cardClone.outerHTML, `Carga ${load.numero} - ${vehicleName}`);
+    const content = `
+        <div class="print-container">
+            <h3 class="print-title">${title}</h3>
+            <div class="metrics-grid">
+                <div class="metric-item"><span class="metric-label">Veículo</span><span class="metric-value">${load.vehicleType.toUpperCase()}</span></div>
+                <div class="metric-item"><span class="metric-label">Peso</span><span class="metric-value">${load.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} kg</span></div>
+                <div class="metric-item"><span class="metric-label">Cubagem</span><span class="metric-value">${(load.totalCubagem || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} m³</span></div>
+            </div>
+            <div class="table-container-premium">
+                ${createTable(load.pedidos, ['Num_Pedido', 'Cliente', 'Nome_Cliente', 'Agendamento', 'Quilos_Saldo', 'Cidade', 'UF', 'Predat', 'Dat_Ped', 'CF', 'Coluna5'])}
+            </div>
+            ${clientObsHtml}
+            ${loadObsHtml}
+        </div>`;
 
+    printWindow.document.body.innerHTML = content;
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
 }
+
 
 
 
@@ -4568,8 +4651,9 @@ function renderLoadCard(load, vehicleType, vInfo) {
 
         // Verifica se alguma cidade da carga pertence a uma lista de rotas especiais de Fiorino
         let isSpecialFiorinoRoute = false;
-        for (const rotaId in rotasEspeciaisFiorino) {
-            const allowedCities = new Set(rotasEspeciaisFiorino[rotaId]);
+        const currentSpecialFiorinoMap = window.rotasEspeciaisFiorino || rotasEspeciaisFiorino;
+        for (const rotaId in currentSpecialFiorinoMap) {
+            const allowedCities = new Set(currentSpecialFiorinoMap[rotaId]);
             // Se pelo menos uma cidade da carga está na lista de especiais, sinaliza como híbrida
             if ([...loadCities].some(city => allowedCities.has(city))) {
                 isSpecialFiorinoRoute = true;
@@ -7844,9 +7928,10 @@ async function processarRoteirizacaoLista() {
             let type = 'van'; // Padrá£o
 
             // Verifica regras especiais de Fiorino (cidades permitidas)
-            if (rotasEspeciaisFiorino[rota]) {
+            const currentSpecialFiorinoMap = window.rotasEspeciaisFiorino || rotasEspeciaisFiorino;
+            if (currentSpecialFiorinoMap[rota]) {
                 const cidadePedido = normalizeCity(String(p.Cidade || '').split(',')[0]);
-                if (new Set(rotasEspeciaisFiorino[rota]).has(cidadePedido)) {
+                if (new Set(currentSpecialFiorinoMap[rota]).has(cidadePedido)) {
                     type = 'fiorino';
                 } else {
                     type = 'van'; // Se a cidade ná£o pode Fiorino, vai pra Van
@@ -11126,44 +11211,60 @@ function exportarRelatorioVarejoExcel(periodo, filtroUF = 'GERAL') {
     }
 }
 
-// Função para Apagar o Mês do Banco de Dados
-async function apagarMesVarejo() {
-    const inputMes = document.getElementById('filtroMesVarejo').value;
-    if (!inputMes) return;
+/**
+ * APEX BUSINESS RULES BRIDGE: Sincronização de Observações de Clientes
+ * Esta função varre os cards de carga e injeta as observações cadastradas no Admin.
+ */
+window._apexApplyClientObservations = function () {
+    console.log("Applying client observations to UI cards...");
+    const obsMap = window.clientObservations || window._apexClientObservations || {};
+    const cards = document.querySelectorAll('.premium-load-card');
 
-    const confirmacao = confirm(`Tem certeza que deseja apagar DEFINITIVAMENTE todos os dados de Varejo (SP/PR) referentes a ${inputMes}? Eles serão deletados da nuvem.`);
-    if (!confirmacao) return;
+    cards.forEach(card => {
+        const loadId = card.dataset.loadId;
+        const obsBlock = document.getElementById(`apex-obs-${loadId}`);
+        if (!obsBlock) return;
 
-    const [ano, mes] = inputMes.split('-');
-    const dataInicio = `${ano}-${mes}-01`;
-    const ultimoDia = new Date(ano, mes, 0).getDate();
-    const dataFim = `${ano}-${mes}-${ultimoDia}`;
+        const clientIdsStr = obsBlock.dataset.clients || "";
+        const clientIds = clientIdsStr.split(',').filter(id => id);
 
-    const sbClient = window.supabaseClient || window.supabase || null;
-    if (!sbClient) {
-        if (typeof showToast === 'function') showToast('Erro de conexão com Supabase.', 'error');
-        else alert('Erro de conexão com Supabase.');
-        return;
-    }
+        let html = '';
+        const foundObs = [];
 
-    try {
-        const { error } = await sbClient.from('historico_pedidos_varejo')
-            .delete()
-            .gte('data_pedido', dataInicio)
-            .lte('data_pedido', dataFim);
+        clientIds.forEach(cid => {
+            const normalizedCid = String(cid).trim();
+            if (obsMap[normalizedCid]) {
+                foundObs.push({ id: normalizedCid, text: obsMap[normalizedCid] });
+            }
+        });
 
-        if (error) throw error;
+        if (foundObs.length > 0) {
+            html = `
+                <div class="apex-client-obs-wrapper" style="margin-top: 10px; padding: 8px; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 4px; text-align: left;">
+                    <strong style="display:block; font-size: 0.75rem; color: #10b981; margin-bottom: 4px; text-transform: uppercase;">Observações de Clientes:</strong>
+                    ${foundObs.map(o => `
+                        <div style="font-size: 0.82rem; color: #cbd5e1; margin-bottom: 4px;">
+                            <span style="color: #6ee7b7; font-weight: bold;">[${o.id}]</span> ${o.text}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            obsBlock.innerHTML = html;
+            obsBlock.style.display = 'block';
+        } else {
+            obsBlock.innerHTML = '';
+            obsBlock.style.display = 'none';
+        }
+    });
+};
 
-        if (typeof showToast === 'function') showToast('Dados de Varejo apagados com sucesso!', 'success');
-        else alert('Dados de Varejo apagados com sucesso!');
-
-        // Limpar a view depois de apagar
-        document.getElementById('resultadoRelatorioVarejo').innerHTML = '';
-        const btnApagarMes = document.getElementById('btnApagarMesVarejo');
-        if (btnApagarMes) btnApagarMes.classList.add('d-none');
-    } catch (err) {
-        console.error('Erro ao deletar Mês de Varejo:', err);
-        if (typeof showToast === 'function') showToast('Falha ao deletar dados.', 'error');
-        else alert('Falha ao deletar dados.');
-    }
+// Injeta o gatilho automático no renderAllUI para garantir que as observações sejam aplicadas após cada renderização
+const originalRenderAllUI = typeof renderAllUI === 'function' ? renderAllUI : null;
+if (originalRenderAllUI) {
+    window.renderAllUI = function () {
+        originalRenderAllUI();
+        if (typeof window._apexApplyClientObservations === 'function') {
+            window._apexApplyClientObservations();
+        }
+    };
 }

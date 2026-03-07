@@ -157,6 +157,12 @@
         const cc = document.getElementById('apex-command-center');
         if (!cc) return;
         cc.classList.remove('visible');
+
+        // Finaliza a sessÃ£o ao fechar no X
+        localStorage.removeItem('apexAdminUnlocked');
+        localStorage.removeItem('apexAdminSessionTime');
+        adminUnlocked = false;
+
         setTimeout(() => { cc.style.display = 'none'; }, 400);
     };
 
@@ -852,6 +858,9 @@
         const sb = window.supabaseClient || window.supabase;
         await sb.from('apex_admin_config').update({ config_value: overrides, updated_at: new Date().toISOString() }).eq('config_key', 'agendamento_overrides');
         // Apply locally
+        if (!window.agendamentoOverrides) window.agendamentoOverrides = {};
+        window.agendamentoOverrides[code] = val;
+
         if (val === 'Sim') {
             if (window.agendamentoClientCodes) window.agendamentoClientCodes.add(code);
         } else {
@@ -868,7 +877,10 @@
         const overrides = window._apexAgendamentoOverrides || {};
         delete overrides[code];
         const sb = window.supabaseClient || window.supabase;
-        await sb.from('apex_admin_config').update({ config_value: overrides, updated_at: new Date().toISOString() }).eq('config_key', 'agendamento_overrides');
+        const { error } = await sb.from('apex_admin_config').update({ config_value: overrides, updated_at: new Date().toISOString() }).eq('config_key', 'agendamento_overrides');
+        if (error) { showAdminAlert('Erro: ' + error.message, 'danger'); return; }
+
+        if (window.agendamentoOverrides) delete window.agendamentoOverrides[code];
         window._apexAgendamentoOverrides = overrides;
         renderAgendamento(overrides);
         await logAction('Remover override agendamento: ' + code, 0);
@@ -996,8 +1008,10 @@
                 window._apexAdminRouteOverrides = routeData.config_value;
                 // Apply to rotaVeiculoMap if already loaded
                 if (window.rotaVeiculoMap) {
-                    for (const [code, type] of Object.entries(routeData.config_value)) {
-                        if (window.rotaVeiculoMap[code]) window.rotaVeiculoMap[code].type = type;
+                    for (const [code, ov] of Object.entries(routeData.config_value)) {
+                        if (window.rotaVeiculoMap[code] && ov.type) {
+                            window.rotaVeiculoMap[code].type = ov.type;
+                        }
                     }
                 }
             }

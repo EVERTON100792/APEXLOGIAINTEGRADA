@@ -104,9 +104,9 @@ $adminCss = @'
     z-index: 9999;
     background: rgba(5, 12, 26, 0.97);
     display: flex;
-    align-items: flex-start;
+    align-items: center; /* Centralizado verticalmente */
     justify-content: center;
-    overflow-y: auto;
+    overflow: hidden; /* Proibir scroll na viewport principal */
     padding: 1rem;
     opacity: 0;
     transform: translateY(-20px);
@@ -117,7 +117,9 @@ $adminCss = @'
 .acc-container {
     width: 100%;
     max-width: 1200px;
-    padding-bottom: 2rem;
+    height: 94vh; /* Altura fixa para permitir scroll interno */
+    display: flex;
+    flex-direction: column;
 }
 
 /* ACC Header */
@@ -186,8 +188,32 @@ $adminCss = @'
 .acc-tab.active { color: #f59e0b; border-bottom-color: #f59e0b; }
 
 /* Panes */
-.acc-pane { display: none; }
-.acc-pane.active { display: block; }
+.acc-pane { 
+    display: none; 
+}
+.acc-pane.active { 
+    display: block; 
+    overflow-y: auto; 
+    flex: 1; 
+    padding-right: 15px; 
+    padding-bottom: 2rem;
+}
+
+/* Scrollbar Customization for Panes */
+.acc-pane::-webkit-scrollbar {
+    width: 8px;
+}
+.acc-pane::-webkit-scrollbar-track {
+    background: #050c1a;
+    border-radius: 10px;
+}
+.acc-pane::-webkit-scrollbar-thumb {
+    background: #1e3a5f;
+    border-radius: 10px;
+}
+.acc-pane::-webkit-scrollbar-thumb:hover {
+    background: #f59e0b;
+}
 
 /* Cards */
 .acc-card {

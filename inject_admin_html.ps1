@@ -48,6 +48,7 @@ $adminHtml = @'
       <button class="acc-tab active" data-tab="banco" onclick="switchAdminTab('banco')">Banco de Dados</button>
       <button class="acc-tab" data-tab="rotas" onclick="switchAdminTab('rotas')">Rotas e Veiculos</button>
       <button class="acc-tab" data-tab="config" onclick="switchAdminTab('config')">Configuracoes</button>
+      <button class="acc-tab" data-tab="regras" onclick="switchAdminTab('regras')">Regras de Negocio</button>
       <button class="acc-tab" data-tab="saude" onclick="switchAdminTab('saude')">Saude do Sistema</button>
     </div>
 
@@ -241,6 +242,85 @@ $adminHtml = @'
             <button class="acc-btn acc-btn-primary" style="margin-top:0.5rem;width:100%" onclick="accAlterarPin()">Alterar PIN</button>
           </div>
           <button class="acc-btn acc-btn-danger" style="width:100%;margin-top:0.75rem" onclick="accLimparCache()">Limpar Cache do Navegador</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANE: Regras -->
+    <div id="acc-pane-regras" class="acc-pane">
+      <div class="acc-grid-2">
+        <!-- Cidades Fiorino -->
+        <div class="acc-card">
+          <div class="acc-card-header-row">
+            <h3 class="acc-card-title">Cidades Fiorino por Rota</h3>
+            <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accSalvarFiorinoCities()">Salvar</button>
+          </div>
+          <p class="acc-hint">Cidades permitidas para Fiorino (MAIUSCULO, virgula).</p>
+          <div class="acc-row-inline acc-mt-sm" style="margin-bottom:0.75rem">
+            <input id="acc-fc-new-code" class="acc-input" style="max-width:120px" placeholder="Rota">
+            <button class="acc-btn acc-btn-sm" onclick="accAdicionarRotaFiorino()">+ Add</button>
+          </div>
+          <div id="acc-fiorino-routes" class="acc-regra-list">
+            <p style="color:#64748b;font-size:0.8rem">Carregando...</p>
+          </div>
+        </div>
+
+        <!-- Clientes Especiais -->
+        <div class="acc-card">
+          <div class="acc-card-header-row">
+            <h3 class="acc-card-title">Clientes Especiais</h3>
+          </div>
+          <p class="acc-hint">Nomes exatos em MAIUSCULO.</p>
+          <div class="acc-row-inline" style="margin-bottom:0.75rem">
+            <input id="acc-sc-new" class="acc-input" placeholder="NOME DO CLIENTE">
+            <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accAdicionarClienteEspecial()">+ Add</button>
+          </div>
+          <div id="acc-special-clients-list" class="acc-tag-container">
+            <p style="color:#64748b;font-size:0.8rem">Carregando...</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="acc-grid-2 acc-mt">
+        <!-- Agendamento -->
+        <div class="acc-card">
+          <div class="acc-card-header-row">
+            <h3 class="acc-card-title">Overrides de Agendamento</h3>
+          </div>
+          <p class="acc-hint">Sobrescreve se o codigo tem agendamento.</p>
+          <div class="acc-row-inline" style="margin-bottom:0.75rem">
+            <input id="acc-ag-code" class="acc-input" style="max-width:140px" placeholder="Cod Cliente">
+            <select id="acc-ag-val" class="acc-select">
+              <option value="Sim">Sim</option>
+              <option value="Nao">Nao</option>
+            </select>
+            <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accAdicionarAgendamento()">Definir</button>
+          </div>
+          <div class="acc-table-scroll">
+            <table class="acc-table">
+              <thead><tr><th>Codigo</th><th>Valor</th><th>Acao</th></tr></thead>
+              <tbody id="acc-agend-tbody"><tr><td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Carregando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Observacoes de Clientes -->
+        <div class="acc-card">
+          <div class="acc-card-header-row">
+            <h3 class="acc-card-title">Observações de Clientes</h3>
+          </div>
+          <p class="acc-hint">Notas exibidas nos cards de carga.</p>
+          <div class="acc-form-group">
+            <input id="acc-obs-code" class="acc-input" placeholder="Codigo do Cliente" style="margin-bottom:0.5rem">
+            <textarea id="acc-obs-text" class="acc-textarea" placeholder="Observacao (ex: Entregar em paletes)" style="height:60px"></textarea>
+            <button class="acc-btn acc-btn-primary acc-mt-sm" style="width:100%" onclick="accSalvarObsCliente()">Salvar Observação</button>
+          </div>
+          <div class="acc-table-scroll acc-mt">
+            <table class="acc-table">
+              <thead><tr><th>Cod</th><th>Obs</th><th>Acao</th></tr></thead>
+              <tbody id="acc-obs-tbody"><tr><td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Carregando...</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
