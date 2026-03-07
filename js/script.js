@@ -2782,7 +2782,11 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
 
     const colunasExibir = columnsToDisplay || ['Cod_Rota', 'Cliente', 'Nome_Cliente', 'Agendamento', 'Num_Pedido', 'Quilos_Saldo', 'Cubagem', 'Cidade', 'UF', 'Predat', 'Dat_Ped', 'BLOQ.', 'Coluna4', 'Coluna5', 'CF'];
     let table = '<div class="table-responsive"><table class="table table-sm table-bordered table-striped table-hover"><thead><tr><th><input type="checkbox" class="form-check-input" onclick="toggleAllCheckboxes(this)"></th>';
-    colunasExibir.forEach(c => table += `<th>${c.replace('_', ' ')}</th>`);
+    colunasExibir.forEach(c => {
+        let label = c.replace(/_/g, ' ');
+        if (c === 'Cod_Rota') label = 'Rota';
+        table += `<th>${label}</th>`;
+    });
     table += '</tr></thead><tbody>';
     pedidos.forEach(p => {
         // Lá³gica para aplicar a cor da rota
@@ -3418,17 +3422,32 @@ function imprimirCargaIndividual(loadId) {
 
     // Process observations
     const obsMap = window.clientObservations || window._apexClientObservations || {};
+    const agendamentoMap = window.agendamentoOverrides || {};
     const clientIds = [...new Set(load.pedidos.map(p => String(p.Cliente || '').trim()))];
+
     const foundObs = clientIds.map(id => ({ id, text: obsMap[id] })).filter(o => o.text);
+
+    // NOVO: Captura observações de agendamento que não são apenas Sim/Não
+    const agendamentoObs = clientIds.map(id => {
+        const normId = normalizeClientId(id);
+        const text = agendamentoMap[normId];
+        return { id, text };
+    }).filter(o => o.text && o.text !== 'Sim' && o.text !== 'Não');
 
     const printWindow = createPrintWindow(title);
 
     let clientObsHtml = '';
-    if (foundObs.length > 0) {
+    if (foundObs.length > 0 || agendamentoObs.length > 0) {
         clientObsHtml = `
             <div class="premium-observation-box" style="margin-top: 10px; background: #f0fdf4 !important; border-left: 4px solid #16a34a !important;">
-                <strong style="display:block; font-size: 8pt; color: #166534; margin-bottom: 3px; text-transform: uppercase;">Observações de Clientes (Regras Admin):</strong>
-                ${foundObs.map(o => `<div style="margin-bottom: 2px;">• <strong>[${o.id}]</strong> ${o.text}</div>`).join('')}
+                ${foundObs.length > 0 ? `
+                    <strong style="display:block; font-size: 8pt; color: #166534; margin-bottom: 3px; text-transform: uppercase;">Observações de Clientes:</strong>
+                    ${foundObs.map(o => `<div style="margin-bottom: 2px;">• <strong>[${o.id}]</strong> ${o.text}</div>`).join('')}
+                ` : ''}
+                ${agendamentoObs.length > 0 ? `
+                    <strong style="display:block; font-size: 8pt; color: #92400e; margin-top: 5px; margin-bottom: 3px; text-transform: uppercase;">Observações de Agendamento:</strong>
+                    ${agendamentoObs.map(o => `<div style="margin-bottom: 2px;">• <strong>[${o.id}]</strong> ${o.text}</div>`).join('')}
+                ` : ''}
             </div>`;
     }
 
@@ -3447,7 +3466,7 @@ function imprimirCargaIndividual(loadId) {
                 <div class="metric-item"><span class="metric-label">Cubagem</span><span class="metric-value">${(load.totalCubagem || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} m³</span></div>
             </div>
             <div class="table-container-premium">
-                ${createTable(load.pedidos, ['Num_Pedido', 'Cliente', 'Nome_Cliente', 'Agendamento', 'Quilos_Saldo', 'Cidade', 'UF', 'Predat', 'Dat_Ped', 'CF', 'Coluna5'])}
+                ${createTable(load.pedidos, ['Cod_Rota', 'Num_Pedido', 'Cliente', 'Nome_Cliente', 'Agendamento', 'Quilos_Saldo', 'Cidade', 'UF', 'Predat', 'Dat_Ped', 'CF', 'Coluna5'])}
             </div>
             ${clientObsHtml}
             ${loadObsHtml}
