@@ -1,4 +1,4 @@
-﻿// ================================================================================================
+// ================================================================================================
 //  WEB WORKER - LÓGICA DE OTIMIZAÇÃO EM SEGUNDO PLANO
 // ================================================================================================
 // Este script é executado em uma thread separada para não travar a interface do usuário.
@@ -488,11 +488,25 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
             const effectiveVehicleType = load.vehicleType || vehicleType;
             const config = getVehicleConfig(effectiveVehicleType, configs);
 
+            const parseDateBR = (dStr) => {
+                if (!dStr) return null;
+                if (dStr instanceof Date) return isNaN(dStr.getTime()) ? null : dStr;
+                if (typeof dStr === 'string' && dStr.includes('/')) {
+                    const parts = dStr.split(' ')[0].split('/');
+                    if (parts.length === 3) {
+                        const d = new Date(parts[2], parts[1] - 1, parts[0]);
+                        return isNaN(d.getTime()) ? null : d;
+                    }
+                }
+                const d = new Date(dStr);
+                return isNaN(d.getTime()) ? null : d;
+            };
+
             if (!config) {
                 if (load.pedidos.length > 0) {
                     const groups = Object.values(load.pedidos.reduce((acc, p) => {
                         const cId = normalizeClientId(p.Cliente);
-                        const pDate = p.Dat_Ped ? new Date(p.Dat_Ped) : null;
+                        const pDate = parseDateBR(p.Dat_Ped);
 
                         if (!acc[cId]) {
                             acc[cId] = {
@@ -524,7 +538,7 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
             } else if (load.pedidos.length > 0) {
                 const groups = Object.values(load.pedidos.reduce((acc, p) => {
                     const cId = normalizeClientId(p.Cliente);
-                    const pDate = p.Dat_Ped ? new Date(p.Dat_Ped) : null;
+                    const pDate = parseDateBR(p.Dat_Ped);
 
                     if (!acc[cId]) {
                         acc[cId] = {

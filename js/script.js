@@ -1,4 +1,4 @@
-﻿﻿function toggleMobileSidebar() {
+function toggleMobileSidebar() {
     const sidebar = document.getElementById('sidebar-modern');
     const overlay = document.getElementById('sidebar-overlay');
     sidebar.classList.toggle('mobile-open');
@@ -1335,6 +1335,15 @@ function handleFile(file, isReload = false) {
                                     pedido[header] = cellValue;
                                 } else {
                                     pedido[header] = '';
+                                }
+                            } else if (typeof cellValue === 'string' && cellValue.includes('/')) {
+                                const parts = cellValue.split(' ')[0].split('/'); 
+                                if (parts.length === 3) {
+                                    // Assumindo DD/MM/YYYY
+                                    const date = new Date(parts[2], parts[1] - 1, parts[0]);
+                                    pedido[header] = !isNaN(date.getTime()) ? date : cellValue;
+                                } else {
+                                    pedido[header] = cellValue;
                                 }
                             } else {
                                 pedido[header] = cellValue !== undefined ? cellValue : '';
@@ -3854,7 +3863,16 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
             }
 
             if (pDate) {
-                const dateObj = pDate instanceof Date ? pDate : new Date(pDate);
+                let dateObj = pDate;
+                if (!(dateObj instanceof Date)) {
+                    if (typeof pDate === 'string' && pDate.includes('/')) {
+                        const parts = pDate.split(' ')[0].split('/');
+                        if (parts.length === 3) dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+                        else dateObj = new Date(pDate);
+                    } else {
+                        dateObj = new Date(pDate);
+                    }
+                }
                 if (!isNaN(dateObj.getTime())) {
                     if (!oldest || dateObj < oldest) return dateObj;
                 }
