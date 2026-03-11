@@ -3863,17 +3863,14 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
         }, null);
     });
 
-    // --- LÓGICA ESPECIAL PARA PRIORIZAR FIORINO EM ROTAS MISTAS ---
+    // --- Lá“GICA ESPECIAL PARA PRIORIZAR FIORINO EM ROTAS MISTAS ---
     let groupsExcludedFromFiorino = [];
 
-    // CORREÇÃO: Usa window.rotasEspeciaisFiorino que é atualizado em tempo real pelo
-    // painel admin (via Supabase preload no DOMContentLoaded do admin.js).
-    // A const local `rotasEspeciaisFiorino` é apenas o valor padrão inicial.
-    const _fiorinoMap = window.rotasEspeciaisFiorino || rotasEspeciaisFiorino;
-    const rotaEspecialEncontrada = routes.find(r => _fiorinoMap[r]);
+    // Verifica se alguma das rotas atuais está¡ no mapa especial
+    const rotaEspecialEncontrada = routes.find(r => rotasEspeciaisFiorino[r]);
 
     if (rotaEspecialEncontrada) {
-        const cidadesPermitidasFiorino = new Set(_fiorinoMap[rotaEspecialEncontrada]);
+        const cidadesPermitidasFiorino = new Set(rotasEspeciaisFiorino[rotaEspecialEncontrada]);
         const normalizeCity = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
         const fiorinoGroups = [];
@@ -3896,7 +3893,6 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
         // Garante que a primeira tentativa seja Fiorino apenas com as cidades permitidas
         vehicleType = 'fiorino';
     }
-
 
     packableGroups.forEach(group => {
         group.Quilos_Saldo = group.totalKg;
@@ -4011,9 +4007,8 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
     const runCascadeOptimization = (groups, cascadeVehicleType) => {
         if (groups.length === 0) return { loads: [], leftovers: [] };
         console.log(`CASCATA: Tentando montar ${cascadeVehicleType} com ${groups.length} grupos de sobras.`);
-        // CORREÇÃO: Repassa pedidosPrioritarios e pedidosRecall para que a prioridade
-        // por marcação e por data seja respeitada também nas etapas da cascata.
-        return runHeuristicOptimization(groups, cascadeVehicleType, pedidosPrioritarios, pedidosRecall);
+        // Usamos a heurística simples (Nível 1) para as etapas da cascata para manter a velocidade.
+        return runHeuristicOptimization(groups, cascadeVehicleType);
     };
 
     // CORREÇÃO: Processa explicitamente os grupos de cidades não permitidas para Fiorino

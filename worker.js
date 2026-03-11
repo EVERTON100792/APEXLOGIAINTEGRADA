@@ -492,9 +492,7 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
                 if (load.pedidos.length > 0) {
                     const groups = Object.values(load.pedidos.reduce((acc, p) => {
                         const cId = normalizeClientId(p.Cliente);
-                        // CORREÇÃO: Usa Dat_Ped com fallback para Predat para preservar oldestDate
-                        const rawDate = p.Dat_Ped || p.Predat;
-                        const pDate = rawDate ? new Date(rawDate) : null;
+                        const pDate = p.Dat_Ped ? new Date(p.Dat_Ped) : null;
 
                         if (!acc[cId]) {
                             acc[cId] = {
@@ -526,9 +524,7 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
             } else if (load.pedidos.length > 0) {
                 const groups = Object.values(load.pedidos.reduce((acc, p) => {
                     const cId = normalizeClientId(p.Cliente);
-                    // CORREÇÃO: Usa Dat_Ped com fallback para Predat para preservar oldestDate
-                    const rawDate = p.Dat_Ped || p.Predat;
-                    const pDate = rawDate ? new Date(rawDate) : null;
+                    const pDate = p.Dat_Ped ? new Date(p.Dat_Ped) : null;
 
                     if (!acc[cId]) {
                         acc[cId] = {
