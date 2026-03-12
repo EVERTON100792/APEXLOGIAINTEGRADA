@@ -498,16 +498,15 @@ function getSortedVarejoRoutes(rotas) {
         if (a === '0' && b !== '0') return -1;
         if (b === '0' && a !== '0') return 1;
 
-        // 1. Ordem Customizada do Admin (Global)
-        const customOrderA = overrides[a]?.order ?? (window.rotaVeiculoMap?.[a]?.order);
-        const customOrderB = overrides[b]?.order ?? (window.rotaVeiculoMap?.[b]?.order);
+        // 1. Ordem por Tipo de Veículo
+        const typeA = overrides[a]?.type || rotaVeiculoMap[a]?.type || 'van';
+        const typeB = overrides[b]?.type || rotaVeiculoMap[b]?.type || 'van';
 
-        if (customOrderA !== undefined && customOrderB !== undefined) {
-            if (customOrderA !== customOrderB) return customOrderA - customOrderB;
-        } else if (customOrderA !== undefined) {
-            return -1;
-        } else if (customOrderB !== undefined) {
-            return 1;
+        const orderTypeA = vehicleOrder[typeA] || 99;
+        const orderTypeB = vehicleOrder[typeB] || 99;
+
+        if (orderTypeA !== orderTypeB) {
+            return orderTypeA - orderTypeB;
         }
 
         // 2. Prioridade Geográfica (PR primeiro que SP)
@@ -519,15 +518,12 @@ function getSortedVarejoRoutes(rotas) {
         if (isPRA && !isPRB) return -1;
         if (!isPRA && isPRB) return 1;
 
-        // 3. Ordem por Tipo de Veículo
-        const typeA = overrides[a]?.type || rotaVeiculoMap[a]?.type || 'van';
-        const typeB = overrides[b]?.type || rotaVeiculoMap[b]?.type || 'van';
+        // 3. Ordem Customizada do Admin (Global) com fallback seguro
+        const customOrderA = overrides[a]?.order ?? (window.rotaVeiculoMap?.[a]?.order ?? 9999);
+        const customOrderB = overrides[b]?.order ?? (window.rotaVeiculoMap?.[b]?.order ?? 9999);
 
-        const orderA = vehicleOrder[typeA] || 99;
-        const orderB = vehicleOrder[typeB] || 99;
-
-        if (orderA !== orderB) {
-            return orderA - orderB;
+        if (customOrderA !== customOrderB) {
+            return customOrderA - customOrderB;
         }
 
         // 4. Se tudo for igual, ordena numericamente pela rota
@@ -7494,29 +7490,30 @@ function exportarRelatorioCompletoPorRotaExcel() {
         if (rotaA === '0' && rotaB !== '0') return -1;
         if (rotaB === '0' && rotaA !== '0') return 1;
 
-        // 1. Ordem Customizada Admin
-        const customOrderA = overrides[rotaA]?.order ?? rotaVeiculoMap[rotaA]?.order;
-        const customOrderB = overrides[rotaB]?.order ?? rotaVeiculoMap[rotaB]?.order;
-        if (customOrderA !== undefined && customOrderB !== undefined) {
-            if (customOrderA !== customOrderB) return customOrderA - customOrderB;
-        } else if (customOrderA !== undefined) { return -1; }
-        else if (customOrderB !== undefined) { return 1; }
-
+        // 1. Ordem por Tipo de Veículo
         const typeA = overrides[rotaA]?.type || rotaVeiculoMap[rotaA]?.type || 'van';
         const typeB = overrides[rotaB]?.type || rotaVeiculoMap[rotaB]?.type || 'van';
 
-        const orderA = vehicleOrder[typeA] || 99;
-        const orderB = vehicleOrder[typeB] || 99;
+        const orderTypeA = vehicleOrder[typeA] || 99;
+        const orderTypeB = vehicleOrder[typeB] || 99;
 
-        if (orderA !== orderB) {
-            return orderA - orderB;
+        if (orderTypeA !== orderTypeB) {
+            return orderTypeA - orderTypeB;
         }
 
+        // 2. Prioridade Geográfica (PR primeiro que SP)
         if (typeA === 'van' && typeB === 'van') {
-            const isParanaA = rotaVeiculoMap[rotaA]?.title.startsWith('Rota 1');
-            const isParanaB = rotaVeiculoMap[rotaB]?.title.startsWith('Rota 1');
+            const isParanaA = rotaVeiculoMap[rotaA]?.title.startsWith('Rota 1') || String(rotaA).startsWith('1');
+            const isParanaB = rotaVeiculoMap[rotaB]?.title.startsWith('Rota 1') || String(rotaB).startsWith('1');
             if (isParanaA && !isParanaB) return -1;
             if (!isParanaA && isParanaB) return 1;
+        }
+
+        // 3. Ordem Customizada Admin com fallback seguro
+        const customOrderA = overrides[rotaA]?.order ?? rotaVeiculoMap[rotaA]?.order ?? 9999;
+        const customOrderB = overrides[rotaB]?.order ?? rotaVeiculoMap[rotaB]?.order ?? 9999;
+        if (customOrderA !== customOrderB) {
+            return customOrderA - customOrderB;
         }
 
         const rotaCompare = numericSort(rotaA, rotaB);
