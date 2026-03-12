@@ -1,0 +1,19 @@
+616: let pedidosSemCorte = new Set();
+748: pedidosSemCorte = new Set();
+868: resetValue('semCorteInput');
+1799: function atualizarListaSemCorte() {
+1802: if (pedidosSemCorte.size === 0) {
+1808: pedidosSemCorte.forEach(numPedido => {
+1811: item.innerHTML = `<span>${numPedido}</span> <button class="btn btn-sm btn-outline-secondary" onclick="removerMarcacaoSemCorte('${numPedido}')">Remover</button>`;
+1817: function marcarPedidosSemCorte() {
+1818: const input = document.getElementById('semCorteInput');
+1820: numeros.forEach(num => pedidosSemCorte.add(num));
+1826: function removerMarcacaoSemCorte(numPedido) {
+1827: pedidosSemCorte.delete(numPedido);
+1841: atualizarListaSemCorte();
+2731: const isSemCorte = pedidosSemCorte.has(String(p.Num_Pedido));
+2733: const semCorteBadge = isSemCorte ? ' <span class="badge bg-transparent" title="Pedido Sem Corte"><i class="bi bi-scissors text-warning"></i></span>' : '';
+2734: table += `<td>${cellContent}${priorityBadge}${semCorteBadge}</td>`;
+8231: pedidosSemCorte: Array.from(pedidosSemCorte),
+8339: pedidosSemCorte = new Set(savedState.pedidosSemCorte || []);
+8426: atualizarListaSemCorte();

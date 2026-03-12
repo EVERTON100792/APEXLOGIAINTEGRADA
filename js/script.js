@@ -613,7 +613,7 @@ let pedidosPrioritarios = [];
 let pedidosRecall = [];
 let pedidosBloqueados = new Set();
 let pedidosEspeciaisProcessados = new Set();
-let pedidosSemCorte = new Set();
+
 let pedidosVendaAntecipadaProcessados = new Set();
 let rota1SemCarga = [];
 let pedidosFuncionarios = [];
@@ -671,48 +671,30 @@ function showToast(message, type = 'info') {
 }
 async function saveConfigurations() {
     const configStatus = document.getElementById('configStatus');
-    configStatus.innerHTML = '<p class="text-info">Salvando configuraçőes...</p>';
+    if (configStatus) configStatus.innerHTML = '<p class="text-info">Salvando configuraçőes...</p>';
     try {
-        const configs = {};
-        Object.keys(defaultConfigs).forEach(key => {
-            const element = document.getElementById(key);
-            if (element) {
-                configs[key] = parseFloat(element.value);
-            }
-        });
         // NOVO: Salva a chave da API do GraphHopper
-        const apiKey = document.getElementById('graphhopperApiKey').value;
-        localStorage.setItem('graphhopperApiKey', apiKey);
-
-        // 1. Salva Localmente
-        localStorage.setItem('vehicleConfigs', JSON.stringify(configs));
-
-        // 2. Salva no Supabase (se autenticado)
-        const sb = window.supabaseClient || window.supabase;
-        if (sb) {
-            const user = await sb.auth.getUser();
-            if (user && user.data && user.data.user) {
-                const { error } = await sb
-                    .from('vehicle_configs')
-                    .insert([
-                        {
-                            config_json: configs,
-                            updated_by: user.data.user.id
-                        }
-                    ]);
-                if (error) console.error("Erro ao salvar config veicular no Supabase:", error);
-                else console.log("Config veicular salva no Supabase.");
-            }
+        const apiKey = document.getElementById('graphhopperApiKey')?.value;
+        if (apiKey !== undefined) {
+            localStorage.setItem('graphhopperApiKey', apiKey);
         }
 
-        configStatus.innerHTML = '<p class="text-success">Configurações salvas com sucesso!</p>';
-        setTimeout(() => { configStatus.innerHTML = ''; }, 3000);
+        const optLevel = document.getElementById('optimizationLevelSelect')?.value;
+        if (optLevel !== undefined) {
+            localStorage.setItem('optimizationLevelSelect', optLevel);
+        }
+
+        if (configStatus) configStatus.innerHTML = '<p class="text-success">Configurações salvas com sucesso!</p>';
+        setTimeout(() => { if (configStatus) configStatus.innerHTML = ''; }, 3000);
+
         // NOVO: Carregar Overrides de Rotas (Nomes e Ordem)
-        await loadRouteOverrides();
+        if (typeof loadRouteOverrides === 'function') {
+            await loadRouteOverrides();
+        }
 
     } catch (error) {
         console.error("Erro ao salvar configuraçőes:", error);
-        configStatus.innerHTML = `<p class="text-danger">Erro ao salvar: ${error.message}</p>`;
+        if (configStatus) configStatus.innerHTML = `<p class="text-danger">Erro ao salvar: ${error.message}</p>`;
     }
 }
 
@@ -720,7 +702,7 @@ async function saveConfigurations() {
 
 async function loadConfigurations() { // prettier-ignore
     const configStatus = document.getElementById('configStatus');
-    configStatus.innerHTML = '<p class="text-info">Carregando configuraçőes...</p>';
+    if (configStatus) configStatus.innerHTML = '<p class="text-info">Carregando configuraçőes...</p>';
     try { // prettier-ignore
         // 0. Setup GraphHopper Key (Local Only)
         const defaultApiKey = '6aaa58ba-e39d-447e-86b4-34cc7eb03d85';
@@ -728,101 +710,22 @@ async function loadConfigurations() { // prettier-ignore
         const apiKeyInput = document.getElementById('graphhopperApiKey');
         if (apiKeyInput) apiKeyInput.value = savedApiKey || defaultApiKey;
 
-        let configs = null;
+        // Load Optimization Level
+        const savedOptLevel = localStorage.getItem('optimizationLevelSelect');
+        const optLevelInput = document.getElementById('optimizationLevelSelect');
+        if (optLevelInput && savedOptLevel) optLevelInput.value = savedOptLevel;
 
-        // 1. Tenta carregar do Supabase
-        try {
-            const sb = window.supabaseClient || window.supabase;
-            if (sb) {
-                const { data, error } = await sb
-                    .from('vehicle_configs')
-                    .select('config_json')
-                    .order('updated_at', { ascending: false })
-                    .limit(1)
-                    .single();
-
-                if (data && data.config_json) {
-                    configs = data.config_json;
-                    console.log("Configurações de veículo carregadas do Supabase.");
-                    // Atualiza cache local
-                    localStorage.setItem('vehicleConfigs', JSON.stringify(configs));
-                }
-            }
-        } catch (cloudErr) {
-            console.warn("Falha ao carregar da nuvem, usando local:", cloudErr);
-        }
-
-        // 2. Fallback para LocalStorage se não veio da nuvem
-        if (!configs) {
-            const savedConfigs = localStorage.getItem('vehicleConfigs');
-            configs = savedConfigs ? JSON.parse(savedConfigs) : defaultConfigs;
-            console.log("Configurações de veículo carregadas do Local Storage.");
-        }
-
-        // 3. Aplica na UI
-        Object.keys(defaultConfigs).forEach(key => {
-            const element = document.getElementById(key);
-            if (element) {
-                element.value = configs[key] !== undefined ? configs[key] : defaultConfigs[key];
-            }
-        });
-
-        configStatus.innerHTML = '<p class="text-success">Configurações carregadas!</p>';
-        setTimeout(() => { configStatus.innerHTML = ''; }, 2000);
+        if (configStatus) configStatus.innerHTML = '<p class="text-success">Configurações carregadas!</p>';
+        setTimeout(() => { if (configStatus) configStatus.innerHTML = ''; }, 2000);
 
         // NOVO: Carregar Overrides de Rotas (Nomes e Ordem)
-        await loadRouteOverrides();
+        if (typeof loadRouteOverrides === 'function') {
+            await loadRouteOverrides();
+        }
     } catch (error) {
         console.error("Erro ao carregar configurações:", error);
-        configStatus.innerHTML = `<p class="text-warning">Erro ao carregar. Usando padrões.</p>`;
-        Object.keys(defaultConfigs).forEach(key => {
-            const element = document.getElementById(key);
-            if (element) { element.value = defaultConfigs[key]; }
-        });
+        if (configStatus) configStatus.innerHTML = `<p class="text-warning">Erro ao carregar. Usando padrões.</p>`;
     }
-}
-
-function resetFiorino() {
-    document.getElementById('fiorinoMinCapacity').value = defaultConfigs.fiorinoMinCapacity;
-    document.getElementById('fiorinoMaxCapacity').value = defaultConfigs.fiorinoMaxCapacity;
-    document.getElementById('fiorinoCubage').value = defaultConfigs.fiorinoCubage;
-    document.getElementById('fiorinoHardMaxCapacity').value = defaultConfigs.fiorinoHardMaxCapacity;
-    document.getElementById('fiorinoHardCubage').value = defaultConfigs.fiorinoHardCubage;
-    saveConfigurations();
-}
-function resetVan() {
-    document.getElementById('vanMinCapacity').value = defaultConfigs.vanMinCapacity;
-    document.getElementById('vanMaxCapacity').value = defaultConfigs.vanMaxCapacity;
-    document.getElementById('vanCubage').value = defaultConfigs.vanCubage;
-    document.getElementById('vanHardMaxCapacity').value = defaultConfigs.vanHardMaxCapacity;
-    document.getElementById('vanHardCubage').value = defaultConfigs.vanHardCubage;
-    saveConfigurations();
-}
-function resetTresQuartos() {
-    document.getElementById('tresQuartosMinCapacity').value = defaultConfigs.tresQuartosMinCapacity;
-    document.getElementById('tresQuartosMaxCapacity').value = defaultConfigs.tresQuartosMaxCapacity;
-    document.getElementById('tresQuartosCubage').value = defaultConfigs.tresQuartosCubage;
-    document.getElementById('tresQuartosHardMaxCapacity').value = defaultConfigs.tresQuartosHardMaxCapacity;
-    document.getElementById('tresQuartosHardCubage').value = defaultConfigs.tresQuartosHardCubage;
-    saveConfigurations();
-}
-function resetToco() {
-    document.getElementById('tocoMinCapacity').value = defaultConfigs.tocoMinCapacity;
-    document.getElementById('tocoMaxCapacity').value = defaultConfigs.tocoMaxCapacity;
-    document.getElementById('tocoCubage').value = defaultConfigs.tocoCubage;
-    // Adiciona os campos de peso e cubagem má¡ximos absolutos para o Toco
-    const tocoHardMaxCapacity = document.getElementById('tocoHardMaxCapacity');
-    const tocoHardCubage = document.getElementById('tocoHardCubage');
-    if (tocoHardMaxCapacity) tocoHardMaxCapacity.value = defaultConfigs.tocoHardMaxCapacity;
-    if (tocoHardCubage) tocoHardCubage.value = defaultConfigs.tocoHardCubage;
-    saveConfigurations();
-}
-function resetAll() {
-    Object.keys(defaultConfigs).forEach(key => {
-        const element = document.getElementById(key);
-        if (element) element.value = defaultConfigs[key];
-    });
-    saveConfigurations();
 }
 
 /**
@@ -842,7 +745,6 @@ function limparEstadoAtual() {
         pedidosRecall = [];
         pedidosBloqueados = new Set();
         pedidosEspeciaisProcessados = new Set();
-        pedidosSemCorte = new Set();
         pedidosVendaAntecipadaProcessados = new Set();
         rota1SemCarga = [];
         pedidosFuncionarios = [];
@@ -962,8 +864,6 @@ function limparEstadoAtual() {
         // Resetar Modal de Configs
         resetValue('bloquearPedidoInput');
         resetElement('lista-pedidos-bloqueados', emptyStateHTML('shield-slash', 'Nenhum pedido bloqueado.'));
-        resetValue('semCorteInput');
-        resetElement('lista-pedidos-sem-corte', emptyStateHTML('scissors', 'Nenhum pedido marcado.'));
 
         // Limpar estado de persistáªncia
         localStorage.removeItem('logisticsAppState');
@@ -1893,38 +1793,7 @@ function desbloquearPedido(numPedido) {
     atualizarUIAposAcao(`Pedido ${numPedido} desbloqueado.`);
 }
 
-function atualizarListaSemCorte() {
-    const divLista = document.getElementById('lista-pedidos-sem-corte');
-    divLista.innerHTML = '';
-    if (pedidosSemCorte.size === 0) {
-        divLista.innerHTML = '<div class="empty-state"><i class="bi bi-scissors"></i><p>Nenhum pedido marcado.</p></div>';
-        return;
-    }
-    const list = document.createElement('ul');
-    list.className = 'list-group list-group-flush';
-    pedidosSemCorte.forEach(numPedido => {
-        const item = document.createElement('li');
-        item.className = 'list-group-item d-flex justify-content-between align-items-center py-1 bg-transparent';
-        item.innerHTML = `<span>${numPedido}</span> <button class="btn btn-sm btn-outline-secondary" onclick="removerMarcacaoSemCorte('${numPedido}')">Remover</button>`;
-        list.appendChild(item);
-    });
-    divLista.appendChild(list);
-}
 
-function marcarPedidosSemCorte() {
-    const input = document.getElementById('semCorteInput');
-    const numeros = input.value.split('\n').map(n => n.trim()).filter(Boolean);
-    numeros.forEach(num => pedidosSemCorte.add(num));
-    saveStateToLocalStorage();
-    input.value = '';
-    atualizarUIAposAcao(`${numeros.length} pedido(s) marcado(s) como 'Sem Corte'.`);
-}
-
-function removerMarcacaoSemCorte(numPedido) {
-    pedidosSemCorte.delete(numPedido);
-    saveStateToLocalStorage();
-    atualizarUIAposAcao(`Marcaá§á£o 'Sem Corte' removida do pedido ${numPedido}.`);
-}
 
 /**
  * NOVO: Atualiza a UI de forma inteligente apá³s uma aá§á£o (bloquear, priorizar, etc.)
@@ -1935,7 +1804,6 @@ function atualizarUIAposAcao(mensagemToast, affectedLoadId = null) {
     if (planilhaData.length === 0) {
         // Apenas atualiza as listas nos modais, se aplicá¡vel
         atualizarListaBloqueados();
-        atualizarListaSemCorte();
         return;
     }
 
@@ -2825,10 +2693,8 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
             if (c === 'Num_Pedido') {
                 const isPriority = pedidosPrioritarios.includes(String(p.Num_Pedido));
                 const isRecall = pedidosRecall.includes(String(p.Num_Pedido));
-                const isSemCorte = pedidosSemCorte.has(String(p.Num_Pedido));
                 const priorityBadge = isPriority ? ' <span class="badge bg-warning text-dark">Prioridade</span>' : (isRecall ? ' <span class="badge bg-info">Recall</span>' : '');
-                const semCorteBadge = isSemCorte ? ' <span class="badge bg-transparent" title="Pedido Sem Corte"><i class="bi bi-scissors text-warning"></i></span>' : '';
-                table += `<td>${cellContent}${priorityBadge}${semCorteBadge}</td>`;
+                table += `<td>${cellContent}${priorityBadge}</td>`;
             } else if (c === 'Agendamento' && cellContent === 'Sim') {
                 table += `<td><span class="badge bg-warning text-dark">${cellContent}</span></td>`;
             } else if (c === 'Predat' || c === 'Dat_Ped') {
@@ -3207,25 +3073,28 @@ function createPrintWindow(title) {
                 .metric-value { font-size: 9.5pt; font-weight: 800; }
                 .metric-value small { font-size: 7.5pt; font-weight: normal; }
 
-                .table-container-premium { margin-top: 5px; width: 100%; }
+                .table-container-premium { margin-top: 5px; width: 100%; overflow: hidden; }
                 table { 
                     width: 100% !important; 
                     border-collapse: collapse !important; 
                     border: 1px solid #000 !important; 
+                    table-layout: auto !important;
                 }
                 th, td { 
                     border: 1px solid #000 !important; 
-                    padding: 2px 4px !important; 
+                    padding: 3px 4px !important; 
                     font-size: 8pt !important; 
-                    line-height: 1.1;
-                    word-wrap: normal;
-                    white-space: nowrap; /* Tenta manter em uma linha colunas curtas */
+                    line-height: 1.2;
+                    word-wrap: break-word !important;
+                    white-space: normal !important; 
                 }
-                th { background-color: #f2f2f2 !important; font-weight: bold; text-transform: uppercase; }
+                th { 
+                    background-color: #f2f2f2 !important; 
+                    font-weight: bold; 
+                    text-transform: uppercase; 
+                    font-size: 7.5pt !important;
+                }
                 
-                /* Colunas que podem quebrar texto */
-                td:nth-child(4), td:nth-child(9), td:nth-child(15) { white-space: normal !important; }
-
                 th:first-child, td:first-child { display: none !important; }
                 
                 .premium-deadline-alert {
@@ -3832,6 +3701,66 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
         if (emptyState) emptyState.remove();
     }
     // Restaura o feedback visual no botá£o da rota processada
+
+// --- NOVA FUNÇÃO PARA REAPLICAR REGRAS DO ADMIN SEM DESTRUIR AS CARGAS ATUAIS ---
+window.reaplicarRegrasPainelInterno = function() {
+    if ((!planilhaData || planilhaData.length === 0) && (Object.keys(activeLoads).length === 0)) return;
+
+    // 1. Re-checar regras de Agendamento em memória para dados brutos
+    if (typeof checkAgendamento === 'function') {
+        if (typeof planilhaData !== 'undefined') planilhaData.forEach(p => checkAgendamento(p));
+        if (typeof pedidosGeraisAtuais !== 'undefined') pedidosGeraisAtuais.forEach(p => checkAgendamento(p));
+    }
+
+    // 2. Repintar a grid principal se estiver visível (atualizar crachás "Agendamento: Sim/Não")
+    const orderListDiv = document.getElementById('orderList');
+    if (orderListDiv && !orderListDiv.classList.contains('d-none')) {
+         if (typeof displayGerais === 'function') displayGerais(pedidosGeraisAtuais);
+    }
+    
+    // 3. Atualizar os pedidos já agrupados para as cargas prontas (activeLoads)
+    const cardElements = document.querySelectorAll('.premium-load-card'); // Corrigido seletor
+    
+    // Configurações de exibição de veículos para o renderLoadCard
+    const vehicleInfo = {
+        fiorino: { name: 'Fiorino', colorClass: 'bg-emerald-500', icon: 'bi-box-seam-fill' },
+        van: { name: 'Van', colorClass: 'bg-blue-500', icon: 'bi-truck-front-fill' },
+        tresQuartos: { name: '3/4', colorClass: 'bg-amber-500', icon: 'bi-truck-flatbed' },
+        toco: { name: 'Toco', colorClass: 'bg-slate-500', icon: 'bi-inboxes-fill' },
+        especial: { name: 'Manual', colorClass: 'bg-cyan-500', icon: 'bi-person-badge-fill' }
+    };
+
+    cardElements.forEach(card => {
+        const loadId = card.dataset.loadId;
+        const load = activeLoads[loadId]; // activeLoads é um objeto
+        
+        if (load) {
+            // Reaplicar a regra em cada pedido desta carga
+             if (typeof checkAgendamento === 'function') {
+                 load.pedidos.forEach(p => checkAgendamento(p));
+             }
+            
+            // Re-renderizar o HTML do Card In Place
+            const vInfo = vehicleInfo[load.vehicleType] || vehicleInfo['van'];
+            if (typeof renderLoadCard === 'function') {
+                const newCardHTML = renderLoadCard(load, load.vehicleType, vInfo);
+                card.outerHTML = newCardHTML; 
+            }
+        }
+    });
+    
+    // 4. Refazer as barras globais e status
+    if (typeof updateAndRenderKPIs === 'function') updateAndRenderKPIs();
+    if (typeof updateAndRenderChart === 'function') updateAndRenderChart();
+    if (typeof saveStateToLocalStorage === 'function') saveStateToLocalStorage();
+
+    // 5. Reinjetar observações de clientes (caso os cards tenham sido re-gerados)
+    if (typeof window._apexApplyClientObservations === 'function') {
+        window._apexApplyClientObservations();
+    }
+    
+    console.log("Interface atualizada in-place.");
+}
 
     if (planilhaData.length === 0) {
         resultadoDiv.innerHTML = '<p class="text-danger">Nenhum dado de planilha carregado.</p>';
@@ -6061,7 +5990,8 @@ function shareRouteOnWhatsApp() {
 function displayToco(div, grupos) {
     if (Object.keys(grupos).length === 0) { div.innerHTML = '<div class="empty-state"><i class="bi bi-inboxes-fill"></i><p>Nenhuma carga "Toco" encontrada.</p></div>'; return; }
 
-    const maxKg = parseFloat(document.getElementById('tocoMaxCapacity').value);
+    const configToco = getVehicleConfigSafe('toco');
+    const maxKg = configToco.softMaxKg;
     let accordionHtml = '<div class="accordion accordion-flush" id="accordionTocoMesa">'; // ID alterado para evitar conflito
 
     Object.keys(grupos).sort().forEach((cf, index) => {
@@ -8321,7 +8251,6 @@ async function saveStateToLocalStorage() {
             pedidosBloqueados: Array.from(pedidosBloqueados),
             pedidosRecall: Array.from(pedidosRecall),
             pedidosEspeciaisProcessados: Array.from(pedidosEspeciaisProcessados),
-            pedidosSemCorte: Array.from(pedidosSemCorte),
             pedidosVendaAntecipadaProcessados: Array.from(pedidosVendaAntecipadaProcessados),
             rota1SemCarga,
             pedidosFuncionarios,
@@ -8429,7 +8358,6 @@ async function loadStateFromLocalStorage() {
         pedidosRecall = savedState.pedidosRecall || [];
         pedidosBloqueados = new Set(savedState.pedidosBloqueados || []);
         pedidosEspeciaisProcessados = new Set(savedState.pedidosEspeciaisProcessados || []);
-        pedidosSemCorte = new Set(savedState.pedidosSemCorte || []);
         pedidosVendaAntecipadaProcessados = new Set(savedState.pedidosVendaAntecipadaProcessados || []);
         rota1SemCarga = savedState.rota1SemCarga || [];
         pedidosFuncionarios = savedState.pedidosFuncionarios || [];
@@ -8516,7 +8444,6 @@ async function loadStateFromLocalStorage() {
 
         popularFiltrosDeRota();
         atualizarListaBloqueados();
-        atualizarListaSemCorte();
 
         // Re-renderizar todas as seá§áµes principais
         const gruposGerais = pedidosGeraisAtuais.reduce((acc, p) => { const rota = p.Cod_Rota; if (!acc[rota]) { acc[rota] = { pedidos: [], totalKg: 0 }; } acc[rota].pedidos.push(p); acc[rota].totalKg += p.Quilos_Saldo; return acc; }, {});

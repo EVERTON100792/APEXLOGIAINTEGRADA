@@ -1,0 +1,3 @@
+564: minKg: parseFloat(document.getElementById(`${vehicleType}MinCapacity`)?.value) || 0,
+565: softMaxKg: parseFloat(document.getElementById(`${vehicleType}MaxCapacity`)?.value) || 0,
+567: hardMaxKg: parseFloat(document.getElementById(`${vehicleType}HardMaxCapacity`)?.value || document.getElementById(`${vehicleType}MaxCapacity`)?.value) || 0,

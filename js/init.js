@@ -1,4 +1,4 @@
-﻿import { requireAuth, logout } from './auth.js';
+import { requireAuth, logout } from './auth.js';
 import { logActivity, subscribeToActivities } from './realtime.js';
 import { saveSessionToCloud, getMySessions, getSharedWithMe, getAllSessions, loadSessionFromCloud, shareSession, deleteSession } from './sharing.js';
 import { supabase } from './supabase-client.js'; // FIX: Explicit import for initApp
@@ -126,7 +126,7 @@ async function initApp() {
     const saveConfigBtn = document.getElementById('saveConfig');
     if (saveConfigBtn) {
         saveConfigBtn.addEventListener('click', () => {
-            logActivity('ALTERACAO_CONFIG', { detalhe: 'Capacidades de veículos atualizadas' });
+            logActivity('ALTERACAO_CONFIG', { detalhe: 'Configurações gerais atualizadas' });
         });
     }
 }

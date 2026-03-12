@@ -1,4 +1,4 @@
-﻿/**
+/**
  * APEX COMMAND CENTER — Admin Panel
  * Trigger: Type A→P→E→X within 2 seconds anywhere
  * PIN: 1234 (default, changeable inside panel)
@@ -557,13 +557,12 @@
         vehicles.forEach(v => {
             const cfg = vc[v] || {};
             const el = (id) => document.getElementById(`acc-vc-${v}-${id}`);
-            const htmlEl = (key) => document.getElementById(htmlMap[v][key]);
-            // Use Supabase value → fallback to existing HTML input (defaultConfigs loaded by loadConfigurations)
-            if (el('minKg')) el('minKg').value = cfg.minKg ?? htmlEl('minKg')?.value ?? '';
-            if (el('softMax')) el('softMax').value = cfg.softMaxKg ?? htmlEl('softMaxKg')?.value ?? '';
-            if (el('hardMax')) el('hardMax').value = cfg.hardMaxKg ?? htmlEl('hardMaxKg')?.value ?? '';
-            if (el('cubage')) el('cubage').value = cfg.softMaxCubage ?? htmlEl('cubage')?.value ?? '';
-            if (el('hardCubage')) el('hardCubage').value = cfg.hardMaxCubage ?? htmlEl('hardCubage')?.value ?? '';
+            // Use Supabase value → fallback to some hardcoded basic defaults if absolutely needed, but we prefer 0 or existing
+            if (el('minKg')) el('minKg').value = cfg.minKg ?? '';
+            if (el('softMax')) el('softMax').value = cfg.softMaxKg ?? '';
+            if (el('hardMax')) el('hardMax').value = cfg.hardMaxKg ?? '';
+            if (el('cubage')) el('cubage').value = cfg.softMaxCubage ?? '';
+            if (el('hardCubage')) el('hardCubage').value = cfg.hardMaxCubage ?? '';
         });
 
         // Load modules
@@ -596,8 +595,19 @@
             .eq('config_key', 'vehicle_config');
 
         if (error) { showAdminAlert('Erro: ' + error.message, 'danger'); return; }
+        
+        // NOVO: Atualiza o cache global imediatamente para não precisar recarregar a planilha/página
+        window._apexAdminVehicleConfig = config;
+
         await logAction('Atualizar limites de veículos', 0);
-        showAdminAlert('✅ Limites de peso atualizados para todos os usuários.', 'success');
+        showAdminAlert('✅ Limites de peso atualizados para todos os usuários e aplicados localmente.', 'success');
+        
+        // NOVO: Aplica na interface imediatamente se houver planilha processada usando update in-place
+        if (typeof planilhaData !== 'undefined' && planilhaData.length > 0) {
+            if (typeof reaplicarRegrasPainelInterno === 'function') {
+                reaplicarRegrasPainelInterno();
+            }
+        }
     };
 
     window.accSalvarModulos = async function () {
@@ -871,6 +881,13 @@
         document.getElementById('acc-ag-code').value = '';
         await logAction('Override agendamento: ' + code + ' = ' + val, 0);
         showAdminAlert('Agendamento atualizado.', 'success');
+
+        // NOVO: Aplica na interface imediatamente se houver planilha processada usando update in-place
+        if (typeof planilhaData !== 'undefined' && planilhaData.length > 0) {
+             if (typeof reaplicarRegrasPainelInterno === 'function') {
+                 reaplicarRegrasPainelInterno();
+             }
+        }
     };
 
     window.accRemoverAgendamento = async function (code) {
@@ -881,10 +898,19 @@
         if (error) { showAdminAlert('Erro: ' + error.message, 'danger'); return; }
 
         if (window.agendamentoOverrides) delete window.agendamentoOverrides[code];
+        if (window.agendamentoClientCodes) window.agendamentoClientCodes.delete(code);
+        
         window._apexAgendamentoOverrides = overrides;
         renderAgendamento(overrides);
         await logAction('Remover override agendamento: ' + code, 0);
         showAdminAlert('Override removido.', 'success');
+
+        // NOVO: Aplica na interface imediatamente se houver planilha processada usando update in-place
+        if (typeof planilhaData !== 'undefined' && planilhaData.length > 0) {
+             if (typeof reaplicarRegrasPainelInterno === 'function') {
+                 reaplicarRegrasPainelInterno();
+             }
+        }
     };
 
     // -- Client Observations --
@@ -922,12 +948,21 @@
         const { error } = await sb.from('apex_admin_config').update({ config_value: obs, updated_at: new Date().toISOString() }).eq('config_key', 'client_observations');
         if (error) { showAdminAlert('Erro: ' + error.message, 'danger'); return; }
         window._apexClientObservations = obs;
+        window.clientObservations = obs; // Sincroniza variável global principal
+        
         document.getElementById('acc-obs-code').value = '';
         document.getElementById('acc-obs-text').value = '';
         renderObs(obs);
-        if (window._apexApplyClientObservations) window._apexApplyClientObservations();
+        
+        // Aplica na interface imediatamente in-place
+        if (typeof reaplicarRegrasPainelInterno === 'function') {
+            reaplicarRegrasPainelInterno();
+        } else if (window._apexApplyClientObservations) {
+            window._apexApplyClientObservations();
+        }
+
         await logAction('Salvar obs cliente: ' + code, 0);
-        showAdminAlert('Observacao salva. Cards atualizados.', 'success');
+        showAdminAlert('Observacao salva. Interface atualizada.', 'success');
     };
 
     window.accRemoverObs = async function (code) {
@@ -936,8 +971,17 @@
         delete obs[code];
         await sb.from('apex_admin_config').update({ config_value: obs, updated_at: new Date().toISOString() }).eq('config_key', 'client_observations');
         window._apexClientObservations = obs;
+        window.clientObservations = obs; // Sincroniza variável global principal
+        
         renderObs(obs);
-        if (window._apexApplyClientObservations) window._apexApplyClientObservations();
+        
+        // Aplica na interface imediatamente in-place
+        if (typeof reaplicarRegrasPainelInterno === 'function') {
+            reaplicarRegrasPainelInterno();
+        } else if (window._apexApplyClientObservations) {
+            window._apexApplyClientObservations();
+        }
+
         await logAction('Remover obs cliente: ' + code, 0);
         showAdminAlert('Observacao removida.', 'success');
     };
