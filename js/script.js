@@ -480,6 +480,14 @@ function getRouteDisplayTitle(rota, veiculo) {
     return `Rota: ${rotaKey} (${veiculoNome})`;
 }
 
+/**
+ * Sanitiza o ID da rota para garantir que seja um seletor HTML válido.
+ * Utilizado para IDs de acordeões e navegação de busca.
+ */
+function getSafeRouteId(rota) {
+    return String(rota || '').replace(/[^a-zA-Z0-9]/g, '-');
+}
+
 function getSortedVarejoRoutes(rotas) {
     const vehicleOrder = { 'fiorino': 1, 'van': 2, 'tresQuartos': 3, 'toco': 4 };
     const numericSort = (a, b) => a.localeCompare(b, undefined, { numeric: true });
@@ -502,7 +510,16 @@ function getSortedVarejoRoutes(rotas) {
             return 1;
         }
 
-        // 2. Ordem por Tipo de Veículo
+        // 2. Prioridade Geográfica (PR primeiro que SP)
+        // Rotas do Paraná geralmente começam com '1' (ex: 11101)
+        // Rotas de SP costumam ser menores (ex: 70, 2555)
+        const isPRA = String(a).startsWith('1');
+        const isPRB = String(b).startsWith('1');
+
+        if (isPRA && !isPRB) return -1;
+        if (!isPRA && isPRB) return 1;
+
+        // 3. Ordem por Tipo de Veículo
         const typeA = overrides[a]?.type || rotaVeiculoMap[a]?.type || 'van';
         const typeB = overrides[b]?.type || rotaVeiculoMap[b]?.type || 'van';
 
@@ -511,14 +528,6 @@ function getSortedVarejoRoutes(rotas) {
 
         if (orderA !== orderB) {
             return orderA - orderB;
-        }
-
-        // 3. Se ambos são 'van', ordena as do Paraná primeiro
-        if (typeA === 'van' && typeB === 'van') {
-            const isParanaA = rotaVeiculoMap[a]?.title.startsWith('Rota 1');
-            const isParanaB = rotaVeiculoMap[b]?.title.startsWith('Rota 1');
-            if (isParanaA && !isParanaB) return -1;
-            if (!isParanaA && isParanaB) return 1;
         }
 
         // 4. Se tudo for igual, ordena numericamente pela rota
@@ -1353,8 +1362,20 @@ function buscarPedido() {
         return;
     }
 
-    // --- Lá“GICA DE BUSCA REFEITA ---
-    const searchPredicate = p => p && (String(p.Num_Pedido).toLowerCase().includes(searchTerm) || String(p.Nome_Cliente).toLowerCase().includes(searchTerm) || String(p.Cidade).toLowerCase().includes(searchTerm) || String(p.CF).toLowerCase().includes(searchTerm));
+    // --- LÓGICA DE BUSCA REFEITA ---
+    // Aumentamos a abrangência da busca para incluir Cliente, Rota e Cidade
+    const searchPredicate = p => {
+        if (!p) return false;
+        const s = searchTerm;
+        return (
+            String(p.Num_Pedido || '').toLowerCase().includes(s) ||
+            String(p.Nome_Cliente || '').toLowerCase().includes(s) ||
+            String(p.Cliente || '').toLowerCase().includes(s) ||
+            String(p.Cidade || '').toLowerCase().includes(s) ||
+            String(p.CF || '').toLowerCase().includes(s) ||
+            String(p.Cod_Rota || '').toLowerCase().includes(s)
+        );
+    };
     const foundInPlanilha = planilhaData.filter(searchPredicate);
 
     if (foundInPlanilha.length === 0) {
@@ -1364,8 +1385,11 @@ function buscarPedido() {
 
     const resultados = foundInPlanilha.map(pedido => {
         const numPedido = String(pedido.Num_Pedido);
-        let local = "Náo processado / Planilha Original";
+        let local = "Não processado / Planilha Original";
         let viewId = null, tabId = null, accordionId = null, cardId = null;
+
+        // Função auxiliar para sanitizar ID de rota (mesma lógica usada no displayGerais)
+        const getSafeRouteId = (rota) => String(rota).replace(/[^a-zA-Z0-9]/g, '-');
 
         // 1. Verificar em Cargas Ativas (Varejo, Toco, Manuais)
         for (const loadId in activeLoads) { // prettier-ignore
@@ -1388,12 +1412,12 @@ function buscarPedido() {
             }
         }
 
-        // 2. Verificar em Pedidos Disponá­veis (Varejo)
+        // 2. Verificar em Pedidos Disponíveis (Varejo)
         if (pedidosGeraisAtuais.some(p => String(p.Num_Pedido) === numPedido)) {
-            local = `Pedidos Disponá­veis (Rota ${pedido.Cod_Rota})`;
+            local = `Pedidos Disponíveis (Rota ${pedido.Cod_Rota})`;
             viewId = 'workspace-view';
             tabId = 'disponiveis-tab-pane'; // Aba correta
-            accordionId = `collapseGeral-${pedido.Cod_Rota}`; // ID correto e está¡vel do acordeá£o
+            accordionId = `collapseGeral-${getSafeRouteId(pedido.Cod_Rota)}`; // FIX: Usa o ID sanitizado estável
             return { pedido, local, viewId, tabId, accordionId, cardId };
         }
 
@@ -1407,15 +1431,16 @@ function buscarPedido() {
             return { pedido, local, viewId, tabId, accordionId, cardId };
         }
 
-        // 4. Verificar em outras seá§áµes
+        // 4. Verificar em outras seções
         const otherSectionsMap = {
             'Bloqueado Manualmente': { list: pedidosManualmenteBloqueadosAtuais, viewId: 'pedidos-bloqueados-view', cardId: 'card-bloqueados', accordionId: 'collapseBloqueados' },
-            'Pedidos da Rota 1 para Alteraá§á£o': { list: rota1SemCarga, viewId: 'alteracao-rota-view', cardId: 'resultado-rota1' }, 'Bloqueados Varejo (Regra)': { list: pedidosComCFNumericoIsolado, viewId: 'workspace-view', tabId: 'bloqueados-regra-tab-pane', accordionId: `collapseCF-${pedido.Cod_Rota}` },
+            'Pedidos da Rota 1 para Alteração': { list: rota1SemCarga, viewId: 'alteracao-rota-view', cardId: 'resultado-rota1' },
+            'Bloqueados Varejo (Regra)': { list: pedidosComCFNumericoIsolado, viewId: 'workspace-view', tabId: 'bloqueados-regra-tab-pane', accordionId: `collapseCF-${getSafeRouteId(pedido.Cod_Rota)}` },
             'Outros Pedidos (Moinho)': { list: pedidosMoinho, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseMoinho' },
-            'Outros Pedidos (Funcioná¡rios)': { list: pedidosFuncionarios, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseFuncionarios' },
-            'Outros Pedidos (Transferáªncia)': { list: pedidosTransferencias, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseTransferencias' },
-            'Outros Pedidos (Exportaá§á£o)': { list: pedidosExportacao, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseExportacao' },
-            'Outros Pedidos (Marca Prá³pria)': { list: pedidosMarcaPropria, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseMarcaPropria' },
+            'Outros Pedidos (Funcionários)': { list: pedidosFuncionarios, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseFuncionarios' },
+            'Outros Pedidos (Transferência)': { list: pedidosTransferencias, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseTransferencias' },
+            'Outros Pedidos (Exportação)': { list: pedidosExportacao, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseExportacao' },
+            'Outros Pedidos (Marca Própria)': { list: pedidosMarcaPropria, viewId: 'workspace-view', tabId: 'outros-pedidos-tab-pane', accordionId: 'collapseMarcaPropria' },
         };
 
         for (const [sectionName, sectionData] of Object.entries(otherSectionsMap)) {
@@ -2840,9 +2865,7 @@ function displayGerais(div, grupos) {
 
         let rotaDisplay = getRouteDisplayTitle(rota, veiculo);
         // CORREÇÃO: O ID do collapse agora usa a rota, que é um identificador estável.
-        // Sanitiza o ID da rota para garantir que seja um seletor válido (remove espaços e caracteres especiais)
-        const safeRotaId = String(rota).replace(/[^a-zA-Z0-9]/g, '-');
-        const collapseId = `collapseGeral-${safeRotaId}`;
+        const collapseId = `collapseGeral-${getSafeRouteId(rota)}`;
         accordionHtml += `<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span></button></h2>
                                   <div id="${collapseId}" class="accordion-collapse collapse" data-bs-parent="#accordionGeral">
                                     <div class="accordion-body">${createTable(grupo.pedidos, null, 'geral')}</div></div></div>`;
