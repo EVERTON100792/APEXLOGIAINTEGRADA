@@ -1615,15 +1615,11 @@ function highlightPedido(numPedido, viewId, tabId, collapseId, cardId = null) {
                 // Remove highlights anteriores
                 document.querySelectorAll('.search-highlight').forEach(el => el.classList.remove('search-highlight'));
 
-                // Adiciona classes de destaque
+                // Adiciona a classe de destaque premium
                 targetElement.classList.add('search-highlight');
-                if (targetElement.tagName === 'TR') {
-                    const originalClass = targetElement.className;
-                    targetElement.classList.add('table-info'); // Destaque extra para tabelas
-                    setTimeout(() => targetElement.className = originalClass, 3000); // Remove apá³s 3s
-                } else {
-                    setTimeout(() => targetElement.classList.remove('search-highlight'), 3000);
-                }
+                
+                // Remove a classe apó³s 3 segundos para permitir novos destaques no mesmo elemento
+                setTimeout(() => targetElement.classList.remove('search-highlight'), 3000);
 
                 // Scroll suave e centralizado
                 targetElement.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
@@ -3119,37 +3115,37 @@ function createPrintWindow(title) {
                 }
                 th, td { 
                     border: 1px solid #000 !important; 
-                    padding: 1px 2px !important; 
-                    font-size: 6.5pt !important; 
-                    line-height: 1.1;
-                    word-wrap: break-word !important;
-                    overflow-wrap: break-word !important;
-                    word-break: break-all !important;
-                    white-space: normal !important; 
+                    padding: 1px 3px !important; 
+                    font-size: 7.5pt !important; 
+                    line-height: 1;
+                    white-space: nowrap !important; 
+                    overflow: hidden !important;
+                    text-overflow: ellipsis !important;
                 }
                 th { 
                     background-color: #f2f2f2 !important; 
                     font-weight: bold; 
                     text-transform: uppercase; 
-                    font-size: 6pt !important;
+                    font-size: 7pt !important;
                 }
                 
-                /* Define specific widths for columns if table-layout: fixed is used */
-                th:nth-child(2) { width: 5%; } /* Rota */
-                th:nth-child(3) { width: 6%; } /* Cliente */
-                th:nth-child(4) { width: 16%; } /* Nome Cliente */
-                th:nth-child(5) { width: 8%; } /* Agendamento */
+                /* Define specific widths to fit strictly within A4 Portrait */
+                th:nth-child(2) { width: 4%; } /* Rota */
+                th:nth-child(3) { width: 5%; } /* Cliente */
+                th:nth-child(4) { width: 18%; } /* Nome Cliente */
+                th:nth-child(5) { width: 5%; } /* Agendamento */
                 th:nth-child(6) { width: 7%; } /* Num Pedido */
                 th:nth-child(7) { width: 6%; } /* Quilos Saldo */
-                th:nth-child(8) { width: 6%; } /* Cubagem */
-                th:nth-child(9) { width: 12%; } /* Cidade */
-                th:nth-child(10) { width: 4%; } /* UF */
+                th:nth-child(8) { width: 5%; } /* Cubagem */
+                th:nth-child(9) { width: 13%; } /* Cidade */
+                th:nth-child(10) { width: 3%; } /* UF */
                 th:nth-child(11) { width: 8%; } /* Predat */
                 th:nth-child(12) { width: 8%; } /* Dat Ped */
-                th:nth-child(13) { width: 5%; } /* BLOQ */
-                th:nth-child(14) { width: 5%; } /* COL4 */
-                th:nth-child(15) { width: 5%; } /* COL5 */
-                
+                th:nth-child(13) { width: 4%; } /* BLOQ */
+                th:nth-child(14) { width: 4%; } /* COL4 */
+                th:nth-child(15) { width: 6%; } /* COL5 */
+                th:nth-child(16) { width: 4%; } /* CF */
+
                 th:first-child, td:first-child { display: none !important; }
                 
                 .premium-deadline-alert {

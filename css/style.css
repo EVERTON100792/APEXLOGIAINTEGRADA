@@ -5189,3 +5189,25 @@
 .acc-bar-safe { background-color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
 .acc-bar-warning { background-color: #f59e0b; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
 .acc-bar-danger { background-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+
+
+/* --- EFEITO PREMIUM DE BUSCA --- */
+@keyframes highlightFound {
+    0% { background-color: transparent; }
+    5% { background-color: #ffd700; box-shadow: inset 0 0 10px rgba(255, 140, 0, 0.8), 0 0 15px rgba(255, 215, 0, 0.6); }
+    15% { background-color: rgba(255, 215, 0, 0.4); box-shadow: inset 0 0 5px rgba(255, 140, 0, 0.4), 0 0 10px rgba(255, 215, 0, 0.4); }
+    80% { background-color: rgba(255, 215, 0, 0.1); }
+    100% { background-color: transparent; }
+}
+
+.search-highlight {
+    animation: highlightFound 3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards !important;
+    border-radius: 4px;
+    position: relative;
+    z-index: 10;
+}
+
+tr.search-highlight > td, tr.search-highlight > th {
+    animation: highlightFound 3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards !important;
+}
+
