@@ -4132,6 +4132,9 @@ window.reaplicarRegrasPainelInterno = function() {
         load.id = loadId;
         load.routesKey = routesKey; // Vincula a carga ao processamento desta rota
         activeLoads[loadId] = load;
+        
+        // DISPARA CÁLCULO DE FRETE AUTOMÁTICO
+        if (typeof refreshLoadFreight === 'function') refreshLoadFreight(loadId);
     });
 
     // CORREá‡áƒO: Isola as cargas geradas nesta execuá§á£o especá­fica para renderizaá§á£o.
@@ -6971,6 +6974,9 @@ function montarCargaPredefinida(inputId, resultadoId, processedSet, nomeCarga) {
             shortId: generateLoadId() // GERA ID DE 5 DÍGITOS
         };
         activeLoads[loadId] = load;
+
+        // DISPARA CÁLCULO DE FRETE AUTOMÁTICO
+        if (typeof refreshLoadFreight === 'function') refreshLoadFreight(loadId);
 
         const vehicleInfo = {
             fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
