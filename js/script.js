@@ -3110,41 +3110,60 @@ function createPrintWindow(title) {
                     width: 100% !important; 
                     max-width: 100% !important;
                     border-collapse: collapse !important; 
-                    border: 1px solid #000 !important; 
+                    font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
                     table-layout: fixed !important;
                 }
+                
+                tr:nth-child(even) td { background-color: #f8fafc !important; }
+
                 th, td { 
-                    border: 1px solid #000 !important; 
-                    padding: 1px 3px !important; 
-                    font-size: 7.5pt !important; 
-                    line-height: 1;
-                    white-space: nowrap !important; 
+                    border: 1px solid #cbd5e1 !important; 
+                    padding: 3px 2px !important; 
+                    font-size: 6.5pt !important; 
+                    line-height: 1.1 !important;
+                    text-align: center !important;
+                }
+
+                th { 
+                    background-color: #f1f5f9 !important; 
+                    color: #334155 !important;
+                    font-weight: 700 !important; 
+                    text-transform: uppercase; 
+                    font-size: 5.5pt !important;
+                    white-space: normal !important;
+                    word-wrap: break-word !important;
+                }
+
+                td {
+                    color: #0f172a !important;
+                    white-space: nowrap !important;
                     overflow: hidden !important;
                     text-overflow: ellipsis !important;
                 }
-                th { 
-                    background-color: #f2f2f2 !important; 
-                    font-weight: bold; 
-                    text-transform: uppercase; 
-                    font-size: 7pt !important;
+
+                /* Apenas as colunas grandes de texto deixamos quebrar linha */
+                td:nth-child(4), td:nth-child(9) {
+                    white-space: normal !important;
+                    text-align: left !important;
+                    word-wrap: break-word !important;
                 }
-                
+
                 /* Define specific widths to fit strictly within A4 Portrait */
-                th:nth-child(2) { width: 4%; } /* Rota */
-                th:nth-child(3) { width: 5%; } /* Cliente */
-                th:nth-child(4) { width: 18%; } /* Nome Cliente */
-                th:nth-child(5) { width: 5%; } /* Agendamento */
-                th:nth-child(6) { width: 7%; } /* Num Pedido */
-                th:nth-child(7) { width: 6%; } /* Quilos Saldo */
-                th:nth-child(8) { width: 5%; } /* Cubagem */
-                th:nth-child(9) { width: 13%; } /* Cidade */
-                th:nth-child(10) { width: 3%; } /* UF */
-                th:nth-child(11) { width: 8%; } /* Predat */
-                th:nth-child(12) { width: 8%; } /* Dat Ped */
-                th:nth-child(13) { width: 4%; } /* BLOQ */
-                th:nth-child(14) { width: 4%; } /* COL4 */
-                th:nth-child(15) { width: 6%; } /* COL5 */
-                th:nth-child(16) { width: 4%; } /* CF */
+                th:nth-child(2) { width: 4.5%; } /* Rota */
+                th:nth-child(3) { width: 5.5%; } /* Cliente */
+                th:nth-child(4) { width: 22%; } /* Nome Cliente */
+                th:nth-child(5) { width: 6.5%; } /* Agendamento */
+                th:nth-child(6) { width: 6.5%; } /* Num Pedido */
+                th:nth-child(7) { width: 5.5%; } /* Quilos Saldo */
+                th:nth-child(8) { width: 4.5%; } /* Cubagem */
+                th:nth-child(9) { width: 14%; } /* Cidade */
+                th:nth-child(10) { width: 2.5%; } /* UF */
+                th:nth-child(11) { width: 7.5%; } /* Predat */
+                th:nth-child(12) { width: 7%; } /* Dat Ped */
+                th:nth-child(13) { width: 3.5%; } /* BLOQ */
+                th:nth-child(14) { width: 3.5%; } /* COL4 */
+                th:nth-child(15) { width: 4.5%; } /* COL5 */
+                th:nth-child(16) { width: 2.5%; } /* CF */
 
                 th:first-child, td:first-child { display: none !important; }
                 
