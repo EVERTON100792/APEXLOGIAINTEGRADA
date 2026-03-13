@@ -39,7 +39,23 @@ function activateView(viewId, linkElement) {
     // NOVO: Salva a view ativa para restaurar depois
     localStorage.setItem('lastActiveView', viewId);
 }
-// --- NOVO: Lá³gica de Tema (movida para o escopo global) ---
+
+// Utilitário global para parsear datas no formato BR
+function parseDateBR(dStr) {
+    if (!dStr) return null;
+    if (dStr instanceof Date) return isNaN(dStr.getTime()) ? null : dStr;
+    if (typeof dStr === 'string' && dStr.includes('/')) {
+        const parts = dStr.split(' ')[0].split('/');
+        if (parts.length === 3) {
+            const d = new Date(parts[2], parts[1] - 1, parts[0]);
+            return isNaN(d.getTime()) ? null : d;
+        }
+    }
+    const d = new Date(dStr);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+// --- NOVO: Lógica de Tema (movida para o escopo global) ---
 function applyInitialTheme() {
     const savedTheme = localStorage.getItem('theme') || 'dark'; // Padrá£o para escuro
     document.documentElement.setAttribute('data-bs-theme', savedTheme);
@@ -3018,7 +3034,7 @@ function createPrintWindow(title) {
     printWindow.document.write('<html><head><title>' + title + '</title>');
     printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">');
     printWindow.document.write(`<style>
-                @page { size: landscape; margin: 5mm; }
+                @page { size: A4 portrait !important; margin: 5mm; }
                 body { 
                     margin: 0; 
                     padding: 8px; 
@@ -3092,27 +3108,47 @@ function createPrintWindow(title) {
                 .metric-value { font-size: 9.5pt; font-weight: 800; }
                 .metric-value small { font-size: 7.5pt; font-weight: normal; }
 
-                .table-container-premium { margin-top: 5px; width: 100%; overflow: hidden; }
+                .table-container-premium { margin-top: 5px; width: 100%; overflow: visible !important; }
+                .table-responsive { overflow: visible !important; }
                 table { 
                     width: 100% !important; 
+                    max-width: 100% !important;
                     border-collapse: collapse !important; 
                     border: 1px solid #000 !important; 
-                    table-layout: auto !important;
+                    table-layout: fixed !important;
                 }
                 th, td { 
                     border: 1px solid #000 !important; 
-                    padding: 3px 4px !important; 
-                    font-size: 8pt !important; 
-                    line-height: 1.2;
+                    padding: 1px 2px !important; 
+                    font-size: 6.5pt !important; 
+                    line-height: 1.1;
                     word-wrap: break-word !important;
+                    overflow-wrap: break-word !important;
+                    word-break: break-all !important;
                     white-space: normal !important; 
                 }
                 th { 
                     background-color: #f2f2f2 !important; 
                     font-weight: bold; 
                     text-transform: uppercase; 
-                    font-size: 7.5pt !important;
+                    font-size: 6pt !important;
                 }
+                
+                /* Define specific widths for columns if table-layout: fixed is used */
+                th:nth-child(2) { width: 5%; } /* Rota */
+                th:nth-child(3) { width: 6%; } /* Cliente */
+                th:nth-child(4) { width: 16%; } /* Nome Cliente */
+                th:nth-child(5) { width: 8%; } /* Agendamento */
+                th:nth-child(6) { width: 7%; } /* Num Pedido */
+                th:nth-child(7) { width: 6%; } /* Quilos Saldo */
+                th:nth-child(8) { width: 6%; } /* Cubagem */
+                th:nth-child(9) { width: 12%; } /* Cidade */
+                th:nth-child(10) { width: 4%; } /* UF */
+                th:nth-child(11) { width: 8%; } /* Predat */
+                th:nth-child(12) { width: 8%; } /* Dat Ped */
+                th:nth-child(13) { width: 5%; } /* BLOQ */
+                th:nth-child(14) { width: 5%; } /* COL4 */
+                th:nth-child(15) { width: 5%; } /* COL5 */
                 
                 th:first-child, td:first-child { display: none !important; }
                 
@@ -6025,6 +6061,14 @@ function displayToco(div, grupos) {
 
         const pedidos = grupo.pedidos;
         pedidos.sort((a, b) => {
+            const dateA = parseDateBR(a.Dat_Ped);
+            const dateB = parseDateBR(b.Dat_Ped);
+            if (dateA && dateB) {
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+            } else if (dateA) return -1;
+            else if (dateB) return 1;
+
             const clienteA = String(a.Cliente); const clienteB = String(b.Cliente);
             const pedidoA = String(a.Num_Pedido); const pedidoB = String(b.Num_Pedido);
             const clienteCompare = clienteA.localeCompare(clienteB, undefined, { numeric: true });
@@ -6087,6 +6131,14 @@ function displayTruck(div, grupos, pedidosCarreta) {
         const grupo = todosOsGrupos[cf];
 
         grupo.pedidos.sort((a, b) => {
+            const dateA = parseDateBR(a.Dat_Ped);
+            const dateB = parseDateBR(b.Dat_Ped);
+            if (dateA && dateB) {
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+            } else if (dateA) return -1;
+            else if (dateB) return 1;
+
             const clienteA = String(a.Cliente); const clienteB = String(b.Cliente);
             const pedidoA = String(a.Num_Pedido); const pedidoB = String(b.Num_Pedido);
             const clienteCompare = clienteA.localeCompare(clienteB, undefined, { numeric: true });
@@ -11010,7 +11062,7 @@ function exportarRelatorioVarejoPDF(periodo, filtroUF = 'GERAL') {
         return;
     }
 
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
     const totalKg = exportData.reduce((s, i) => s + (parseFloat(i.quilos) || 0), 0);
     const [ano, mes] = periodo.split('-');

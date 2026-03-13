@@ -59,6 +59,21 @@ self.onmessage = async function (e) {
 
 let cityCoordsCache = {};
 
+// Utilitário global para parsear datas no formato BR
+function parseDateBR(dStr) {
+    if (!dStr) return null;
+    if (dStr instanceof Date) return isNaN(dStr.getTime()) ? null : dStr;
+    if (typeof dStr === 'string' && dStr.includes('/')) {
+        const parts = dStr.split(' ')[0].split('/');
+        if (parts.length === 3) {
+            const d = new Date(parts[2], parts[1] - 1, parts[0]);
+            return isNaN(d.getTime()) ? null : d;
+        }
+    }
+    const d = new Date(dStr);
+    return isNaN(d.getTime()) ? null : d;
+}
+
 async function getCityCoordinates(cidade, uf, apiKey) {
     const key = `${cidade.trim().toUpperCase()}-${uf.trim().toUpperCase()}`;
     if (cityCoordsCache[key]) return cityCoordsCache[key];
@@ -487,21 +502,6 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
         bestSolution.loads.forEach(load => {
             const effectiveVehicleType = load.vehicleType || vehicleType;
             const config = getVehicleConfig(effectiveVehicleType, configs);
-
-            const parseDateBR = (dStr) => {
-                if (!dStr) return null;
-                if (dStr instanceof Date) return isNaN(dStr.getTime()) ? null : dStr;
-                if (typeof dStr === 'string' && dStr.includes('/')) {
-                    const parts = dStr.split(' ')[0].split('/');
-                    if (parts.length === 3) {
-                        const d = new Date(parts[2], parts[1] - 1, parts[0]);
-                        return isNaN(d.getTime()) ? null : d;
-                    }
-                }
-                const d = new Date(dStr);
-                return isNaN(d.getTime()) ? null : d;
-            };
-
             if (!config) {
                 if (load.pedidos.length > 0) {
                     const groups = Object.values(load.pedidos.reduce((acc, p) => {
@@ -697,7 +697,17 @@ async function processarRoteirizacaoNoWorker(pedidosEncontrados, vehicleType, us
     self.postMessage({ status: 'progress-update', text: 'Preparando dados para o otimizador...' });
     const sortedOrders = [];
     sortedCities.forEach(cityKey => {
-        const ordersInCity = cityGroups[cityKey].sort((a, b) => (a.Nome_Cliente || '').localeCompare(b.Nome_Cliente || ''));
+        const ordersInCity = cityGroups[cityKey].sort((a, b) => {
+            const dateA = parseDateBR(a.Dat_Ped);
+            const dateB = parseDateBR(b.Dat_Ped);
+            if (dateA && dateB) {
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+            } else if (dateA) return -1;
+            else if (dateB) return 1;
+            
+            return (a.Nome_Cliente || '').localeCompare(b.Nome_Cliente || '');
+        });
         sortedOrders.push(...ordersInCity);
     });
 
