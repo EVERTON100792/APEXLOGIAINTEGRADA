@@ -3450,7 +3450,25 @@ function isMoveValid(load, groupToAdd, vehicleType) {
         }
     }
 
-    if (groupToAdd.pedidos.some(p => p.Agendamento === 'Sim') && load.pedidos.some(p => p.Agendamento === 'Sim')) return false;
+    // REGRA DE AGENDAMENTO CORRIGIDA:
+    const groupHasAgendamento = groupToAdd.pedidos.some(p => p.Agendamento === 'Sim');
+    if (groupHasAgendamento) {
+        // O grupo que estamos tentando adicionar precisa de agendamento.
+        // Vamos verificar se já existe um cliente com agendamento na carga.
+        const agendamentoClientIdsInLoad = new Set(
+            load.pedidos.filter(p => p.Agendamento === 'Sim').map(p => normalizeClientId(p.Cliente))
+        );
+
+        if (agendamentoClientIdsInLoad.size > 0) {
+            // A carga já tem um cliente com agendamento.
+            // Só podemos adicionar o novo grupo se ele for do mesmo cliente.
+            const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
+            if (!agendamentoClientIdsInLoad.has(newClientId)) {
+                // É um cliente DIFERENTE com agendamento. Bloqueia.
+                return false;
+            }
+        }
+    }
 
     return true;
 }
