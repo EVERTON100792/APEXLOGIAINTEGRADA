@@ -2127,7 +2127,10 @@ function processar() {
                     if (clientesComBloqueio.has(normalizeClientId(p.Cliente))) { // Cliente com bloqueio -> Bloqueados por Regra
                         pedidosComCFNumericoIsolado.push(p);
                     } else { // O que sobra á© Varejo
-                        pedidosParaProcessamentoVarejo.push(p);
+                        const codRotaStr = String(p.Cod_Rota || '').trim();
+                        if (codRotaStr !== '2' && codRotaStr !== '2000') {
+                            pedidosParaProcessamentoVarejo.push(p);
+                        }
                     }
                 }
             });
@@ -3435,13 +3438,13 @@ function isMoveValid(load, groupToAdd, vehicleType) {
     if ((load.totalKg + groupToAdd.totalKg) > config.hardMaxKg) return false;
     if ((load.totalCubagem + groupToAdd.totalCubagem) > config.hardMaxCubage) return false;
 
+    // Se o grupo a ser adicionado é um cliente especial ou a carga já contém um, aplicam-se regras especiais.
     if (groupToAdd.isSpecial || load.pedidos.some(isSpecialClient)) {
         const clientIdsInLoad = new Set(load.pedidos.map(p => normalizeClientId(p.Cliente)));
         const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
-
-        // Se a carga vai conter um cliente especial (sendo adicionado ou ja presente)
-        // O numero MÃ¡XIMO de clientes distintos na carga nao pode passar de 2.
         clientIdsInLoad.add(newClientId);
+
+        // REGRA: Se a carga contém um cliente especial, ela não pode ter mais de 2 clientes distintos no total.
         if (clientIdsInLoad.size > 2) {
             return false;
         }
@@ -7831,8 +7834,42 @@ async function montarCargasPrioritarias() {
         }
 
         // Determina o ID da div de destino baseado no tipo de veá­culo
-        const divId = config.type === 'fiorino' ? 'resultado-fiorino-geral' :
-            (config.type === 'van' ? 'resultado-van-geral' : 'resultado-34-geral');
+        let divId;
+        if (config.type === 'fiorino') {
+            divId = 'resultado-fiorino-geral';
+        } else if (config.type === 'van' || config.type === 'tresQuartos') {
+            // Lógica para separar PR, SP e MS
+            const pedidosDaRota = pedidosPrioritariosDisponiveis.filter(p => String(p.Cod_Rota) === rota);
+            const firstPedido = pedidosDaRota.length > 0 ? pedidosDaRota[0] : null;
+            let region = 'SP'; // Padrão
+
+            if (firstPedido) {
+                const uf = String(firstPedido.UF || '').trim().toUpperCase();
+                if (uf === 'PR') {
+                    region = 'PR';
+                } else if (uf === 'MS') {
+                    region = 'MS';
+                } else {
+                    const firstRoute = String(firstPedido.Cod_Rota || '');
+                    if (firstRoute.startsWith('1') || (rotaVeiculoMap[firstRoute] && rotaVeiculoMap[firstRoute].title.startsWith('Rota 1'))) {
+                        region = 'PR';
+                    } else if (firstRoute.startsWith('3')) {
+                        region = 'MS';
+                    }
+                }
+            }
+
+            if (region === 'PR') {
+                divId = 'resultado-van-pr';
+            } else if (region === 'MS') {
+                divId = 'resultado-van-ms';
+            } else {
+                divId = 'resultado-van-sp';
+            }
+        } else {
+            // Fallback para outros tipos de veículo, se houver
+            divId = 'resultado-fiorino-geral';
+        }
 
         // Chama a funá§á£o de separaá§á£o existente
         // Passamos 'null' no botá£o pois á© uma chamada automá¡tica
