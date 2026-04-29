@@ -179,6 +179,20 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
     let loads = [];
     let leftoverItems = [];
 
+    // Adicionado: Define um limiar de data para pedidos que "devem" sair.
+    // Pega a data do item mais antigo na lista de empacotamento, tratando datas serializadas.
+    const getOldestDateTimestamp = (items) => {
+        if (items.length > 0 && items[0].oldestDate) {
+            const date = new Date(items[0].oldestDate); // Converte string para Date
+            if (!isNaN(date.getTime())) {
+                return date.getTime();
+            }
+        }
+        return null;
+    };
+    const oldestItemTimestamp = getOldestDateTimestamp(itemsParaEmpacotar);
+
+
     itemsParaEmpacotar.forEach(item => {
         if (item.totalKg > config.hardMaxKg || item.totalCubagem > config.hardMaxCubage) {
             leftoverItems.push(item); return;
@@ -214,9 +228,17 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
     let unplacedGroups = [];
 
     loads.forEach(load => {
-        // A validação da carga agora depende apenas de atingir o peso mínimo.
-        // A prioridade de um pedido é usada para ordenar e tentar encaixá-lo primeiro, mas não para forçar uma carga sub-mínima.
-        if (load.pedidos.length > 0 && load.totalKg >= config.minKg) {
+        // Adicionado: Verifica se a carga contém um pedido que é do dia mais antigo.
+        const containsOldestOrder = oldestItemTimestamp && load.pedidos.some(p => {
+            const pDateValue = p.Dat_Ped || p.Predat;
+            if (!pDateValue) return false;
+            const pDate = new Date(pDateValue); // Converte string para Date
+            return !isNaN(pDate.getTime()) && pDate.getTime() === oldestItemTimestamp;
+        });
+
+        // CONDIÇÃO MODIFICADA:
+        // A carga é válida se atingir o peso mínimo OU se contiver um pedido do dia mais antigo.
+        if (load.pedidos.length > 0 && (load.totalKg >= config.minKg || containsOldestOrder)) {
             finalLoads.push(load);
         } else if (load.pedidos.length > 0) {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
