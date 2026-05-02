@@ -99,7 +99,7 @@ async function getCityCoordinates(cidade, uf, apiKey) {
 
 
 
-const specialClientNames = ['IRMAOS MUFFATO S.A', 'IRMAOS MUFFATO & CIA LTDA', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD S/A COM. E IMPORTACAO', 'PRIMATO COOPERATIVA AGROINDUSTRIAL'];
+const specialClientPrefixes = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA'];
 
 const rotaVeiculoMap = {
     // Novas rotas de São Paulo (Varejo - Van/3/4)
@@ -123,7 +123,11 @@ function checkAgendamento(pedido) {
     pedido.Agendamento = agendamentoClientCodes.has(normalizedCode) ? 'Sim' : 'Não';
 }
 
-const isSpecialClient = (p) => p.Nome_Cliente && specialClientNames.includes(p.Nome_Cliente.toUpperCase().trim());
+const isSpecialClient = (p) => {
+    if (!p || !p.Nome_Cliente) return false;
+    const clientNameUpper = p.Nome_Cliente.toUpperCase().trim();
+    return specialClientPrefixes.some(prefix => clientNameUpper.startsWith(prefix));
+};
 
 function getVehicleConfig(vehicleType, configs) {
     const typeMap = {
@@ -157,15 +161,36 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
     if ((load.totalKg + groupToAdd.totalKg) > config.hardMaxKg) return false;
     if ((load.totalCubagem + groupToAdd.totalCubagem) > config.hardMaxCubage) return false;
 
-    if (groupToAdd.isSpecial || load.pedidos.some(isSpecialClient)) {
-        const clientIdsInLoad = new Set(load.pedidos.map(p => normalizeClientId(p.Cliente)));
-        const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
+    // --- REGRAS DE NEGÓCIO PARA CLIENTES ESPECIAIS (VERSÃO 3) ---
+    const allPedidos = [...load.pedidos, ...groupToAdd.pedidos];
+    const specialPedidos = allPedidos.filter(isSpecialClient);
 
-        // Se a carga vai conter um cliente especial (sendo adicionado ou ja presente)
-        // O numero MAXIMO de clientes distintos na carga nao pode passar de 2.
-        clientIdsInLoad.add(newClientId);
-        if (clientIdsInLoad.size > 2) {
-            return false;
+    if (specialPedidos.length > 0) {
+        // Agrupa pedidos especiais pela empresa-mãe (usando o prefixo do nome)
+        const specialOrdersGroupedByPrefix = {};
+        for (const p of specialPedidos) {
+            const clientNameUpper = p.Nome_Cliente.toUpperCase().trim();
+            const matchingPrefix = specialClientPrefixes.find(prefix => clientNameUpper.startsWith(prefix));
+            if (matchingPrefix) {
+                if (!specialOrdersGroupedByPrefix[matchingPrefix]) {
+                    specialOrdersGroupedByPrefix[matchingPrefix] = [];
+                }
+                specialOrdersGroupedByPrefix[matchingPrefix].push(p);
+            }
+        }
+
+        // REGRA 1: Não misturar diferentes clientes especiais (ex: Viscardi e Muffato)
+        if (Object.keys(specialOrdersGroupedByPrefix).length > 1) {
+            return false; // INVÁLIDO: Mistura de diferentes empresas especiais na mesma carga.
+        }
+
+        // REGRA 2: Para a única empresa especial na carga, limitar a 2 lojas distintas.
+        for (const prefix in specialOrdersGroupedByPrefix) {
+            const ordersForThisSpecialClient = specialOrdersGroupedByPrefix[prefix];
+            const distinctStores = new Set(ordersForThisSpecialClient.map(p => normalizeClientId(p.Cliente)));
+            if (distinctStores.size > 2) {
+                return false; // INVÁLIDO: Mais de 2 lojas para este cliente especial na mesma carga.
+            }
         }
     }
 
