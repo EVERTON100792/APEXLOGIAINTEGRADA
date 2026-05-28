@@ -345,9 +345,18 @@ async function promptManualKm(loadId) {
     if (!load) return;
     
     const currentKm = load.distanceKm || '';
-    const input = prompt(`Digite a quilometragem (KM) calculada pelo Google Maps para a carga ${load.numero || load.id.split('-').pop()}:`, currentKm);
+    const loadNum = load.numero || load.id.split('-').pop();
     
-    if (input === null) return; // User cancelled
+    const input = await showCustomPrompt({
+        title: `Ajustar KM Manualmente`,
+        description: `Insira a quilometragem (KM) calculada pelo Google Maps para a carga ${loadNum}:`,
+        defaultValue: String(currentKm),
+        placeholder: `Ex: 593.1`,
+        confirmText: `Confirmar`,
+        cancelText: `Cancelar`
+    });
+    
+    if (input === null) return; // Cancelado pelo usuário
     
     const parsedKm = parseFloat(input.replace(',', '.'));
     if (isNaN(parsedKm) || parsedKm < 0) {
@@ -358,6 +367,227 @@ async function promptManualKm(loadId) {
     
     updateLoadFreightDisplay(loadId, parsedKm);
     if (typeof showToast === 'function') {
-        showToast(`Quilometragem atualizada manualmente para ${parsedKm} km.`, "success");
+        showToast(`Quilometragem atualizada para ${parsedKm} km.`, "success");
     }
 }
+
+/**
+ * Exibe um modal popup customizado e estilizado (estilo glassmorphism) 
+ * substituindo o prompt padrão do navegador.
+ */
+function showCustomPrompt(options) {
+    return new Promise((resolve) => {
+        // Criar o fundo (overlay) com desfoque
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 12, 0.75);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            opacity: 0;
+            transition: opacity 0.2s ease-out;
+        `;
+
+        // Card do Modal
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: rgba(28, 28, 33, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 24px;
+            width: 90%;
+            max-width: 420px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            transform: scale(0.92);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            color: #f5f5f7;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        `;
+
+        // Título
+        const title = document.createElement('h3');
+        title.style.cssText = `
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #ffffff;
+            letter-spacing: -0.01em;
+        `;
+        title.innerText = options.title || 'Ajustar KM';
+
+        // Descrição
+        const description = document.createElement('p');
+        description.style.cssText = `
+            font-size: 0.88rem;
+            color: #a1a1a6;
+            margin-bottom: 20px;
+            line-height: 1.45;
+        `;
+        description.innerText = options.description || '';
+
+        // Input Wrapper
+        const inputContainer = document.createElement('div');
+        inputContainer.style.cssText = `
+            margin-bottom: 24px;
+            position: relative;
+        `;
+
+        // Input
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = options.defaultValue || '';
+        input.placeholder = options.placeholder || '';
+        input.style.cssText = `
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1.1rem;
+            font-weight: 500;
+            outline: none;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+            text-align: center;
+        `;
+        
+        // Efeitos de foco no input
+        input.addEventListener('focus', () => {
+            input.style.borderColor = '#ffc107'; // Destaque em amarelo/laranja combinando com o sistema
+            input.style.boxShadow = '0 0 0 3px rgba(255, 193, 7, 0.2)';
+            input.style.background = 'rgba(0, 0, 0, 0.5)';
+        });
+        input.addEventListener('blur', () => {
+            input.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+            input.style.boxShadow = 'none';
+            input.style.background = 'rgba(0, 0, 0, 0.3)';
+        });
+
+        // Botões de Ação
+        const actions = document.createElement('div');
+        actions.style.cssText = `
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        `;
+
+        // Botão Cancelar
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.innerText = options.cancelText || 'Cancelar';
+        cancelBtn.style.cssText = `
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            color: #e5e5ea;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        `;
+        cancelBtn.addEventListener('mouseenter', () => {
+            cancelBtn.style.background = 'rgba(255, 255, 255, 0.12)';
+            cancelBtn.style.color = '#ffffff';
+        });
+        cancelBtn.addEventListener('mouseleave', () => {
+            cancelBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+            cancelBtn.style.color = '#e5e5ea';
+        });
+
+        // Botão Confirmar
+        const confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.innerText = options.confirmText || 'Confirmar';
+        confirmBtn.style.cssText = `
+            padding: 10px 22px;
+            background: linear-gradient(135deg, #ff9f0a, #ff3b30);
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(255, 159, 10, 0.25);
+        `;
+        confirmBtn.addEventListener('mouseenter', () => {
+            confirmBtn.style.transform = 'translateY(-1px)';
+            confirmBtn.style.boxShadow = '0 6px 16px rgba(255, 159, 10, 0.35)';
+        });
+        confirmBtn.addEventListener('mouseleave', () => {
+            confirmBtn.style.transform = 'none';
+            confirmBtn.style.boxShadow = '0 4px 12px rgba(255, 159, 10, 0.25)';
+        });
+
+        // Montagem da árvore do DOM
+        inputContainer.appendChild(input);
+        modal.appendChild(title);
+        if (options.description) {
+            modal.appendChild(description);
+        }
+        modal.appendChild(inputContainer);
+        actions.appendChild(cancelBtn);
+        actions.appendChild(confirmBtn);
+        modal.appendChild(actions);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Animação de entrada
+        requestAnimationFrame(() => {
+            overlay.style.opacity = '1';
+            modal.style.transform = 'scale(1)';
+        });
+
+        // Autoselecionar texto para edição imediata
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 50);
+
+        // Lógica de encerramento do modal
+        const close = (value) => {
+            overlay.style.opacity = '0';
+            modal.style.transform = 'scale(0.92)';
+            setTimeout(() => {
+                overlay.remove();
+                resolve(value);
+            }, 200);
+        };
+
+        // Eventos
+        confirmBtn.addEventListener('click', () => {
+            close(input.value);
+        });
+        
+        cancelBtn.addEventListener('click', () => {
+            close(null);
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                close(input.value);
+            } else if (e.key === 'Escape') {
+                close(null);
+            }
+        });
+
+        // Fechar ao clicar fora do modal
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                close(null);
+            }
+        });
+    });
+}
+
