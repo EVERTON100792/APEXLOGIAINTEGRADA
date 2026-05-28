@@ -303,12 +303,12 @@ function updateLoadFreightDisplay(loadId, distanceKm = null) {
 
 
         if (freightValue > 0) {
-            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500;">(${load.distanceKm} km)</span>`;
+            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${loadId}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
             freightEl.className = "load-meta-item badge bg-success text-white border border-success fw-bold ms-2";
             freightEl.style.cssText = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;";
         } else {
             // Se valor for 0 (ex: Van 'A combinar'), mostra texto informativo com KM
-            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500;">(${load.distanceKm} km)</span>`;
+            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${loadId}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
             freightEl.className = "load-meta-item badge bg-secondary text-white border border-secondary fw-bold ms-2";
             freightEl.style.cssText = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;";
         }
@@ -340,4 +340,24 @@ function recalcAllFreights() {
     });
 }
 
-
+async function promptManualKm(loadId) {
+    const load = activeLoads[loadId];
+    if (!load) return;
+    
+    const currentKm = load.distanceKm || '';
+    const input = prompt(`Digite a quilometragem (KM) calculada pelo Google Maps para a carga ${load.numero || load.id.split('-').pop()}:`, currentKm);
+    
+    if (input === null) return; // User cancelled
+    
+    const parsedKm = parseFloat(input.replace(',', '.'));
+    if (isNaN(parsedKm) || parsedKm < 0) {
+        if (typeof showToast === 'function') showToast("KM inválido inserido.", "error");
+        else alert("KM inválido inserido.");
+        return;
+    }
+    
+    updateLoadFreightDisplay(loadId, parsedKm);
+    if (typeof showToast === 'function') {
+        showToast(`Quilometragem atualizada manualmente para ${parsedKm} km.`, "success");
+    }
+}
