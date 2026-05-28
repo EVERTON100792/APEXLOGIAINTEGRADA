@@ -3375,64 +3375,24 @@ function imprimirCargaManualIndividual(loadId) {
 function imprimirCargaIndividual(loadId) {
     const load = activeLoads[loadId];
     if (!load) { alert("Carga não encontrada."); return; }
+    
+    const cardToPrint = document.getElementById(loadId);
+    if (!cardToPrint) { 
+        alert(`Erro: Carga com ID ${loadId} não encontrada na página.`); 
+        return; 
+    }
+    
+    const cardClone = cardToPrint.cloneNode(true);
     const title = `Relatório de Carga - #${load.shortId} (${load.numero || 'S/N'})`;
-
-    // Process observations
-    const obsMap = window.clientObservations || window._apexClientObservations || {};
-    const agendamentoMap = window.agendamentoOverrides || {};
-    const clientIds = [...new Set(load.pedidos.map(p => String(p.Cliente || '').trim()))];
-
-    const foundObs = clientIds.map(id => ({ id, text: obsMap[id] })).filter(o => o.text);
-
-    // NOVO: Captura observações de agendamento que não são apenas Sim/Não
-    const agendamentoObs = clientIds.map(id => {
-        const normId = normalizeClientId(id);
-        const text = agendamentoMap[normId];
-        return { id, text };
-    }).filter(o => o.text && o.text !== 'Sim' && o.text !== 'Não');
-
     const printWindow = createPrintWindow(title);
 
-    let clientObsHtml = '';
-    if (foundObs.length > 0 || agendamentoObs.length > 0) {
-        clientObsHtml = `
-            <div class="premium-observation-box" style="margin-top: 10px; background: #f0fdf4 !important; border-left: 4px solid #16a34a !important;">
-                ${foundObs.length > 0 ? `
-                    <strong style="display:block; font-size: 8pt; color: #166534; margin-bottom: 3px; text-transform: uppercase;">Observações de Clientes:</strong>
-                    ${foundObs.map(o => `<div style="margin-bottom: 2px;">• <strong>[${o.id}]</strong> ${o.text}</div>`).join('')}
-                ` : ''}
-                ${agendamentoObs.length > 0 ? `
-                    <strong style="display:block; font-size: 8pt; color: #92400e; margin-top: 5px; margin-bottom: 3px; text-transform: uppercase;">Observações de Agendamento:</strong>
-                    ${agendamentoObs.map(o => `<div style="margin-bottom: 2px;">• <strong>[${o.id}]</strong> ${o.text}</div>`).join('')}
-                ` : ''}
-            </div>`;
-    }
-
-    const loadObsHtml = load.observation ? `
-            <div class="premium-observation-box" style="margin-top: 10px;">
-                <strong style="display:block; font-size: 8pt; margin-bottom: 3px; text-transform: uppercase;">Observação da Carga:</strong>
-                ${load.observation.replace(/\n/g, '<br>')}
-            </div>` : '';
-
-    const content = `
-        <div class="print-container">
-            <h3 class="print-title">${title}</h3>
-            <div class="metrics-grid">
-                <div class="metric-item"><span class="metric-label">Veículo</span><span class="metric-value">${load.vehicleType.toUpperCase()}</span></div>
-                <div class="metric-item"><span class="metric-label">Peso</span><span class="metric-value">${load.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} kg</span></div>
-                <div class="metric-item"><span class="metric-label">Cubagem</span><span class="metric-value">${(load.totalCubagem || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} m³</span></div>
-            </div>
-            <div class="table-container-premium">
-                ${createTable(load.pedidos, ['Cod_Rota', 'Num_Pedido', 'Cliente', 'Nome_Cliente', 'Agendamento', 'Quilos_Saldo', 'Cidade', 'UF', 'Predat', 'Dat_Ped', 'CF', 'Coluna5'])}
-            </div>
-            ${clientObsHtml}
-            ${loadObsHtml}
-        </div>`;
-
-    printWindow.document.body.innerHTML = content;
+    printWindow.document.body.innerHTML = `<h3>${title}</h3>` + cardClone.outerHTML;
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+    setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+    }, 500);
 }
 
 
@@ -5242,11 +5202,11 @@ async function showRouteOnMap(loadId) {
             if (mapInstance) mapInstance.invalidateSize();
         }, 500);
 
-        // Use CartoDB Voyager for a cleaner, modern look - Prettier Map
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 20
+        // Use Google Maps Roadmap tiles for a native Google Maps look inside the card/modal
+        L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+            attribution: '&copy; Google Maps'
         }).addTo(mapInstance);
 
         // 4. Rota Otimizada (Valhalla)
@@ -5830,98 +5790,172 @@ async function refreshLoadFreight(loadId) {
         load.isCalculatingFreight = true;
         // Atualiza UI para mostrar spinner se o elemento existir
         const el = document.getElementById(`freight-${loadId}`);
-        if (el) el.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        if (el) {
+            el.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Calculando KM...';
+            el.className = "load-meta-item badge bg-info text-white border border-info fw-normal ms-2";
+        }
 
         const centroSelmi = { lat: -23.3002, lng: -51.3358 };
-        const uniqueCities = [...new Set(load.pedidos.map(p => `${p.Cidade}, ${p.UF}`))];
-        const locations = [{ coords: centroSelmi }];
+        const pontoSelmi = "Empresa Selmi, BR-369, Rolândia - PR, 86181-570, Brasil";
+
+        const cidadesMap = new Map();
+        load.pedidos.forEach(pedido => {
+            const cidade = (String(pedido.Cidade || '')).split(',')[0].trim();
+            let uf = (String(pedido.UF || pedido.Estado || '')).trim().toUpperCase();
+            if (cidade) {
+                const key = uf ? `${cidade}, ${uf}` : cidade;
+                if (!cidadesMap.has(key)) {
+                    cidadesMap.set(key, { cidade, uf, key });
+                }
+            }
+        });
+
+        const cidadesComEstado = Array.from(cidadesMap.values());
+        const locations = [{ name: pontoSelmi, coords: centroSelmi, isOrigin: true }];
 
         console.log(`Iniciando cálculo de frete background para carga ${loadId}`);
 
-        // Busca coordenadas das cidades usando a Fila de Requisições
-        for (const city of uniqueCities) {
+        // Busca coordenadas usando cache ou geocodificador
+        for (const item of cidadesComEstado) {
             try {
-                // MODIFICADO: Busca 5 resultados e prioriza cidades
-                const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(city + ', Brasil')}&format=json&limit=5&addressdetails=1`;
-
-                // USA A FILA GLOBAL PARA EVITAR CONFLITO COM O MAPA
-                const data = await NominatimQueue.add(geoUrl);
-
-                if (data && data.length > 0) {
-                    let bestMatch = data[0];
-                    const cityMatch = data.find(item =>
-                        (item.class === 'boundary' && item.type === 'administrative') ||
-                        (item.class === 'place' && ['city', 'town', 'village', 'municipality', 'hamlet'].includes(item.type))
-                    );
-                    if (cityMatch) bestMatch = cityMatch;
-
-                    locations.push({ coords: { lat: parseFloat(bestMatch.lat), lng: parseFloat(bestMatch.lon) } });
+                const result = await geocodeCityWithRetry(item.key, cityCoordsCache);
+                if (result.success) {
+                    locations.push({
+                        name: item.uf ? `${item.cidade}, ${item.uf}, Brasil` : `${item.cidade}, Brasil`,
+                        coords: result.coords
+                    });
+                } else {
+                    locations.push({
+                        name: item.uf ? `${item.cidade}, ${item.uf}, Brasil` : `${item.cidade}, Brasil`,
+                        coords: null
+                    });
                 }
             } catch (err) {
-                console.warn(`Erro geocode background para ${city}:`, err);
+                console.warn(`Erro geocode background para ${item.key}:`, err);
             }
         }
 
-        if (locations.length <= 1) {
+        // Salva o cache de geocodificação atualizado
+        localStorage.setItem('cityCoordsCache', JSON.stringify(cityCoordsCache));
+
+        // Filtra locais válidos com coordenadas
+        const validLocations = locations.filter(l => l.coords);
+
+        if (validLocations.length <= 1) {
             load.isCalculatingFreight = false;
             updateLoadFreightDisplay(loadId);
             return;
         }
 
-        // Rota Otimizada (Valhalla)
-        const valhallaPoints = locations.map(l => ({ lat: l.coords.lat, lon: l.coords.lng }));
-        valhallaPoints.push({ lat: centroSelmi.lat, lon: centroSelmi.lng });
+        // 2. Ordenação Nearest Neighbor (Mesma ordenação usada no Google Maps e no Mapa Local)
+        let sortedLocations = [validLocations[0]]; // Começa na origem
+        let remaining = validLocations.slice(1);
 
-        // Limita pontos para otimização para evitar timeouts
-        const useOptimized = valhallaPoints.length <= 6;
-        let endpoint = useOptimized ? 'optimized_route' : 'route';
+        while (remaining.length > 0) {
+            const last = sortedLocations[sortedLocations.length - 1];
+            let nearestIndex = -1;
+            let minDist = Infinity;
+            const lastCoords = last.coords;
 
-        let valhallaQuery = {
-            locations: valhallaPoints,
-            costing: "auto",
-            units: "kilometers",
-            language: "pt-BR"
-        };
-
-        if (!useOptimized) {
-            valhallaQuery.costing_options = { auto: { shortest: true } };
-        }
-
-        let routeUrl = `https://valhalla1.openstreetmap.de/${endpoint}?json=${JSON.stringify(valhallaQuery)}`;
-
-        // USA A FILA PARA VALHALLA TAMBÉM
-        const data = await apiQueue.add(async () => {
-            let resp = await fetch(routeUrl);
-
-            // Fallback se optimization falhar
-            if (!resp.ok && useOptimized) {
-                console.warn("Otimização falhou/timeout. Usando rota sequencial...");
-                endpoint = 'route';
-                valhallaQuery.costing_options = { auto: { shortest: true } };
-                routeUrl = `https://valhalla1.openstreetmap.de/${endpoint}?json=${JSON.stringify(valhallaQuery)}`;
-                resp = await fetch(routeUrl);
+            for (let i = 0; i < remaining.length; i++) {
+                const dist = Math.sqrt(
+                    Math.pow(remaining[i].coords.lat - lastCoords.lat, 2) +
+                    Math.pow(remaining[i].coords.lng - lastCoords.lng, 2)
+                );
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestIndex = i;
+                }
             }
 
-            if (!resp.ok) throw new Error(`Valhalla Refused: ${resp.status}`);
-            return await resp.json();
-        });
+            if (nearestIndex !== -1) {
+                sortedLocations.push(remaining[nearestIndex]);
+                remaining.splice(nearestIndex, 1);
+            } else {
+                break;
+            }
+        }
+
+        // Retorna para a origem no final
+        sortedLocations.push(validLocations[0]);
+
+        // 3. Obter distância da Rota (Valhalla -> OSRM fallback)
+        let distanceKm = 0;
+        let success = false;
+
+        const valhallaPoints = sortedLocations.map(l => ({ lat: l.coords.lat, lon: l.coords.lng }));
+
+        // Tentativa 1: Valhalla
+        try {
+            const valhallaQuery = {
+                locations: valhallaPoints,
+                costing: "auto",
+                costing_options: { auto: { shortest: true } },
+                units: "kilometers",
+                language: "pt-BR"
+            };
+            const routeUrl = `https://valhalla1.openstreetmap.de/route`;
+
+            const data = await apiQueue.add(async () => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+                const resp = await fetch(routeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(valhallaQuery),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!resp.ok) throw new Error(`Valhalla status ${resp.status}`);
+                return await resp.json();
+            });
+
+            if (data.trip && data.trip.summary) {
+                distanceKm = parseFloat(data.trip.summary.length.toFixed(1));
+                success = true;
+                console.log(`Frete Carga ${loadId}: KM calculado por Valhalla = ${distanceKm}`);
+            }
+        } catch (valhallaError) {
+            console.warn(`Valhalla falhou no cálculo de frete background para ${loadId}. Tentando OSRM...`, valhallaError);
+        }
+
+        // Tentativa 2: Fallback para OSRM (Muito rápido e estável)
+        if (!success) {
+            try {
+                const osrmCoords = valhallaPoints.map(p => `${p.lon},${p.lat}`).join(';');
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${osrmCoords}?overview=false`;
+
+                const osrmResp = await fetch(osrmUrl);
+                if (osrmResp.ok) {
+                    const osrmData = await osrmResp.json();
+                    if (osrmData.routes && osrmData.routes.length > 0) {
+                        distanceKm = parseFloat((osrmData.routes[0].distance / 1000).toFixed(1));
+                        success = true;
+                        console.log(`Frete Carga ${loadId}: KM calculado por OSRM = ${distanceKm}`);
+                    }
+                }
+            } catch (osrmError) {
+                console.error(`OSRM falhou para ${loadId}:`, osrmError);
+            }
+        }
 
         load.isCalculatingFreight = false;
-        if (data.trip && data.trip.summary) {
-            const distKm = data.trip.summary.length.toFixed(1);
-            console.log(`Cálculo background concluído: ${distKm} km para carga ${loadId}`);
-            updateLoadFreightDisplay(loadId, parseFloat(distKm));
+        if (success && distanceKm > 0) {
+            updateLoadFreightDisplay(loadId, distanceKm);
         } else {
+            console.warn(`Não foi possível calcular a distância para a carga ${loadId}`);
             updateLoadFreightDisplay(loadId);
         }
     } catch (e) {
-        console.warn(`Erro no cálculo de frete background para carga ${loadId}:`, e);
+        console.error(`Erro geral no refreshLoadFreight para ${loadId}:`, e);
         load.isCalculatingFreight = false;
         updateLoadFreightDisplay(loadId);
     }
 }
 
-function abrirMapaCarga(loadId) {
+async function abrirMapaCarga(loadId) {
     const load = activeLoads[loadId];
     if (!load) {
         showToast("Carga não encontrada.", 'error');
@@ -5939,17 +5973,11 @@ function abrirMapaCarga(loadId) {
         // Tenta obter UF de várias fontes possíveis
         let uf = (String(pedido.UF || pedido.Estado || '')).trim().toUpperCase();
 
-        // Fallback genérico se UF estiver vazio (assume PR para simplificar, ou tenta extrair da cidade)
-        if (!uf && cidade) {
-            // Lógica simples: se cidade não tem UF, não adiciona ou assume padrão?
-            // Melhor tentar extrair.
-        }
-
         if (cidade) {
-            // Chave única: Cidade + UF
-            const key = uf ? `${cidade} - ${uf}` : cidade;
+            // Chave única: Cidade, UF
+            const key = uf ? `${cidade}, ${uf}` : cidade;
             if (!cidadesMap.has(key)) {
-                cidadesMap.set(key, { cidade, uf });
+                cidadesMap.set(key, { cidade, uf, key });
             }
         }
     });
@@ -5960,24 +5988,75 @@ function abrirMapaCarga(loadId) {
         return;
     }
 
-    // Nome e endereço da Selmi para visualização amigável no link externo
+    showToast("Otimizando rota e abrindo no Google Maps...", "info");
+
+    const origemCoords = { lat: -23.3002, lng: -51.3358 };
     const pontoSelmi = "Empresa Selmi, BR-369, Rolândia - PR, 86181-570, Brasil";
-    const baseUrl = "https://graphhopper.com/maps/";
-    const params = new URLSearchParams();
 
-    // Adiciona Selmi como ponto inicial
-    params.append('point', pontoSelmi);
+    // 1. Geocodificar para poder fazer a otimização de menor distância (Nearest Neighbor)
+    const locations = [{ name: pontoSelmi, coords: origemCoords, isOrigin: true }];
 
-    // Adiciona cidades
-    cidadesComEstado.forEach(({ cidade, uf }) => {
-        const local = uf ? `${cidade}, ${uf}, Brasil` : `${cidade}, Brasil`;
-        params.append('point', local);
-    });
+    for (const item of cidadesComEstado) {
+        const result = await geocodeCityWithRetry(item.key, cityCoordsCache);
+        if (result.success) {
+            locations.push({
+                name: item.uf ? `${item.cidade}, ${item.uf}, Brasil` : `${item.cidade}, Brasil`,
+                coords: result.coords
+            });
+        } else {
+            locations.push({
+                name: item.uf ? `${item.cidade}, ${item.uf}, Brasil` : `${item.cidade}, Brasil`,
+                coords: null
+            });
+        }
+    }
 
-    // Adiciona Selmi como ponto final (Retorno)
-    params.append('point', pontoSelmi);
+    // Salva o cache de geocodificação atualizado
+    localStorage.setItem('cityCoordsCache', JSON.stringify(cityCoordsCache));
 
-    const url = `${baseUrl}?${params.toString()}&profile=car&layer=OpenStreetMap`;
+    // 2. Nearest Neighbor Heuristic para otimização da rota
+    let sortedLocations = [locations[0]];
+    let remaining = locations.slice(1);
+
+    let noCoords = remaining.filter(l => !l.coords);
+    let withCoords = remaining.filter(l => l.coords);
+
+    while (withCoords.length > 0) {
+        const last = sortedLocations[sortedLocations.length - 1];
+        let nearestIndex = -1;
+        let minDist = Infinity;
+        const lastCoords = last.coords || origemCoords;
+
+        for (let i = 0; i < withCoords.length; i++) {
+            const dist = Math.sqrt(
+                Math.pow(withCoords[i].coords.lat - lastCoords.lat, 2) +
+                Math.pow(withCoords[i].coords.lng - lastCoords.lng, 2)
+            );
+            if (dist < minDist) {
+                minDist = dist;
+                nearestIndex = i;
+            }
+        }
+
+        if (nearestIndex !== -1) {
+            sortedLocations.push(withCoords[nearestIndex]);
+            withCoords.splice(nearestIndex, 1);
+        } else {
+            break;
+        }
+    }
+
+    // Adiciona itens sem coordenadas no final
+    sortedLocations.push(...noCoords);
+
+    // Retorna para a origem no final
+    sortedLocations.push(locations[0]);
+
+    // 3. Montar a URL do Google Maps com a rota otimizada
+    const baseUrl = "https://www.google.com/maps/dir/";
+    const pathParts = sortedLocations.map(loc => encodeURIComponent(loc.name));
+    const url = `${baseUrl}${pathParts.join('/')}`;
+
     window.open(url, '_blank');
 }
 

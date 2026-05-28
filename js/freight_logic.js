@@ -1,4 +1,4 @@
-﻿
+
 // --- FREIGHT SYSTEM LOGIC ---
 
 // --- FREIGHT SYSTEM LOGIC ---
@@ -303,23 +303,27 @@ function updateLoadFreightDisplay(loadId, distanceKm = null) {
 
 
         if (freightValue > 0) {
-            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <small>(${load.distanceKm}km)</small>`;
+            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500;">(${load.distanceKm} km)</span>`;
             freightEl.className = "load-meta-item badge bg-success text-white border border-success fw-bold ms-2";
+            freightEl.style.cssText = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;";
         } else {
             // Se valor for 0 (ex: Van 'A combinar'), mostra texto informativo com KM
-            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1"></i>A Definir <small>(${load.distanceKm}km)</small>`;
+            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500;">(${load.distanceKm} km)</span>`;
             freightEl.className = "load-meta-item badge bg-secondary text-white border border-secondary fw-bold ms-2";
+            freightEl.style.cssText = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;";
         }
         freightEl.classList.remove('d-none');
     } else {
         // Se não tem distância e está calculando, mostra spinner
         if (load.isCalculatingFreight) {
-            freightEl.innerHTML = `<i class="spinner-border spinner-border-sm me-1" role="status"></i>Calculando KM...`;
+            freightEl.innerHTML = `<i class="spinner-border spinner-border-sm me-1.5" role="status"></i>Calculando KM...`;
             freightEl.className = "load-meta-item badge bg-info text-white border border-info fw-normal ms-2";
+            freightEl.style.cssText = "font-size: 1.0rem !important; padding: 6px 12px !important; border-radius: 6px !important;";
         } else {
             // Se não tem distância, mostra placeholder informativo amigável
-            freightEl.innerHTML = `<i class="bi bi-calculator me-1"></i>Calc. KM p/ Frete`;
+            freightEl.innerHTML = `<i class="bi bi-calculator me-1.5"></i>Calc. KM p/ Frete`;
             freightEl.className = "load-meta-item badge bg-dark text-muted border border-secondary fw-normal ms-2";
+            freightEl.style.cssText = "font-size: 0.95rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer; transition: all 0.2s;";
         }
         freightEl.classList.remove('d-none');
     }

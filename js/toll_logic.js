@@ -20,7 +20,7 @@
  */
 
 // CONFIGURAÇÃO GLOBAL: Mudar para 'true' em 2026 para ATIVAR todos os pedágios do PR novamente
-const REACTIVATE_ALL_PR_TOLLS = false; // "Master Switch"
+const REACTIVATE_ALL_PR_TOLLS = true; // "Master Switch"
 
 // LISTA DE EXCESSÕES: Pedágios conhecidos que devem ser forçados como DESATIVADOS
 const KNOWN_INACTIVE_TOLLS = [
