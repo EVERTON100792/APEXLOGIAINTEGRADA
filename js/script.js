@@ -4851,13 +4851,15 @@ function renderLoadCard(load, vehicleType, vInfo) {
             </div>`;
     });
 
+    const totalDeliveries = Object.values(cityDeliveries).reduce((sum, set) => sum + set.size, 0);
+
     let deliverySummaryHtml = '';
     if (cityDeliveryItems.length > 0) {
         deliverySummaryHtml = `
             <div class="delivery-summary-container">
                 <div class="delivery-summary-header">
                     <i class="bi bi-geo-alt-fill text-warning me-1.5 no-print"></i>
-                    <span>Resumo de Entregas</span>
+                    <span>Resumo de Entregas — Total de Entregas: ${totalDeliveries}</span>
                 </div>
                 <div class="delivery-summary-badges">
                     ${cityDeliveryItems.join('')}
