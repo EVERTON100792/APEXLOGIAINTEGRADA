@@ -4696,36 +4696,73 @@ function renderLoadCard(load, vehicleType, vInfo) {
         }
     }
 
-    // --- Identificar Data Mais Antiga (Predat) ---
-    let oldestDate = null;
-    let oldestOrders = [];
+    // --- Identificar Data Mais Antiga (Predat / Data pré-data) ---
+    let oldestPredat = null;
+    let predatOrders = [];
 
     load.pedidos.forEach(p => {
-        if (!p.Predat) return;
-        let pDate = p.Predat instanceof Date ? p.Predat : new Date(p.Predat);
-        if (isNaN(pDate.getTime())) return;
+        const pDate = parseDateBR(p.Predat);
+        if (!pDate) return;
         const pDateOnly = new Date(pDate.getFullYear(), pDate.getMonth(), pDate.getDate());
 
-        if (oldestDate === null || pDateOnly < oldestDate) {
-            oldestDate = pDateOnly;
-            oldestOrders = [p.Num_Pedido];
-        } else if (pDateOnly.getTime() === oldestDate.getTime()) {
-            oldestOrders.push(p.Num_Pedido);
+        if (oldestPredat === null || pDateOnly < oldestPredat) {
+            oldestPredat = pDateOnly;
+            predatOrders = [p.Num_Pedido];
+        } else if (pDateOnly.getTime() === oldestPredat.getTime()) {
+            predatOrders.push(p.Num_Pedido);
+        }
+    });
+
+    // --- Identificar Data Mais Antiga (Dat_Ped / Data pedido) ---
+    let oldestDatPed = null;
+    let datPedOrders = [];
+
+    load.pedidos.forEach(p => {
+        const pDate = parseDateBR(p.Dat_Ped);
+        if (!pDate) return;
+        const pDateOnly = new Date(pDate.getFullYear(), pDate.getMonth(), pDate.getDate());
+
+        if (oldestDatPed === null || pDateOnly < oldestDatPed) {
+            oldestDatPed = pDateOnly;
+            datPedOrders = [p.Num_Pedido];
+        } else if (pDateOnly.getTime() === oldestDatPed.getTime()) {
+            datPedOrders.push(p.Num_Pedido);
         }
     });
 
     let oldestDateHtml = '';
-    if (oldestDate) {
-        const dateStr = oldestDate.toLocaleDateString('pt-BR');
-        const ordersStr = oldestOrders.join(', ');
+    if (oldestPredat || oldestDatPed) {
+        let predatContentHtml = '';
+        if (oldestPredat) {
+            const predatDateStr = oldestPredat.toLocaleDateString('pt-BR');
+            const predatOrdersStr = predatOrders.join(', ');
+            predatContentHtml = `
+                <div style="display: flex; flex-direction: column;">
+                    <span class="deadline-title">Data pré-data: ${predatDateStr}</span>
+                    <span class="deadline-sub">Pedidos: ${predatOrdersStr}</span>
+                </div>`;
+        }
+
+        let datPedContentHtml = '';
+        if (oldestDatPed) {
+            const datPedDateStr = oldestDatPed.toLocaleDateString('pt-BR');
+            const datPedOrdersStr = datPedOrders.join(', ');
+            const borderStyle = oldestPredat ? 'style="border-top: 1px solid rgba(245, 158, 11, 0.15); margin-top: 6px; padding-top: 6px; display: flex; flex-direction: column;"' : 'style="display: flex; flex-direction: column;"';
+            datPedContentHtml = `
+                <div ${borderStyle}>
+                    <span class="deadline-title">Data pedido: ${datPedDateStr}</span>
+                    <span class="deadline-sub">Pedidos: ${datPedOrdersStr}</span>
+                </div>`;
+        }
+
         oldestDateHtml = `
             <div class="premium-deadline-alert">
                 <div class="deadline-icon-wrapper">
                     <i class="bi bi-clock-history"></i>
                 </div>
                 <div class="deadline-text">
-                    <span class="deadline-title">Prazo Final: ${dateStr}</span>
-                    <span class="deadline-sub">Pedidos: ${ordersStr}</span>
+                    ${predatContentHtml}
+                    ${datPedContentHtml}
                 </div>
             </div>`;
     }
