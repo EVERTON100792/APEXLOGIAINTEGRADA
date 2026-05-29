@@ -3213,6 +3213,52 @@ function createPrintWindow(title) {
                     border-radius: 4px !important;
                     font-family: Arial, sans-serif !important;
                 }
+                .delivery-summary-container {
+                    margin-top: 8px !important;
+                    margin-bottom: 8px !important;
+                    padding: 6px 10px !important;
+                    background: #f8fafc !important;
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 6px !important;
+                    page-break-inside: avoid;
+                }
+                .delivery-summary-header {
+                    font-size: 8pt !important;
+                    font-weight: bold !important;
+                    color: #334155 !important;
+                    text-transform: uppercase !important;
+                    margin-bottom: 5px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                }
+                .delivery-summary-badges {
+                    display: flex !important;
+                    flex-wrap: wrap !important;
+                    gap: 6px !important;
+                }
+                .city-delivery-badge {
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    background: #ffffff !important;
+                    border: 1px solid #cbd5e1 !important;
+                    border-radius: 4px !important;
+                    padding: 3px 6px !important;
+                    font-size: 7.5pt !important;
+                    color: #0f172a !important;
+                }
+                .city-delivery-badge .city-name {
+                    font-weight: bold !important;
+                    margin-right: 6px !important;
+                }
+                .city-delivery-badge .delivery-count-badge {
+                    background: #f1f5f9 !important;
+                    color: #0f172a !important;
+                    border: 1px solid #cbd5e1 !important;
+                    padding: 1px 4px !important;
+                    border-radius: 3px !important;
+                    font-size: 7pt !important;
+                    font-weight: bold !important;
+                }
             </style></head><body><div class="print-container">`);
     return printWindow;
 }
@@ -4783,6 +4829,42 @@ function renderLoadCard(load, vehicleType, vInfo) {
             </div>`;
     }
 
+    // --- Calcular Resumo de Entregas por Cidade ---
+    const cityDeliveries = {};
+    load.pedidos.forEach(p => {
+        const cidadeRaw = String(p.Cidade || '').split(',')[0].split('-')[0].split('/')[0].trim().toUpperCase();
+        const cliente = String(p.Cliente || '').trim();
+        if (!cidadeRaw || !cliente) return;
+        if (!cityDeliveries[cidadeRaw]) {
+            cityDeliveries[cidadeRaw] = new Set();
+        }
+        cityDeliveries[cidadeRaw].add(cliente);
+    });
+
+    const cityDeliveryItems = Object.entries(cityDeliveries).map(([cidade, clientes]) => {
+        const count = clientes.size;
+        const entregaWord = count === 1 ? 'entrega' : 'entregas';
+        return `
+            <div class="city-delivery-badge">
+                <span class="city-name">${cidade}</span>
+                <span class="delivery-count-badge">${count} ${entregaWord}</span>
+            </div>`;
+    });
+
+    let deliverySummaryHtml = '';
+    if (cityDeliveryItems.length > 0) {
+        deliverySummaryHtml = `
+            <div class="delivery-summary-container">
+                <div class="delivery-summary-header">
+                    <i class="bi bi-geo-alt-fill text-warning me-1.5 no-print"></i>
+                    <span>Resumo de Entregas</span>
+                </div>
+                <div class="delivery-summary-badges">
+                    ${cityDeliveryItems.join('')}
+                </div>
+            </div>`;
+    }
+
     return `
         <div id="${load.id}" 
              class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''}" 
@@ -4843,6 +4925,8 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 <div class="observation-section">
                     <div id="obs-container-${load.id}">${initialObservationHtml}</div>
                 </div>
+
+                ${deliverySummaryHtml}
 
 
                 <div class="table-container-premium">

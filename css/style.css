@@ -5249,3 +5249,54 @@ tr.search-highlight > td, tr.search-highlight > th {
 .print-vehicle-footer {
     display: none !important;
 }
+
+/* --- Resumo de Entregas por Cidade --- */
+.delivery-summary-container {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+}
+
+.delivery-summary-header {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--dark-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.delivery-summary-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.city-delivery-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    color: #ffffff;
+}
+
+.city-delivery-badge .city-name {
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.city-delivery-badge .delivery-count-badge {
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
