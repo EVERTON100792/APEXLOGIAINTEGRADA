@@ -4759,9 +4759,9 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 <div class="header-actions no-print">
                     ${vehicleSelectDropdown}
                     <div class="action-buttons-group">
-                        <button class="premium-action-btn" onclick="showRouteOnMap('${load.id}')" title="Mapa Local"><i class="bi bi-map"></i></button>
-                        <button class="premium-action-btn" onclick="abrirMapaCarga('${load.id}')" title="Google Maps"><i class="bi bi-geo"></i></button>
-                        <button class="premium-action-btn" onclick="imprimirCargaIndividual('${load.id}')" title="Imprimir"><i class="bi bi-printer"></i></button>
+                        <button class="premium-action-btn btn-mapa-local" onclick="showRouteOnMap('${load.id}')" title="Roteirização Nativa (Local)"><i class="bi bi-map-fill"></i><span>Mapa Local</span></button>
+                        <button class="premium-action-btn btn-google-maps" onclick="abrirMapaCarga('${load.id}')" title="Roteirização Externa (Google Maps)"><i class="bi bi-geo-alt-fill"></i><span>Google Maps</span></button>
+                        <button class="premium-action-btn btn-imprimir" onclick="imprimirCargaIndividual('${load.id}')" title="Imprimir Carga"><i class="bi bi-printer-fill"></i><span>Imprimir</span></button>
                     </div>
                 </div>
             </div>
