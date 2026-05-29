@@ -5246,3 +5246,6 @@ tr.search-highlight > td, tr.search-highlight > th {
     animation: highlightFound 3s cubic-bezier(0.25, 0.8, 0.25, 1) forwards !important;
 }
 
+.print-vehicle-footer {
+    display: none !important;
+}

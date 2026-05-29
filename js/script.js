@@ -3197,6 +3197,22 @@ function createPrintWindow(title) {
                 .no-print, .progress, .card-glass-overlay, .progress-glow, .action-buttons-group, .premium-dropdown-container, .btn-add-obs-premium, .premium-progress-container, .card-footer-neon, .observation-actions, .header-actions, .progress-glow, .select-icon { 
                     display: none !important; 
                 } 
+                .print-vehicle-footer {
+                    display: block !important;
+                    position: fixed !important;
+                    bottom: 10mm !important;
+                    right: 10mm !important;
+                    font-size: 14pt !important;
+                    font-weight: 800 !important;
+                    color: black !important;
+                    text-transform: uppercase !important;
+                    border: 2px solid black !important;
+                    padding: 5px 10px !important;
+                    background: white !important;
+                    z-index: 99999 !important;
+                    border-radius: 4px !important;
+                    font-family: Arial, sans-serif !important;
+                }
             </style></head><body><div class="print-container">`);
     return printWindow;
 }
@@ -4843,6 +4859,9 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 </div>
             </div>
             
+            <div class="print-vehicle-footer">
+                VEÍCULO: ${vInfo.name.toUpperCase()}
+            </div>
             <div class="card-footer-neon"></div>
         </div>`;
 }
