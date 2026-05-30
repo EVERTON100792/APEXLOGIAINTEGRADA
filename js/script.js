@@ -6195,7 +6195,7 @@ async function refreshLoadFreight(loadId) {
             const valhallaQuery = {
                 locations: valhallaPoints,
                 costing: "auto",
-                costing_options: { auto: { shortest: true } },
+                costing_options: { auto: { use_highways: 1.0, shortest: false } },
                 units: "kilometers",
                 language: "pt-BR"
             };
@@ -9858,8 +9858,8 @@ async function calculateAndDrawRoute(locations, loadId, isManual = false) {
         costing: "auto",
         costing_options: {
             auto: {
-                use_highways: 0.5,
-                shortest: true
+                use_highways: 1.0,
+                shortest: false
             }
         },
         units: "kilometers",
