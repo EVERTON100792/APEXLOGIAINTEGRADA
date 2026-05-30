@@ -74,6 +74,17 @@ function parseDateBR(dStr) {
     return isNaN(d.getTime()) ? null : d;
 }
 
+function safeDateCompare(aOldest, bOldest) {
+    const timeA = aOldest ? new Date(aOldest).getTime() : Infinity;
+    const timeB = bOldest ? new Date(bOldest).getTime() : Infinity;
+    const isNaN_A = isNaN(timeA);
+    const isNaN_B = isNaN(timeB);
+    if (isNaN_A && isNaN_B) return 0;
+    if (isNaN_A) return 1;
+    if (isNaN_B) return -1;
+    return timeA - timeB;
+}
+
 async function getCityCoordinates(cidade, uf, apiKey) {
     const key = `${cidade.trim().toUpperCase()}-${uf.trim().toUpperCase()}`;
     if (cityCoordsCache[key]) return cityCoordsCache[key];
@@ -128,6 +139,18 @@ const isSpecialClient = (p) => {
     const clientNameUpper = p.Nome_Cliente.toUpperCase().trim();
     return specialClientPrefixes.some(prefix => clientNameUpper.startsWith(prefix));
 };
+
+function isSaoPauloOrder(p) {
+    if (!p) return false;
+    const rota = String(p.Cod_Rota || '').trim();
+    if (rota.startsWith('25') || rota.startsWith('26') || rota.startsWith('27')) return true;
+    if (String(p.UF || '').trim().toUpperCase() === 'SP') return true;
+    if (rotaVeiculoMap[rota] && rotaVeiculoMap[rota].title) {
+        const titleUpper = rotaVeiculoMap[rota].title.toUpperCase();
+        if (titleUpper.includes('PAULO') || titleUpper.includes('SP')) return true;
+    }
+    return false;
+}
 
 function getVehicleConfig(vehicleType, configs) {
     const typeMap = {
@@ -261,9 +284,26 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
             return !isNaN(pDate.getTime()) && pDate.getTime() === oldestItemTimestamp;
         });
 
-        // CONDIÇÃO MODIFICADA:
-        // A carga é válida se atingir o peso mínimo OU se contiver um pedido do dia mais antigo.
-        if (load.pedidos.length > 0 && (load.totalKg >= config.minKg || containsOldestOrder)) {
+        // Verifica se a carga contém pedidos prioritários ou recall
+        const containsPriority = load.pedidos.some(p => 
+            pedidosPrioritarios.includes(String(p.Num_Pedido).trim()) || 
+            pedidosRecall.includes(String(p.Num_Pedido).trim())
+        );
+
+        const containsSP = load.pedidos.some(isSaoPauloOrder);
+
+        let isValid = false;
+        if (containsSP) {
+            if (vehicleType === 'toco' || vehicleType === 'fiorino') {
+                isValid = false;
+            } else {
+                isValid = load.totalKg >= config.minKg;
+            }
+        } else {
+            isValid = load.totalKg >= config.minKg || containsOldestOrder;
+        }
+
+        if (load.pedidos.length > 0 && isValid) {
             finalLoads.push(load);
         } else if (load.pedidos.length > 0) {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
@@ -284,17 +324,7 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
 
 function runHeuristicOptimization(packableGroups, vehicleType, configs, pedidosPrioritarios, pedidosRecall) {
     // Função de ordenação principal que prioriza a data mais antiga.
-    const dateSorter = (a, b) => { // prettier-ignore
-        if (a.oldestDate && b.oldestDate) {
-            if (a.oldestDate < b.oldestDate) return -1;
-            if (a.oldestDate > b.oldestDate) return 1;
-        } else if (a.oldestDate) {
-            return -1;
-        } else if (b.oldestDate) {
-            return 1;
-        }
-        return 0; // Se as datas forem iguais ou ambas nulas, não há preferência.
-    };
+    const dateSorter = (a, b) => safeDateCompare(a.oldestDate, b.oldestDate);
 
     const strategies = [
         {
@@ -343,7 +373,7 @@ function runHeuristicOptimization(packableGroups, vehicleType, configs, pedidosP
     return bestResult;
 }
 
-function getSolutionEnergy(solution, vehicleType, configs) {
+function getSolutionEnergy(solution, vehicleType, configs, pedidosPrioritarios, pedidosRecall) {
     const config = getVehicleConfig(vehicleType, configs);
     const balancingFactor = 0.01;
 
@@ -354,6 +384,13 @@ function getSolutionEnergy(solution, vehicleType, configs) {
 
     const leftoverWeight = solution.leftovers.reduce((sum, group) => {
         let weightMultiplier = 1;
+
+        // Verifica se o grupo possui pedidos prioritários ou recall
+        const hasPriority = group.pedidos.some(p => 
+            pedidosPrioritarios.includes(String(p.Num_Pedido).trim()) || 
+            pedidosRecall.includes(String(p.Num_Pedido).trim())
+        );
+
         if (group.oldestDate) {
             const date = new Date(group.oldestDate);
             if (!isNaN(date.getTime())) {
@@ -366,6 +403,12 @@ function getSolutionEnergy(solution, vehicleType, configs) {
                 weightMultiplier = 10 + (ageInDays * 100);
             }
         }
+
+        // Se tiver prioridade, aplica penalidade massiva para forçar o empacotamento
+        if (hasPriority) {
+            weightMultiplier += 5000;
+        }
+
         return sum + (group.totalKg * weightMultiplier);
     }, 0);
 
@@ -395,13 +438,8 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
 
         // A ordenação inicial prioriza data mais antiga, seguida prioritários, depois peso
         const initialSortedGroups = [...packableGroups].sort((a, b) => {
-            if (a.oldestDate && b.oldestDate) {
-                const dateA = new Date(a.oldestDate);
-                const dateB = new Date(b.oldestDate);
-                if (dateA < dateB) return -1;
-                if (dateA > dateB) return 1;
-            } else if (a.oldestDate) { return -1; }
-            else if (b.oldestDate) { return 1; }
+            const dateCompare = safeDateCompare(a.oldestDate, b.oldestDate);
+            if (dateCompare !== 0) return dateCompare;
             const aHasPrio = a.pedidos.some(p => pedidosPrioritarios.includes(String(p.Num_Pedido)));
             const bHasPrio = b.pedidos.some(p => pedidosPrioritarios.includes(String(p.Num_Pedido)));
             if (aHasPrio && !bHasPrio) return -1; if (!aHasPrio && bHasPrio) return 1;
@@ -525,12 +563,12 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
                 }
 
                 if (moveMade) {
-                    const currentEnergy = getSolutionEnergy(currentSolution, vehicleType, configs);
-                    const neighborEnergy = getSolutionEnergy(neighborSolution, vehicleType, configs);
+                    const currentEnergy = getSolutionEnergy(currentSolution, vehicleType, configs, pedidosPrioritarios, pedidosRecall);
+                    const neighborEnergy = getSolutionEnergy(neighborSolution, vehicleType, configs, pedidosPrioritarios, pedidosRecall);
 
                     if (neighborEnergy < currentEnergy || Math.random() < Math.exp((currentEnergy - neighborEnergy) / currentTemp)) {
                         currentSolution = neighborSolution;
-                        if (getSolutionEnergy(currentSolution, vehicleType, configs) < getSolutionEnergy(bestSolution, vehicleType, configs)) {
+                        if (getSolutionEnergy(currentSolution, vehicleType, configs, pedidosPrioritarios, pedidosRecall) < getSolutionEnergy(bestSolution, vehicleType, configs, pedidosPrioritarios, pedidosRecall)) {
                             bestSolution = JSON.parse(JSON.stringify(currentSolution));
                         }
                     }
@@ -544,6 +582,18 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
             await new Promise(r => setTimeout(r, 0));
         }
 
+        // Obtém o timestamp do pedido mais antigo na entrada do Simulated Annealing
+        const getOldestDateTimestamp = (items) => {
+            if (items.length > 0 && items[0].oldestDate) {
+                const date = new Date(items[0].oldestDate);
+                if (!isNaN(date.getTime())) {
+                    return date.getTime();
+                }
+            }
+            return null;
+        };
+        const oldestItemTimestamp = getOldestDateTimestamp(initialSortedGroups);
+
         let finalLoads = [];
         let finalLeftovers = [...bestSolution.leftovers];
         bestSolution.loads.forEach(load => {
@@ -553,7 +603,7 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
                 if (load.pedidos.length > 0) {
                     const groups = Object.values(load.pedidos.reduce((acc, p) => {
                         const cId = normalizeClientId(p.Cliente);
-                        const pDate = parseDateBR(p.Dat_Ped);
+                        const pDate = parseDateBR(p.Dat_Ped || p.Predat);
 
                         if (!acc[cId]) {
                             acc[cId] = {
@@ -580,12 +630,37 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
                 return;
             }
 
-            if (load.pedidos.length > 0 && load.totalKg >= config.minKg) {
+            const containsOldestOrder = oldestItemTimestamp && load.pedidos.some(p => {
+                const pDateValue = p.Dat_Ped || p.Predat;
+                if (!pDateValue) return false;
+                const pDate = new Date(pDateValue);
+                return !isNaN(pDate.getTime()) && pDate.getTime() === oldestItemTimestamp;
+            });
+
+            const containsPriority = load.pedidos.some(p => 
+                pedidosPrioritarios.includes(String(p.Num_Pedido).trim()) || 
+                pedidosRecall.includes(String(p.Num_Pedido).trim())
+            );
+
+            const containsSP = load.pedidos.some(isSaoPauloOrder);
+
+            let isValid = false;
+            if (containsSP) {
+                if (effectiveVehicleType === 'toco' || effectiveVehicleType === 'fiorino') {
+                    isValid = false;
+                } else {
+                    isValid = load.totalKg >= config.minKg;
+                }
+            } else {
+                isValid = load.totalKg >= config.minKg || containsOldestOrder;
+            }
+
+            if (load.pedidos.length > 0 && isValid) {
                 finalLoads.push(load);
             } else if (load.pedidos.length > 0) {
                 const groups = Object.values(load.pedidos.reduce((acc, p) => {
                     const cId = normalizeClientId(p.Cliente);
-                    const pDate = parseDateBR(p.Dat_Ped);
+                    const pDate = parseDateBR(p.Dat_Ped || p.Predat);
 
                     if (!acc[cId]) {
                         acc[cId] = {
@@ -745,8 +820,8 @@ async function processarRoteirizacaoNoWorker(pedidosEncontrados, vehicleType, us
     const sortedOrders = [];
     sortedCities.forEach(cityKey => {
         const ordersInCity = cityGroups[cityKey].sort((a, b) => {
-            const dateA = parseDateBR(a.Dat_Ped);
-            const dateB = parseDateBR(b.Dat_Ped);
+            const dateA = parseDateBR(a.Dat_Ped || a.Predat);
+            const dateB = parseDateBR(b.Dat_Ped || b.Predat);
             if (dateA && dateB) {
                 if (dateA < dateB) return -1;
                 if (dateA > dateB) return 1;

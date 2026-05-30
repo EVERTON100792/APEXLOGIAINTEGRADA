@@ -586,13 +586,34 @@ const isSpecialClient = (p) => {
     return window.specialClientPrefixes.some(prefix => clientNameUpper.startsWith(prefix));
 };
 
+function isSaoPauloOrder(p) {
+    if (!p) return false;
+    const rota = String(p.Cod_Rota || '').trim();
+    if (rota.startsWith('25') || rota.startsWith('26') || rota.startsWith('27')) return true;
+    if (String(p.UF || '').trim().toUpperCase() === 'SP') return true;
+    if (rotaVeiculoMap[rota] && rotaVeiculoMap[rota].title) {
+        const titleUpper = rotaVeiculoMap[rota].title.toUpperCase();
+        if (titleUpper.includes('PAULO') || titleUpper.includes('SP')) return true;
+    }
+    return false;
+}
+
 function getVehicleConfig(vehicleType) {
+    const getVal = (suffix, defaultKey) => {
+        const el = document.getElementById(`${vehicleType}${suffix}`);
+        if (el && el.value !== '') {
+            const val = parseFloat(el.value);
+            if (!isNaN(val)) return val;
+        }
+        return defaultConfigs[defaultKey] || 0;
+    };
+
     const configs = {
-        minKg: parseFloat(document.getElementById(`${vehicleType}MinCapacity`)?.value) || 0,
-        softMaxKg: parseFloat(document.getElementById(`${vehicleType}MaxCapacity`)?.value) || 0,
-        softMaxCubage: parseFloat(document.getElementById(`${vehicleType}Cubage`)?.value) || 0,
-        hardMaxKg: parseFloat(document.getElementById(`${vehicleType}HardMaxCapacity`)?.value || document.getElementById(`${vehicleType}MaxCapacity`)?.value) || 0,
-        hardMaxCubage: parseFloat(document.getElementById(`${vehicleType}HardCubage`)?.value || document.getElementById(`${vehicleType}Cubage`)?.value) || 0,
+        minKg: getVal('MinCapacity', `${vehicleType}MinCapacity`),
+        softMaxKg: getVal('MaxCapacity', `${vehicleType}MaxCapacity`),
+        softMaxCubage: getVal('Cubage', `${vehicleType}Cubage`),
+        hardMaxKg: getVal('HardMaxCapacity', `${vehicleType}HardMaxCapacity`) || getVal('MaxCapacity', `${vehicleType}MaxCapacity`),
+        hardMaxCubage: getVal('HardCubage', `${vehicleType}HardCubage`) || getVal('Cubage', `${vehicleType}Cubage`),
     };
     return configs;
 }
@@ -3505,14 +3526,11 @@ function runHeuristicOptimization(packableGroups, vehicleType) {
     const strategies = [
         {
             name: 'priority-weight-desc', sorter: (a, b) => {
-                // 1. Prioriza por data mais antiga (Critá©rio Principal)
-                if (a.oldestDate && b.oldestDate) {
-                    if (a.oldestDate < b.oldestDate) return -1;
-                    if (a.oldestDate > b.oldestDate) return 1;
-                } else if (a.oldestDate) { return -1; }
-                else if (b.oldestDate) { return 1; }
+                // 1. Prioriza por data mais antiga (Critério Principal)
+                const dateCompare = safeDateCompare(a.oldestDate, b.oldestDate);
+                if (dateCompare !== 0) return dateCompare;
 
-                // 2. Prioridade Manual (Critá©rio Secundá¡rio)
+                // 2. Prioridade Manual (Critério Secundário)
                 const aHasPrio = a.pedidos.some(p => pedidosPrioritarios.includes(String(p.Num_Pedido).trim()) || pedidosRecall.includes(String(p.Num_Pedido).trim()));
                 const bHasPrio = b.pedidos.some(p => pedidosPrioritarios.includes(String(p.Num_Pedido).trim()) || pedidosRecall.includes(String(p.Num_Pedido).trim()));
                 if (aHasPrio && !bHasPrio) return -1;
@@ -3525,11 +3543,8 @@ function runHeuristicOptimization(packableGroups, vehicleType) {
         {
             name: 'scheduled-weight-desc', sorter: (a, b) => {
                 // 1. Prioriza por data mais antiga
-                if (a.oldestDate && b.oldestDate) {
-                    if (a.oldestDate < b.oldestDate) return -1;
-                    if (a.oldestDate > b.oldestDate) return 1;
-                } else if (a.oldestDate) { return -1; }
-                else if (b.oldestDate) { return 1; }
+                const dateCompare = safeDateCompare(a.oldestDate, b.oldestDate);
+                if (dateCompare !== 0) return dateCompare;
                 // 2. Desempate por agendamento
                 const aHasSched = a.pedidos.some(p => p.Agendamento === 'Sim');
                 const bHasSched = b.pedidos.some(p => p.Agendamento === 'Sim');
@@ -3541,13 +3556,15 @@ function runHeuristicOptimization(packableGroups, vehicleType) {
         },
         {
             name: 'weight-desc', sorter: (a, b) => {
-                if (a.oldestDate && b.oldestDate) { if (a.oldestDate < b.oldestDate) return -1; if (a.oldestDate > b.oldestDate) return 1; } else if (a.oldestDate) { return -1; } else if (b.oldestDate) { return 1; }
+                const dateCompare = safeDateCompare(a.oldestDate, b.oldestDate);
+                if (dateCompare !== 0) return dateCompare;
                 return b.totalKg - a.totalKg;
             }
         },
         {
             name: 'weight-asc', sorter: (a, b) => {
-                if (a.oldestDate && b.oldestDate) { if (a.oldestDate < b.oldestDate) return -1; if (a.oldestDate > b.oldestDate) return 1; } else if (a.oldestDate) { return -1; } else if (b.oldestDate) { return 1; }
+                const dateCompare = safeDateCompare(a.oldestDate, b.oldestDate);
+                if (dateCompare !== 0) return dateCompare;
                 return a.totalKg - b.totalKg;
             }
         }
@@ -3566,7 +3583,7 @@ function runHeuristicOptimization(packableGroups, vehicleType) {
         }
     }
 
-    console.log(`Ná­vel 1: Melhor estratá©gia para ${vehicleType} foi ${bestResult.strategy} com ${bestResult.leftoverWeight.toFixed(2)}kg de sobra.`);
+    console.log(`Nível 1: Melhor estratégia para ${vehicleType} foi ${bestResult.strategy} com ${bestResult.leftoverWeight.toFixed(2)}kg de sobra.`);
     return bestResult;
 }
 
@@ -3574,6 +3591,18 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType) {
     const config = getVehicleConfigSafe(vehicleType);
     let loads = [];
     let leftoverItems = [];
+
+    // Adicionado: Pega a data do item mais antigo na lista de empacotamento, tratando datas serializadas.
+    const getOldestDateTimestamp = (items) => {
+        if (items.length > 0 && items[0].oldestDate) {
+            const date = new Date(items[0].oldestDate);
+            if (!isNaN(date.getTime())) {
+                return date.getTime();
+            }
+        }
+        return null;
+    };
+    const oldestItemTimestamp = getOldestDateTimestamp(itemsParaEmpacotar);
 
     itemsParaEmpacotar.forEach(item => {
         if (item.totalKg > config.hardMaxKg || item.totalCubagem > config.hardMaxCubage) {
@@ -3610,17 +3639,38 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType) {
     let unplacedGroups = [];
 
     loads.forEach(load => {
-        if (load.pedidos.length > 0 && load.totalKg >= config.minKg) {
+        // Verifica se a carga contém um pedido que é do dia mais antigo.
+        const containsOldestOrder = oldestItemTimestamp && load.pedidos.some(p => {
+            const pDateValue = p.Dat_Ped || p.Predat;
+            if (!pDateValue) return false;
+            const pDate = new Date(pDateValue);
+            return !isNaN(pDate.getTime()) && pDate.getTime() === oldestItemTimestamp;
+        });
+
+        // A carga é válida se atingir o peso mínimo OU se contiver um pedido do dia mais antigo.
+        if (load.pedidos.length > 0 && (load.totalKg >= config.minKg || containsOldestOrder)) {
             finalLoads.push(load);
         } else if (load.pedidos.length > 0) {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
                 const clienteId = normalizeClientId(p.Cliente);
-                if (!acc[clienteId]) { acc[clienteId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) }; }
+                if (!acc[clienteId]) { 
+                    acc[clienteId] = { 
+                        pedidos: [], 
+                        totalKg: 0, 
+                        totalCubagem: 0, 
+                        isSpecial: isSpecialClient(p),
+                        oldestDate: null
+                    }; 
+                }
                 acc[clienteId].pedidos.push(p);
                 acc[clienteId].totalKg += p.Quilos_Saldo;
                 acc[clienteId].totalCubagem += p.Cubagem;
                 return acc;
             }, {}));
+            // Calcula oldestDate para as sobras da carga que falhou
+            clientGroupsInFailedLoad.forEach(g => {
+                g.oldestDate = calculateOldestDate(g.pedidos);
+            });
             unplacedGroups.push(...clientGroupsInFailedLoad);
         }
     });
@@ -3794,6 +3844,43 @@ function refinarCargasComTrocas(initialLoads, initialLeftovers, vehicleType) {
     return { refinedLoads: loads, remainingLeftovers: leftovers };
 }
 
+function calculateOldestDate(pedidos) {
+    return pedidos.reduce((oldest, p) => {
+        let pDate = p.Dat_Ped;
+        if (!pDate || (pDate instanceof Date && isNaN(pDate.getTime()))) {
+            pDate = p.Predat;
+        }
+
+        if (pDate) {
+            let dateObj = pDate;
+            if (!(dateObj instanceof Date)) {
+                if (typeof pDate === 'string' && pDate.includes('/')) {
+                    const parts = pDate.split(' ')[0].split('/');
+                    if (parts.length === 3) dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
+                    else dateObj = new Date(pDate);
+                } else {
+                    dateObj = new Date(pDate);
+                }
+            }
+            if (!isNaN(dateObj.getTime())) {
+                if (!oldest || dateObj < oldest) return dateObj;
+            }
+        }
+        return oldest;
+    }, null);
+}
+
+function safeDateCompare(aOldest, bOldest) {
+    const timeA = aOldest ? new Date(aOldest).getTime() : Infinity;
+    const timeB = bOldest ? new Date(bOldest).getTime() : Infinity;
+    const isNaN_A = isNaN(timeA);
+    const isNaN_B = isNaN(timeB);
+    if (isNaN_A && isNaN_B) return 0;
+    if (isNaN_A) return 1;
+    if (isNaN_B) return -1;
+    return timeA - timeB;
+}
+
 async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, buttonElement, isBatchMode = false) {
     // NOVO: Remove mensagens de sucesso de rotas anteriores para manter a interface limpa.
     if (!isBatchMode) {
@@ -3888,6 +3975,10 @@ window.reaplicarRegrasPainelInterno = function() {
     }
 
     const routes = Array.isArray(routeOrRoutes) ? routeOrRoutes : [String(routeOrRoutes)];
+    const isSP = routes.some(r => 
+        String(r).startsWith('25') || String(r).startsWith('26') || String(r).startsWith('27') ||
+        (rotaVeiculoMap[r] && rotaVeiculoMap[r].title && rotaVeiculoMap[r].title.includes('São Paulo'))
+    );
     let pedidosRota = pedidosGeraisAtuais.filter(p => routes.includes(String(p.Cod_Rota)));
 
     const clientGroupsMap = pedidosRota.reduce((acc, pedido) => {
@@ -4121,17 +4212,21 @@ window.reaplicarRegrasPainelInterno = function() {
             secondaryLoads = tqResultFromVan.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' }));
             leftoverGroups = tqResultFromVan.leftovers;
 
-            // Sobras de 3/4 tentam virar Toco
-            const tocoResultFromVan = runCascadeOptimization(leftoverGroups, 'toco');
-            tertiaryLoads = tocoResultFromVan.loads.map(l => ({ ...l, vehicleType: 'toco' }));
-            leftoverGroups = tocoResultFromVan.leftovers;
+            if (!isSP) {
+                // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
+                const tocoResultFromVan = runCascadeOptimization(leftoverGroups, 'toco');
+                tertiaryLoads = tocoResultFromVan.loads.map(l => ({ ...l, vehicleType: 'toco' }));
+                leftoverGroups = tocoResultFromVan.leftovers;
+            }
             break;
 
         case 'tresQuartos':
-            // Sobras de 3/4 tentam virar Toco
-            const tocoResultFromTQ = runCascadeOptimization(leftoverGroups, 'toco');
-            secondaryLoads = tocoResultFromTQ.loads.map(l => ({ ...l, vehicleType: 'toco' }));
-            leftoverGroups = tocoResultFromTQ.leftovers;
+            if (!isSP) {
+                // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
+                const tocoResultFromTQ = runCascadeOptimization(leftoverGroups, 'toco');
+                secondaryLoads = tocoResultFromTQ.loads.map(l => ({ ...l, vehicleType: 'toco' }));
+                leftoverGroups = tocoResultFromTQ.leftovers;
+            }
             break;
     }
 
@@ -4145,32 +4240,71 @@ window.reaplicarRegrasPainelInterno = function() {
 
     allPotentialLoads.forEach(load => {
         const config = getVehicleConfig(load.vehicleType);
-        if (!config) { // Adiciona uma verificaá§á£o para o caso de um tipo de veá­culo invá¡lido
-            console.warn(`Configuraá§á£o ná£o encontrada para o tipo de veá­culo: ${load.vehicleType}. Descartando carga.`);
+        if (!config) { // Adiciona uma verificação para o caso de um tipo de veículo inválido
+            console.warn(`Configuração não encontrada para o tipo de veículo: ${load.vehicleType}. Descartando carga.`);
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
                 const clienteId = normalizeClientId(p.Cliente);
-                if (!acc[clienteId]) { acc[clienteId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) }; }
+                if (!acc[clienteId]) { 
+                    acc[clienteId] = { 
+                        pedidos: [], 
+                        totalKg: 0, 
+                        totalCubagem: 0, 
+                        isSpecial: isSpecialClient(p),
+                        oldestDate: null
+                    }; 
+                }
                 acc[clienteId].pedidos.push(p);
                 acc[clienteId].totalKg += p.Quilos_Saldo;
                 acc[clienteId].totalCubagem += p.Cubagem;
                 return acc;
             }, {}));
+            clientGroupsInFailedLoad.forEach(g => {
+                g.oldestDate = calculateOldestDate(g.pedidos);
+            });
             finalLeftoverGroups.push(...clientGroupsInFailedLoad);
             return;
         }
 
-        // A condiá§á£o volta a ser estrita para garantir que tentamos encher a carga primeiro
-        if (load.totalKg >= config.minKg) {
+        const containsPriority = load.pedidos.some(p => 
+            pedidosPrioritarios.includes(String(p.Num_Pedido).trim()) || 
+            pedidosRecall.includes(String(p.Num_Pedido).trim())
+        );
+
+        const containsSP = isSP || load.pedidos.some(isSaoPauloOrder);
+
+        let isValid = false;
+        if (containsSP) {
+            if (load.vehicleType === 'toco' || load.vehicleType === 'fiorino') {
+                isValid = false;
+            } else {
+                isValid = load.totalKg >= config.minKg;
+            }
+        } else {
+            isValid = load.totalKg >= config.minKg;
+        }
+
+        if (load.pedidos.length > 0 && isValid) {
             finalValidLoads.push(load);
         } else {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
                 const clienteId = normalizeClientId(p.Cliente);
-                if (!acc[clienteId]) { acc[clienteId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) }; }
+                if (!acc[clienteId]) { 
+                    acc[clienteId] = { 
+                        pedidos: [], 
+                        totalKg: 0, 
+                        totalCubagem: 0, 
+                        isSpecial: isSpecialClient(p),
+                        oldestDate: null
+                    }; 
+                }
                 acc[clienteId].pedidos.push(p);
                 acc[clienteId].totalKg += p.Quilos_Saldo;
                 acc[clienteId].totalCubagem += p.Cubagem;
                 return acc;
             }, {}));
+            clientGroupsInFailedLoad.forEach(g => {
+                g.oldestDate = calculateOldestDate(g.pedidos);
+            });
             finalLeftoverGroups.push(...clientGroupsInFailedLoad);
         }
     });
@@ -4668,7 +4802,10 @@ function renderLoadCard(load, vehicleType, vInfo) {
 
     const priorityBadge = isPriorityLoad ? '<span class="badge-neon-priority"><i class="bi bi-star-fill"></i> Prioridade</span>' : '';
     const hardLimitBadge = load.usedHardLimit ? '<span class="badge-neon-danger"><i class="bi bi-exclamation-triangle-fill"></i> Excesso</span>' : '';
-    const isSaoPauloRoute = load.pedidos.some(p => ['2555', '2560', '2561', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)));
+    const isSaoPauloRoute = load.pedidos.some(p => 
+        ['2555', '2560', '2561', '2565', '2566', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)) ||
+        String(p.UF || '').trim().toUpperCase() === 'SP'
+    );
     const spDescription = isSaoPauloRoute ? ' <span class="badge-neon-info">SP</span>' : '';
 
     const config = getVehicleConfigSafe(vehicleType);
@@ -4867,6 +5004,32 @@ function renderLoadCard(load, vehicleType, vInfo) {
             </div>`;
     }
 
+    // Gerar dinamicamente a exibição de frete com base no estado atual da carga
+    let freightClass = "metric-value freight-value-pending";
+    let freightStyle = "cursor: pointer;";
+    let freightHtml = "";
+
+    if (load.distanceKm) {
+        const freightValue = typeof calculateFreightValue === 'function' ? calculateFreightValue(vehicleType, load.distanceKm) : 0;
+        if (freightValue > 0) {
+            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
+            freightClass = "load-meta-item badge bg-success text-white border border-success fw-bold ms-2";
+            freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
+        } else {
+            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
+            freightClass = "load-meta-item badge bg-secondary text-white border border-secondary fw-bold ms-2";
+            freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
+        }
+    } else if (load.isCalculatingFreight) {
+        freightHtml = `<i class="spinner-border spinner-border-sm me-1.5" role="status"></i>Calculando KM...`;
+        freightClass = "load-meta-item badge bg-info text-white border border-info fw-normal ms-2";
+        freightStyle = "font-size: 1.0rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer;";
+    } else {
+        freightHtml = `<i class="bi bi-calculator me-1.5"></i>Calc. KM p/ Frete`;
+        freightClass = "load-meta-item badge bg-dark text-muted border border-secondary fw-normal ms-2";
+        freightStyle = "font-size: 0.95rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer; transition: all 0.2s;";
+    }
+
     return `
         <div id="${load.id}" 
              class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''}" 
@@ -4917,8 +5080,8 @@ function renderLoadCard(load, vehicleType, vInfo) {
                     </div>
                     <div class="metric-item" id="freight-container-${load.id}">
                         <span class="metric-label">Est. Frete</span>
-                        <span id="freight-${load.id}" class="metric-value freight-value-pending" onclick="refreshLoadFreight('${load.id}')" style="cursor: pointer;" title="Clique para calcular">
-                            <i class="bi bi-calculator me-1"></i>Calcular
+                        <span id="freight-${load.id}" class="${freightClass}" onclick="refreshLoadFreight('${load.id}')" style="${freightStyle}" title="Clique para calcular">
+                            ${freightHtml}
                         </span>
                     </div>
 
@@ -4946,7 +5109,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
             </div>
             
             <div class="print-vehicle-footer">
-                VEÍCULO: ${vInfo.name.toUpperCase()}
+                VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}
             </div>
             <div class="card-footer-neon"></div>
         </div>`;
@@ -8044,90 +8207,89 @@ function processarPriorizacaoEmMassa() {
  * Identifica as rotas que possuem pedidos marcados como prioridade e processa apenas elas.
  */
 async function montarCargasPrioritarias() {
-    // 1. Identificar pedidos prioritá¡rios que ainda está£o disponá­veis (ná£o alocados)
+    // 1. Identificar pedidos prioritários que ainda estão disponíveis (não alocados)
     const pedidosPrioritariosDisponiveis = pedidosGeraisAtuais.filter(p =>
         pedidosPrioritarios.includes(String(p.Num_Pedido)) ||
         pedidosRecall.includes(String(p.Num_Pedido))
     );
 
     if (pedidosPrioritariosDisponiveis.length === 0) {
-        showToast("Náo há¡ pedidos prioritá¡rios pendentes na lista de disponá­veis.", "info");
+        showToast("Não há pedidos prioritários pendentes na lista de disponíveis.", "info");
         return;
     }
 
-    // 2. Identificar as rotas áºnicas desses pedidos
-    const rotasParaProcessar = [...new Set(pedidosPrioritariosDisponiveis.map(p => String(p.Cod_Rota)))];
-    rotasParaProcessar.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    // 2. Identificar as rotas únicas desses pedidos
+    const rotasComPrioritarios = [...new Set(pedidosPrioritariosDisponiveis.map(p => String(p.Cod_Rota)))];
+    // Ordena as rotas usando o critério padrão do varejo
+    const rotasOrdenadas = getSortedVarejoRoutes(rotasComPrioritarios);
 
-    const confirmMsg = `Encontrei ${pedidosPrioritariosDisponiveis.length} pedido(s) prioritá¡rio(s) distribuá­do(s) em ${rotasParaProcessar.length} rota(s):\n\nRotas: ${rotasParaProcessar.join(', ')}\n\nDeseja montar as cargas para essas rotas agora? O sistema tentará¡ incluir os prioritá¡rios e completar a carga com outros pedidos da rota.`;
+    const confirmMsg = `Encontrei ${pedidosPrioritariosDisponiveis.length} pedido(s) prioritário(s) distribuído(s) em ${rotasOrdenadas.length} rota(s):\n\nRotas: ${rotasOrdenadas.join(', ')}\n\nDeseja montar as cargas para essas rotas agora? O sistema tentará incluir os prioritários e completar a carga com outros pedidos da rota.`;
 
     if (!confirm(confirmMsg)) return;
 
-    showToast(`Iniciando montagem automá¡tica para ${rotasParaProcessar.length} rotas...`, "info");
+    showToast(`Iniciando montagem automática para ${rotasOrdenadas.length} rotas...`, "info");
 
-    // Limpa mensagens de sucesso antigas antes de comeá§ar o lote para evitar acáºmulo
+    // Limpa mensagens de sucesso antigas antes de começar o lote para evitar acúmulo
     document.querySelectorAll('.route-success-message').forEach(el => el.remove());
 
+    const processedInThisBatch = new Set();
+
     // 3. Processar cada rota sequencialmente
-    for (const rota of rotasParaProcessar) {
-        // Determina as configuraá§áµes da rota (tipo de veá­culo, tá­tulo, etc.)
+    for (const rota of rotasOrdenadas) {
+        if (processedInThisBatch.has(rota)) continue;
+
+        // Determina as configurações da rota (tipo de veículo, título, etc.)
         let config = rotaVeiculoMap[rota];
 
-        // Fallback para rotas de SP ou ná£o mapeadas
+        // Fallback para rotas de SP ou não mapeadas
         if (!config) {
-            config = { type: 'van', title: `Rota ${rota} (Automá¡tica)` };
+            config = { type: 'van', title: `Rota ${rota} (Automática)` };
         }
 
-        // Determina o ID da div de destino baseado no tipo de veá­culo
+        let rotasParaProcessar = rota;
+        if (config.combined) {
+            const combinedRoutes = [rota, ...config.combined];
+            rotasParaProcessar = combinedRoutes;
+            combinedRoutes.forEach(r => processedInThisBatch.add(r));
+        } else {
+            processedInThisBatch.add(rota);
+        }
+
+        // Determina o ID da div de destino baseado no tipo de veículo e no prefixo da rota principal
         let divId;
         if (config.type === 'fiorino') {
             divId = 'resultado-fiorino-geral';
         } else if (config.type === 'van' || config.type === 'tresQuartos') {
-            // Lógica para separar PR, SP e MS
-            const pedidosDaRota = pedidosPrioritariosDisponiveis.filter(p => String(p.Cod_Rota) === rota);
-            const firstPedido = pedidosDaRota.length > 0 ? pedidosDaRota[0] : null;
-            let region = 'SP'; // Padrão
+            const rotaStr = String(rota);
+            const isPR = config.title.startsWith('Rota 1') || rotaStr.startsWith('1');
+            const isMS = rotaStr.startsWith('3');
 
-            if (firstPedido) {
-                const uf = String(firstPedido.UF || '').trim().toUpperCase();
-                if (uf === 'PR') {
-                    region = 'PR';
-                } else if (uf === 'MS') {
-                    region = 'MS';
-                } else {
-                    const firstRoute = String(firstPedido.Cod_Rota || '');
-                    if (firstRoute.startsWith('1') || (rotaVeiculoMap[firstRoute] && rotaVeiculoMap[firstRoute].title.startsWith('Rota 1'))) {
-                        region = 'PR';
-                    } else if (firstRoute.startsWith('3')) {
-                        region = 'MS';
-                    }
-                }
-            }
-
-            if (region === 'PR') {
+            if (isPR) {
                 divId = 'resultado-van-pr';
-            } else if (region === 'MS') {
+            } else if (isMS) {
                 divId = 'resultado-van-ms';
             } else {
                 divId = 'resultado-van-sp';
             }
         } else {
-            // Fallback para outros tipos de veículo, se houver
             divId = 'resultado-fiorino-geral';
         }
 
-        // Chama a funá§á£o de separaá§á£o existente
-        // Passamos 'null' no botá£o pois á© uma chamada automá¡tica
-        // Passamos 'true' para isBatchMode para ná£o limpar as cargas anteriores
-        await separarCargasGeneric(rota, divId, config.title, config.type, null, true);
+        // Define o título de exibição de maneira idêntica ao botão
+        const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
 
-        // Pequena pausa para a UI respirar e ná£o travar
+        // Chama a função de separação existente
+        // Passamos 'null' no botão pois é uma chamada automática
+        // Passamos 'true' para isBatchMode para não limpar as cargas anteriores
+        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, config.type, null, true);
+
+        // Pequena pausa para a UI respirar e não travar
         await new Promise(r => setTimeout(r, 500));
     }
 
     // 4. Atualiza a interface geral para garantir que tudo esteja sincronizado
     renderAllUI();
-    showToast("Processamento de cargas prioritá¡rias concluá­do!", "success");
+    showToast("Processamento de cargas prioritárias concluído!", "success");
 }
 
 /**
@@ -10531,7 +10693,28 @@ window.imprimirRelatorioPedagios = async function () {
 
     // Tenta achar veículo da carga atual
     if (window.currentMapLoadId && activeLoads[window.currentMapLoadId]) {
-        vehicle = activeLoads[window.currentMapLoadId].vehicleType || "Não definido";
+        const load = activeLoads[window.currentMapLoadId];
+        const isSaoPauloRoute = load.pedidos && load.pedidos.some(p => 
+            ['2555', '2560', '2561', '2565', '2566', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)) ||
+            String(p.UF || '').trim().toUpperCase() === 'SP'
+        );
+        if (isSaoPauloRoute) {
+            const vType = load.vehicleType || "Não definido";
+            if (vType === 'tresQuartos') vehicle = '3/4-SP';
+            else if (vType === 'van') vehicle = 'VAN-SP';
+            else if (vType === 'fiorino') vehicle = 'FIORINO-SP';
+            else if (vType === 'toco') vehicle = 'TOCO-SP';
+            else if (vType === 'especial') vehicle = 'ESPECIAL-SP';
+            else vehicle = `${vType.toUpperCase()}-SP`;
+        } else {
+            const vType = load.vehicleType || "Não definido";
+            if (vType === 'tresQuartos') vehicle = '3/4';
+            else if (vType === 'fiorino') vehicle = 'Fiorino';
+            else if (vType === 'van') vehicle = 'Van';
+            else if (vType === 'toco') vehicle = 'Toco';
+            else if (vType === 'especial') vehicle = 'Especial';
+            else vehicle = vType;
+        }
     }
 
     // 1. Criar container de impressão se não existir
@@ -10743,7 +10926,31 @@ window.generateTextPDF = async function () {
         // --- RESUMO (HEADER) ---
         let totalDist = document.getElementById('map-distancia') ? document.getElementById('map-distancia').textContent : "0 km";
         let totalKg = document.getElementById('map-peso') ? document.getElementById('map-peso').textContent : "0 kg";
-        let vehicle = (window.currentMapLoadId && activeLoads[window.currentMapLoadId]) ? activeLoads[window.currentMapLoadId].vehicleType : "VEÍCULO";
+        let vehicle = "VEÍCULO";
+        if (window.currentMapLoadId && activeLoads[window.currentMapLoadId]) {
+            const load = activeLoads[window.currentMapLoadId];
+            const isSaoPauloRoute = load.pedidos && load.pedidos.some(p => 
+                ['2555', '2560', '2561', '2565', '2566', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)) ||
+                String(p.UF || '').trim().toUpperCase() === 'SP'
+            );
+            if (isSaoPauloRoute) {
+                const vType = load.vehicleType || "VEÍCULO";
+                if (vType === 'tresQuartos') vehicle = '3/4-SP';
+                else if (vType === 'van') vehicle = 'VAN-SP';
+                else if (vType === 'fiorino') vehicle = 'FIORINO-SP';
+                else if (vType === 'toco') vehicle = 'TOCO-SP';
+                else if (vType === 'especial') vehicle = 'ESPECIAL-SP';
+                else vehicle = `${vType.toUpperCase()}-SP`;
+            } else {
+                const vType = load.vehicleType || "VEÍCULO";
+                if (vType === 'tresQuartos') vehicle = '3/4';
+                else if (vType === 'fiorino') vehicle = 'Fiorino';
+                else if (vType === 'van') vehicle = 'Van';
+                else if (vType === 'toco') vehicle = 'Toco';
+                else if (vType === 'especial') vehicle = 'Especial';
+                else vehicle = vType;
+            }
+        }
 
         // Draw Box
         doc.setDrawColor(200);
