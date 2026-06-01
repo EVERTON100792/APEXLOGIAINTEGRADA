@@ -3053,15 +3053,18 @@ function displayRota1(div, pedidos) {
     div.innerHTML = html;
 }
 
-function createPrintWindow(title) {
-    const printWindow = window.open('', '', 'height=800,width=1200');
+function createPrintWindow(title, bodyContent) {
     const isLoadPrint = title.includes('Carga');
 
-    printWindow.document.write('<html><head><title>' + title + '</title>');
-    printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">');
-    printWindow.document.write('<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">');
-    printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">');
-    printWindow.document.write(`<style>
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>${title}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
                 @page { size: A4 portrait !important; margin: 6mm; }
                 body { 
                     margin: 0; 
@@ -3406,7 +3409,8 @@ function createPrintWindow(title) {
                     font-size: 7pt !important;
                     font-weight: 700 !important;
                 }
-            </style><script>
+            </style>
+            <script>
                 function fixTableHeaders() {
                     const ths = document.querySelectorAll('table th');
                     ths.forEach(th => {
@@ -3418,13 +3422,31 @@ function createPrintWindow(title) {
                         if (text === 'COLUNA5') th.textContent = 'Col. 5';
                     });
                 }
-                window.onload = fixTableHeaders;
-                if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                window.onload = function() {
                     fixTableHeaders();
-                } else {
-                    document.addEventListener('DOMContentLoaded', fixTableHeaders);
-                }
-            </script></head><body><div class="print-container">`);
+                    setTimeout(() => {
+                        window.print();
+                        window.close();
+                    }, 300);
+                };
+            </script>
+</head>
+<body>
+    <div class="print-container">
+        ${bodyContent}
+    </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, '_blank', 'height=800,width=1200');
+    
+    if (!printWindow) {
+        alert("O bloqueador de pop-ups impediu a abertura da janela de impressão. Por favor, permita pop-ups para este site e tente novamente.");
+        return null;
+    }
+    
     return printWindow;
 }
 
@@ -3469,25 +3491,14 @@ function imprimirGeneric(source, title) {
         htmlContent = clone.outerHTML;
     }
 
-    const printWindow = createPrintWindow(title);
-    printWindow.document.body.innerHTML = `<h3 class="print-title">${title}</h3>` + htmlContent;
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+    createPrintWindow(title, `<h3 class="print-title">${title}</h3>` + htmlContent);
 }
 
 function imprimirSobras(title) {
     if (currentLeftoversForPrinting.length === 0) { alert("Nenhuma sobra para imprimir."); return; }
     const totalKgFormatado = currentLeftoversForPrinting.reduce((sum, p) => sum + p.Quilos_Saldo, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const printWindow = createPrintWindow(title); // prettier-ignore
     let contentToPrint = `<h3>${title} - Total: ${totalKgFormatado} kg</h3>` + createTable(currentLeftoversForPrinting);
-    printWindow.document.body.innerHTML = contentToPrint;
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+    createPrintWindow(title, contentToPrint);
 }
 
 function imprimirCargasGeneric(divId, title) {
@@ -3535,11 +3546,7 @@ function imprimirCargasGeneric(divId, title) {
         containerClone.appendChild(cardClone);
     });
 
-    const printWindow = createPrintWindow(finalTitle); // Usa o tá­tulo final
-    printWindow.document.body.innerHTML = `<h3>${finalTitle}</h3>` + containerClone.innerHTML; // Usa o tá­tulo final
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+    createPrintWindow(finalTitle, `<h3>${finalTitle}</h3>` + containerClone.innerHTML);
 }
 
 function imprimirTocoIndividual(cf) {
@@ -3555,15 +3562,9 @@ function imprimirTocoIndividual(cf) {
 
     const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const totalCubagemFormatado = grupo.totalCubagem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const printWindow = createPrintWindow('Imprimir Carga Toco CF: ' + cf);
+    
     let contentToPrint = `<h3>Carga Toco CF: ${cf} - Total: ${totalKgFormatado} kg / ${totalCubagemFormatado} mÂ³</h3>` + createTable(grupo.pedidos, null, `toco-${cf}`); // prettier-ignore
-    printWindow.document.body.innerHTML = contentToPrint;
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+    createPrintWindow('Imprimir Carga Toco CF: ' + cf, contentToPrint);
 
     // Remove o grupo Toco da lista de disponá­veis e atualiza a UI
     delete gruposToco[cf];
@@ -3584,15 +3585,7 @@ function imprimirCargaManualIndividual(loadId) {
     }
 
     const title = `Impressá£o - Carga Manual ${load.numero} (${load.vehicleType})`;
-    const printWindow = createPrintWindow(title);
-
-    printWindow.document.body.innerHTML = `<h3>${title}</h3>` + cardClone.outerHTML;
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+    createPrintWindow(title, `<h3>${title}</h3>` + cardClone.outerHTML);
 }
 
 /**
@@ -3611,15 +3604,7 @@ function imprimirCargaIndividual(loadId) {
     
     const cardClone = cardToPrint.cloneNode(true);
     const title = `Relatório de Carga - #${load.shortId} (${load.numero || 'S/N'})`;
-    const printWindow = createPrintWindow(title);
-
-    printWindow.document.body.innerHTML = `<h3>${title}</h3>` + cardClone.outerHTML;
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-    }, 500);
+    createPrintWindow(title, `<h3>${title}</h3>` + cardClone.outerHTML);
 }
 
 
@@ -4915,6 +4900,8 @@ function deleteObservation(loadId) {
         toggleObservationEdit(loadId, false);
     }
 }
+
+
 
 function renderLoadCard(load, vehicleType, vInfo) {
     // --- GERAÇÃO DE ID CURTO (SE NECESSÁRIO) ---
@@ -6903,12 +6890,9 @@ function imprimirCargaCFIndividual(cf) {
     const grupo = gruposPorCFGlobais[cf];
     const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const totalCubagemFormatado = grupo.totalCubagem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const printWindow = createPrintWindow(`Imprimir Carga: ${cf}`);
+    
     let contentToPrint = `<h3>Carga: ${cf} - Total: ${totalKgFormatado} kg / ${totalCubagemFormatado} mÂ³</h3>` + createTable(grupo.pedidos, null, `cf-${cf}`);
-    printWindow.document.body.innerHTML = contentToPrint;
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+    createPrintWindow(`Imprimir Carga: ${cf}`, contentToPrint);
 }
 
 function startManualLoadBuilder() {
