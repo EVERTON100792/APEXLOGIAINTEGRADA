@@ -3088,11 +3088,11 @@ function createPrintWindow(title, bodyContent) {
                     letter-spacing: 0.3px;
                 }
                 .premium-load-card, .load-card { 
-                    break-inside: avoid; 
-                    page-break-inside: avoid; 
+                    break-inside: auto !important; 
+                    page-break-inside: auto !important; 
                     border: none !important;
-                    margin-bottom: 15px !important; 
-                    padding: 0 0 5px 0 !important;
+                    margin-bottom: 5px !important; 
+                    padding: 0 !important;
                     display: block;
                 } 
                 .premium-card-header { 
@@ -3272,8 +3272,8 @@ function createPrintWindow(title, bodyContent) {
                 th:first-child, td:first-child { display: none !important; }
                 
                 .premium-deadline-alert {
-                    margin-top: 8px !important;
-                    margin-bottom: 8px !important;
+                    margin-top: 0 !important;
+                    margin-bottom: 0 !important;
                     padding: 8px 12px !important;
                     border: 1px solid #cbd5e1 !important;
                     border-left: 4px solid #f59e0b !important;
@@ -3282,7 +3282,9 @@ function createPrintWindow(title, bodyContent) {
                     display: flex !important;
                     align-items: flex-start !important;
                     gap: 10px !important;
-                    page-break-inside: avoid;
+                    flex-grow: 1 !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
                 }
                 .deadline-icon-wrapper {
                     font-size: 11pt !important;
@@ -3346,21 +3348,91 @@ function createPrintWindow(title, bodyContent) {
                 .no-print, .progress, .card-glass-overlay, .progress-glow, .action-buttons-group, .premium-dropdown-container, .btn-add-obs-premium, .premium-progress-container, .card-footer-neon, .observation-actions, .header-actions, .progress-glow, .select-icon { 
                     display: none !important; 
                 } 
+                .print-info-row {
+                    display: flex !important;
+                    justify-content: space-between !important;
+                    align-items: stretch !important;
+                    gap: 15px !important;
+                    margin-top: 10px !important;
+                    margin-bottom: 10px !important;
+                    width: 100% !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
                 .print-vehicle-footer {
-                    display: block !important;
-                    position: fixed !important;
-                    bottom: 10mm !important;
-                    right: 10mm !important;
-                    font-size: 14pt !important;
+                    display: none; /* Oculta por padrão, controlado pelas regras abaixo */
+                }
+
+                /* REGRAS PARA CARGA COM MUITOS PEDIDOS (MAIS DE 15) */
+                .has-many-orders .print-info-top {
+                    display: flex !important;
+                }
+                .has-many-orders .print-info-bottom-wrapper,
+                .has-many-orders .print-footer-bottom {
+                    display: none !important;
+                }
+                .has-many-orders .print-footer-top {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    align-items: flex-start !important;
+                    gap: 12px !important;
+                    margin-left: auto !important;
+                    width: fit-content !important;
+                    font-size: 11pt !important;
                     font-weight: 800 !important;
                     color: black !important;
                     text-transform: uppercase !important;
                     border: 2px solid black !important;
-                    padding: 5px 10px !important;
+                    padding: 14px 20px !important;
+                    background: white !important;
+                    border-radius: 4px !important;
+                    font-family: Arial, sans-serif !important;
+                    white-space: nowrap !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+
+                /* REGRAS PARA CARGA NORMAL (15 OU MENOS PEDIDOS - VOLTA ONDE ESTAVA) */
+                .premium-load-card:not(.has-many-orders) .print-info-top {
+                    display: none !important;
+                }
+                .premium-load-card:not(.has-many-orders) .print-info-bottom-wrapper {
+                    display: block !important;
+                    margin-top: 10px !important;
+                    margin-bottom: 10px !important;
+                }
+                .premium-load-card:not(.has-many-orders) .print-info-bottom {
+                    margin-top: 8px !important;
+                    margin-bottom: 8px !important;
+                    flex-grow: 1 !important;
+                }
+                .premium-load-card:not(.has-many-orders) .print-footer-bottom {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    align-items: flex-start !important;
+                    gap: 12px !important;
+                    position: fixed !important;
+                    bottom: 10mm !important;
+                    left: 50% !important;
+                    transform: translateX(-50%) !important;
+                    font-size: 11pt !important;
+                    font-weight: 800 !important;
+                    color: black !important;
+                    text-transform: uppercase !important;
+                    border: 2px solid black !important;
+                    padding: 14px 20px !important;
                     background: white !important;
                     z-index: 99999 !important;
                     border-radius: 4px !important;
                     font-family: Arial, sans-serif !important;
+                    white-space: nowrap !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+                .footer-vehicle-type {
+                    font-size: 14pt !important;
+                    font-weight: 900 !important;
+                    margin-top: 4px !important;
                 }
                 .delivery-summary-container {
                     margin-top: 10px !important;
@@ -3584,8 +3656,8 @@ function imprimirCargaManualIndividual(loadId) {
         }
     }
 
-    const title = `Impressá£o - Carga Manual ${load.numero} (${load.vehicleType})`;
-    createPrintWindow(title, `<h3>${title}</h3>` + cardClone.outerHTML);
+    const title = `Impressão - Carga Manual ${load.numero} (${load.vehicleType})`;
+    createPrintWindow(title, cardClone.outerHTML);
 }
 
 /**
@@ -3604,7 +3676,7 @@ function imprimirCargaIndividual(loadId) {
     
     const cardClone = cardToPrint.cloneNode(true);
     const title = `Relatório de Carga - #${load.shortId} (${load.numero || 'S/N'})`;
-    createPrintWindow(title, `<h3>${title}</h3>` + cardClone.outerHTML);
+    createPrintWindow(title, cardClone.outerHTML);
 }
 
 
@@ -5164,9 +5236,12 @@ function renderLoadCard(load, vehicleType, vInfo) {
         freightStyle = "font-size: 0.95rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer; transition: all 0.2s;";
     }
 
+    const hasManyOrders = load.pedidos.length > 15;
+    const manyOrdersClass = hasManyOrders ? 'has-many-orders' : '';
+
     return `
         <div id="${load.id}" 
-             class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''}" 
+             class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''} ${manyOrdersClass}" 
              data-load-id="${load.id}" 
              data-vehicle-type="${vehicleType}"
              ondragover="dragOver(event)" 
@@ -5225,6 +5300,15 @@ function renderLoadCard(load, vehicleType, vInfo) {
                     <div id="obs-container-${load.id}">${initialObservationHtml}</div>
                 </div>
 
+                <div class="print-info-row print-info-top">
+                    ${oldestDateHtml}
+                    <div class="print-vehicle-footer print-footer-top">
+                        <span>COD MOTORISTA: ______________________________</span>
+                        <span>PLACA DO VEÍCULO: ______________________________</span>
+                        <span class="footer-vehicle-type">VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}</span>
+                    </div>
+                </div>
+
                 ${deliverySummaryHtml}
 
 
@@ -5232,8 +5316,9 @@ function renderLoadCard(load, vehicleType, vInfo) {
                     ${createTable(load.pedidos, null, load.id)}
                 </div>
                 
-                ${oldestDateHtml}
-                
+                <div class="print-info-bottom-wrapper">
+                    ${oldestDateHtml ? oldestDateHtml.replace('class="premium-deadline-alert"', 'class="premium-deadline-alert print-info-bottom"') : ''}
+                </div>
 
                 <!-- APEX Client Observation Notes -->
                 <div id="apex-obs-${load.id}" class="apex-obs-block" data-clients="${load.pedidos.map(p => String(p.Cliente || '').trim()).join(',')}" style="display:none"></div>
@@ -5242,8 +5327,10 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 </div>
             </div>
             
-            <div class="print-vehicle-footer">
-                VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}
+            <div class="print-vehicle-footer print-footer-bottom">
+                <span>COD MOTORISTA: ______________________________</span>
+                <span>PLACA DO VEÍCULO: ______________________________</span>
+                <span class="footer-vehicle-type">VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}</span>
             </div>
             <div class="card-footer-neon"></div>
         </div>`;

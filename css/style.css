@@ -5322,3 +5322,7 @@ tr.search-highlight > td, tr.search-highlight > th {
     font-size: 0.75rem;
     font-weight: 700;
 }
+
+.print-info-row {
+    display: block;
+}
