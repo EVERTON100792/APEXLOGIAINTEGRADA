@@ -5158,15 +5158,6 @@ async function calculateManualRoute() {
 }
 
 async function calcularDistanciaCarga(loadId, retries = 2) {
-    const apiKey = document.getElementById('graphhopperApiKey').value;
-    if (!apiKey) {
-        showToast("Insira sua chave da API do GraphHopper nas Configurações.", 'warning');
-        // Abre o modal de configurações
-        const configModal = new bootstrap.Modal(document.getElementById('configModal'));
-        configModal.show();
-        return;
-    }
-
     const load = activeLoads[loadId];
     if (!load) {
         showToast("Carga não encontrada.", 'error');
@@ -5175,6 +5166,28 @@ async function calcularDistanciaCarga(loadId, retries = 2) {
 
     const kmBtn = document.getElementById(`btn-km-${loadId}`);
     const distanciaSpan = document.getElementById(`distancia-${load.id}`);
+
+    // Se a carga já tem uma distância calculada (por exemplo, pelo mapa local ou manualmente),
+    // usa essa distância ao invés de chamar a API do GraphHopper novamente.
+    if (load.distanceKm) {
+        console.log(`calcularDistanciaCarga: Usando distância já existente na carga: ${load.distanceKm} km`);
+        if (distanciaSpan) {
+            distanciaSpan.innerHTML = `<i class="bi bi-geo-alt-fill me-1"></i><strong>${load.distanceKm} km</strong> (ida e volta)`;
+        }
+        if (typeof updateLoadFreightDisplay === 'function') {
+            updateLoadFreightDisplay(loadId, load.distanceKm);
+        }
+        return;
+    }
+
+    const apiKey = document.getElementById('graphhopperApiKey').value;
+    if (!apiKey) {
+        showToast("Insira sua chave da API do GraphHopper nas Configurações.", 'warning');
+        // Abre o modal de configurações
+        const configModal = new bootstrap.Modal(document.getElementById('configModal'));
+        configModal.show();
+        return;
+    }
 
     // Mostra feedback de carregamento
     if (kmBtn) {
@@ -6198,7 +6211,7 @@ async function refreshLoadFreight(loadId) {
             const valhallaQuery = {
                 locations: valhallaPoints,
                 costing: "auto",
-                costing_options: { auto: { use_highways: 1.0, shortest: false } },
+                costing_options: { auto: { use_highways: 1.0, shortest: true } },
                 units: "kilometers",
                 language: "pt-BR"
             };
@@ -9988,6 +10001,13 @@ async function calculateAndDrawRoute(locations, loadId, isManual = false) {
                         document.getElementById('map-distancia').textContent = `${distKm} km`;
                         document.getElementById('map-tempo').textContent = `${Math.floor(durationMin / 60)}h ${durationMin % 60}m`;
 
+                        if (activeLoads[loadId]) {
+                            activeLoads[loadId].distanceKm = parseFloat(distKm);
+                            if (typeof updateLoadFreightDisplay === 'function') {
+                                updateLoadFreightDisplay(loadId, distKm);
+                            }
+                        }
+
                         if (mapStatus) mapStatus.innerHTML = '<span class="text-success">✅ Rota calculada (Servidor Alternativo)</span>';
                         showToast(`Rota calculada via servidor alternativo (${distKm} km)`, "info");
 
@@ -10154,6 +10174,9 @@ async function calculateAndDrawRoute(locations, loadId, isManual = false) {
             // Salva distância aproximada
             if (activeLoads[loadId]) {
                 activeLoads[loadId].distanceKm = parseFloat(totalDistKm.toFixed(1));
+                if (typeof updateLoadFreightDisplay === 'function') {
+                    updateLoadFreightDisplay(loadId, totalDistKm.toFixed(1));
+                }
             }
 
             return; // Sai da função sem lançar erro
@@ -10343,12 +10366,9 @@ async function calculateAndDrawRoute(locations, loadId, isManual = false) {
             // MUST use 'distanceKm' (not 'distance') to match freight_logic.js expectations
             if (activeLoads[loadId]) {
                 activeLoads[loadId].distanceKm = parseFloat(totalDistKm);
-                // NOTE: Freight update removed per user request
-                // User wants freight calculated ONLY when clicking "Calcular KM" button
-                // NOT when opening the route map
-                // if (typeof updateLoadFreightDisplay === 'function') {
-                //     updateLoadFreightDisplay(loadId);
-                // }
+                if (typeof updateLoadFreightDisplay === 'function') {
+                    updateLoadFreightDisplay(loadId, totalDistKm);
+                }
             }
 
             if (mapStatus) mapStatus.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill"></i> Rota calculada com sucesso!</span>';
