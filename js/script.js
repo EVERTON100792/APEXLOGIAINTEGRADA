@@ -9862,7 +9862,7 @@ async function calculateAndDrawRoute(locations, loadId, isManual = false) {
         costing_options: {
             auto: {
                 use_highways: 1.0,
-                shortest: false
+                shortest: true
             }
         },
         units: "kilometers",
