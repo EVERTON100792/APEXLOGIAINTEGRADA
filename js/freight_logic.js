@@ -17,23 +17,23 @@ let freightTables = {
     },
     van: {
         ranges: [
-            { max: 100, value: 305.40 },
-            { max: 150, value: 375.54 },
-            { max: 200, value: 434.86 },
-            { max: 300, value: 524.09 },
-            { max: 400, value: 624.14 },
-            { max: 500, value: 753.30 }
+            { max: 100, value: 335.94 },
+            { max: 150, value: 413.09 },
+            { max: 200, value: 478.35 },
+            { max: 300, value: 576.50 },
+            { max: 400, value: 686.55 },
+            { max: 500, value: 828.63 }
         ],
         exceedingRate: 1.80
     },
     tresQuartos: {
         ranges: [
-            { max: 100, value: 516.59 },
-            { max: 150, value: 583.27 },
-            { max: 200, value: 665.52 },
-            { max: 300, value: 753.73 },
-            { max: 400, value: 887.63 },
-            { max: 500, value: 1050.29 }
+            { max: 100, value: 568.25 },
+            { max: 150, value: 641.60 },
+            { max: 200, value: 732.07 },
+            { max: 300, value: 829.10 },
+            { max: 400, value: 976.39 },
+            { max: 500, value: 1155.32 }
         ],
         exceedingRate: 2.85
     },
@@ -82,13 +82,44 @@ async function getFreightConfigFromSupabase() {
     }
 }
 
+/**
+ * Mescla a configuração carregada (do banco ou local) com a configuração do código,
+ * garantindo que as tabelas de faixas progressivas estáticas (ranges) sejam sempre as do código,
+ * mas mantendo os valores editáveis via UI (Fiorino e taxas excedentes de Van, 3/4 e Toco).
+ */
+function mergeFreightConfig(loaded) {
+    if (!loaded) return;
+    
+    // Fiorino: Permite carregar todas as configurações editáveis
+    if (loaded.fiorino && loaded.fiorino.ranges && loaded.fiorino.ranges[0]) {
+        freightTables.fiorino.ranges[0].max = loaded.fiorino.ranges[0].max || freightTables.fiorino.ranges[0].max;
+        freightTables.fiorino.ranges[0].value = loaded.fiorino.ranges[0].value || freightTables.fiorino.ranges[0].value;
+        freightTables.fiorino.exceedingRate = loaded.fiorino.exceedingRate || freightTables.fiorino.exceedingRate;
+    }
+    
+    // Van: Apenas taxa excedente é carregada (faixas são fixadas pela tabela oficial)
+    if (loaded.van && loaded.van.exceedingRate !== undefined) {
+        freightTables.van.exceedingRate = loaded.van.exceedingRate;
+    }
+    
+    // 3/4 (tresQuartos): Apenas taxa excedente é carregada (faixas são fixadas pela tabela oficial)
+    if (loaded.tresQuartos && loaded.tresQuartos.exceedingRate !== undefined) {
+        freightTables.tresQuartos.exceedingRate = loaded.tresQuartos.exceedingRate;
+    }
+    
+    // Toco: Apenas taxa excedente é carregada (faixas são fixadas pela tabela oficial)
+    if (loaded.toco && loaded.toco.exceedingRate !== undefined) {
+        freightTables.toco.exceedingRate = loaded.toco.exceedingRate;
+    }
+}
+
 async function loadFreightConfig() {
     try {
         // 1. Tenta carregar do Supabase (prioridade)
         const cloudConfig = await getFreightConfigFromSupabase();
 
         if (cloudConfig) {
-            freightTables = cloudConfig;
+            mergeFreightConfig(cloudConfig);
             console.log("Configuração de fretes carregada do Supabase.");
             // Atualiza localStorage para manter sincronia offline
             localStorage.setItem('apexFreightTables', JSON.stringify(freightTables));
@@ -98,7 +129,7 @@ async function loadFreightConfig() {
             if (stored) {
                 const parsed = JSON.parse(stored);
                 if (parsed && parsed.fiorino && parsed.van) {
-                    freightTables = parsed;
+                    mergeFreightConfig(parsed);
                     console.log("Configuração de fretes carregada do armazenamento local.");
                 }
             }
@@ -161,6 +192,9 @@ async function saveFreightConfig() {
 
         // 4. Salva no Supabase
         const sb = window.supabaseClient || window.supabase;
+        let savedOnCloud = false;
+        let cloudError = null;
+
         if (sb && sb.auth) {
             const user = await sb.auth.getUser();
             if (user && user.data && user.data.user) {
@@ -175,9 +209,20 @@ async function saveFreightConfig() {
                 // Nota: Idealmente seria um UPSERT ou Update do ID existente, 
                 // mas Insert com Order By desc no Load funciona como log de histórico.
 
-                if (error) console.error("Erro ao salvar no Supabase:", error);
-                else console.log("Configuração salva no Supabase.");
+                if (error) {
+                    console.error("Erro ao salvar no Supabase:", error);
+                    cloudError = error;
+                } else {
+                    console.log("Configuração salva no Supabase.");
+                    savedOnCloud = true;
+                }
+            } else {
+                console.warn("Usuário não autenticado no Supabase.");
+                cloudError = { message: "Usuário não autenticado no Supabase." };
             }
+        } else {
+            console.warn("Cliente do Supabase não inicializado.");
+            cloudError = { message: "Cliente do Supabase não inicializado." };
         }
 
         // Atualiza UI e Recalcula
@@ -185,11 +230,15 @@ async function saveFreightConfig() {
         recalcAllFreights();
 
         if (typeof showToast === 'function') {
-            showToast("Valores de frete atualizados e salvos (Nuvem + Local)!", "success");
+            if (savedOnCloud) {
+                showToast("Valores de frete atualizados e salvos (Nuvem + Local)!", "success");
+            } else {
+                showToast(`Salvo localmente. Erro na Nuvem: ${cloudError?.message || 'Sem conexão com o Supabase'}`, "warning");
+            }
         }
     } catch (e) {
         console.error("Erro ao salvar valores:", e);
-        if (typeof showToast === 'function') showToast("Erro ao salvar valores.", "error");
+        if (typeof showToast === 'function') showToast("Erro ao salvar valores: " + e.message, "error");
     }
 }
 

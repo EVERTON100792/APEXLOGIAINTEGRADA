@@ -4951,6 +4951,9 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 <div ${borderStyle}>
                     <span class="deadline-title">Data pedido: ${datPedDateStr}</span>
                     <span class="deadline-sub">Pedidos: ${datPedOrdersStr}</span>
+                    <div class="romaneio-print-field">
+                        Romaneio:
+                    </div>
                 </div>`;
         }
 
