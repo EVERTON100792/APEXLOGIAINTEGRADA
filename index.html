@@ -548,42 +548,78 @@
         font-weight: 500;
     }
 
-    /* --- "QUANTUM LOGISTICS CORE" (V10) - SURREAL ANIMATION --- */
+    /* --- "QUANTUM LOGISTICS CORE" (V11) - PREMIUM SURREAL ANIMATION --- */
     .loading-animation-container {
         position: relative;
         width: 100%;
         height: 320px;
-        /* Mais alto para impacto */
         overflow: hidden;
         margin-bottom: 2rem;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+        background: radial-gradient(circle at center, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 1) 100%);
         border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 24px;
-        box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.8), 0 0 30px rgba(59, 130, 246, 0.1);
-        perspective: 1000px;
-        /* Profundidade 3D */
+        box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.95), 
+                    0 0 30px rgba(59, 130, 246, 0.15);
+        perspective: 1200px;
+    }
+
+    /* Grade 3D Cibernética de Fundo */
+    .loading-animation-container::before {
+        content: '';
+        position: absolute;
+        width: 200%;
+        height: 200%;
+        top: -50%;
+        left: -50%;
+        background-image: 
+            linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
+        background-size: 40px 40px;
+        transform: rotateX(60deg) translateY(0);
+        animation: grid-scroll 20s linear infinite;
+        opacity: 0.7;
+        z-index: 1;
+        pointer-events: none;
+    }
+
+    /* Brilho Holográfico de Fundo */
+    .loading-animation-container::after {
+        content: '';
+        position: absolute;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+        border-radius: 50%;
+        filter: blur(20px);
+        z-index: 2;
+        pointer-events: none;
+        animation: hologram-glow 4s ease-in-out infinite alternate;
     }
 
     /* O Núcleo Quântico */
     .quantum-core {
         position: relative;
-        width: 80px;
-        height: 80px;
+        width: 90px;
+        height: 90px;
         transform-style: preserve-3d;
-        animation: core-float 6s ease-in-out infinite;
+        animation: core-float-premium 6s ease-in-out infinite;
+        z-index: 5;
     }
 
+    /* Esfera Central Planetária */
     .core-sphere {
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at 30% 30%, #60a5fa, #2563eb);
+        background: radial-gradient(circle at 35% 35%, #38bdf8 0%, #1e40af 60%, #030712 100%);
         border-radius: 50%;
-        box-shadow: 0 0 60px #3b82f6, 0 0 100px rgba(59, 130, 246, 0.5);
-        animation: pulse-core 3s infinite;
+        box-shadow: 0 0 45px rgba(56, 189, 248, 0.7), 
+                    0 0 90px rgba(37, 99, 235, 0.4), 
+                    inset 0 0 25px rgba(255, 255, 255, 0.4);
+        animation: core-pulse-premium 3s ease-in-out infinite alternate;
         z-index: 10;
     }
 
@@ -592,120 +628,241 @@
         position: absolute;
         top: 50%;
         left: 50%;
-        transform: translate(-50%, -50%);
+        transform-style: preserve-3d;
         border-radius: 50%;
         border: 2px solid transparent;
+    }
+
+    /* Anel 1 (Azul/Ciano - Vertical inclinado) */
+    .ring-1 {
+        width: 150px;
+        height: 150px;
+        border-top: 3px solid rgba(56, 189, 248, 0.85);
+        border-bottom: 3px solid rgba(56, 189, 248, 0.85);
+        transform: translate(-50%, -50%) rotateX(65deg) rotateY(15deg);
+        animation: spin-3d-ring1 3.5s linear infinite;
+        box-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
+    }
+
+    /* Anel 2 (Roxo/Magenta - Horizontal inclinado) */
+    .ring-2 {
+        width: 190px;
+        height: 190px;
+        border-left: 2px solid rgba(168, 85, 247, 0.95);
+        border-right: 2px solid rgba(236, 72, 153, 0.95);
+        transform: translate(-50%, -50%) rotateX(-20deg) rotateY(60deg);
+        animation: spin-3d-ring2 5s linear infinite;
+        box-shadow: 0 0 25px rgba(168, 85, 247, 0.4);
+    }
+
+    /* Anel 3 (Anel de poeira cósmica/Dados - Tracejado) */
+    .ring-3 {
+        width: 230px;
+        height: 230px;
+        border: 1px dashed rgba(255, 255, 255, 0.25);
+        transform: translate(-50%, -50%) rotateX(75deg) rotateY(-10deg);
+        animation: spin-z 12s linear infinite;
+    }
+
+    /* Anel 4 (Neon Laranja Ultra Rápido - Órbita Elíptica) */
+    .ring-4 {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 260px;
+        height: 90px;
+        border: 1.5px solid rgba(249, 115, 22, 0.8);
+        border-radius: 50%;
+        transform: translate(-50%, -50%) rotateX(70deg) rotateY(-40deg);
+        animation: spin-3d-ring4 2.5s linear infinite;
+        box-shadow: 0 0 20px rgba(249, 115, 22, 0.6);
         transform-style: preserve-3d;
     }
 
-    .ring-1 {
-        width: 140px;
-        height: 140px;
-        border-top: 4px solid #3b82f6;
-        border-bottom: 4px solid #3b82f6;
-        animation: spin-3d-x 4s linear infinite;
-        box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-    }
-
-    .ring-2 {
-        width: 180px;
-        height: 180px;
-        border-left: 2px solid #a855f7;
-        /* Roxo Neon */
-        border-right: 2px solid #a855f7;
-        animation: spin-3d-y 6s linear infinite;
-        box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
-    }
-
-    .ring-3 {
-        width: 220px;
-        height: 220px;
-        border: 1px dashed rgba(255, 255, 255, 0.3);
-        animation: spin-z 10s linear infinite;
-    }
-
-    /* Partículas de Energia */
+    /* Partículas de Dados/Energia */
     .energy-particle {
         position: absolute;
-        width: 4px;
-        height: 4px;
-        background: #fff;
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
-        box-shadow: 0 0 10px #fff, 0 0 20px #3b82f6;
-        animation: particle-orbit 2s linear infinite;
+        transform-style: preserve-3d;
+        pointer-events: none;
     }
 
     .particle-1 {
-        animation-duration: 2s;
+        background: #ffffff;
+        box-shadow: 0 0 12px #fff, 0 0 20px #38bdf8;
         top: 50%;
         left: 50%;
-        transform-origin: 60px 0;
+        transform-origin: 75px 0px;
+        animation: particle-orbit-1 2.2s linear infinite;
     }
 
     .particle-2 {
-        animation-duration: 3s;
+        background: #a855f7;
+        box-shadow: 0 0 12px #a855f7, 0 0 20px #ec4899;
         top: 50%;
         left: 50%;
-        transform-origin: -70px 20px;
-        animation-delay: 0.5s;
-        background: #a855f7;
+        transform-origin: -95px 15px;
+        animation: particle-orbit-2 3.2s linear infinite;
+        animation-delay: 0.3s;
     }
 
     .particle-3 {
-        animation-duration: 2.5s;
+        background: #22d3ee;
+        box-shadow: 0 0 12px #22d3ee, 0 0 25px #06b6d4;
         top: 50%;
         left: 50%;
-        transform-origin: 0 80px;
-        animation-delay: 1s;
-        background: #22d3ee;
+        transform-origin: 10px 115px;
+        animation: particle-orbit-3 2.8s linear infinite;
+        animation-delay: 0.7s;
     }
 
-    /* Keyframes Surreais */
-    @keyframes core-float {
+    /* Estilização Customizada do Modal para Visual Glassmorphism */
+    #processing-modal .modal-content {
+        background: rgba(15, 23, 42, 0.85) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 28px !important;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                    0 0 40px rgba(59, 130, 246, 0.15) !important;
+        overflow: hidden;
+    }
 
-        0%,
-        100% {
-            transform: translateY(0) rotateX(0);
+    /* Customização Futurista da Barra de Progresso do Bootstrap */
+    #processing-modal .progress {
+        height: 10px !important;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        overflow: visible !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.5) !important;
+        margin-top: 1rem;
+    }
+
+    #processing-modal #processing-progress-bar {
+        background: linear-gradient(90deg, #f97316 0%, #facc15 100%) !important;
+        box-shadow: 0 0 12px rgba(249, 115, 22, 0.6), 0 0 20px rgba(250, 204, 21, 0.4) !important;
+        border-radius: 999px !important;
+        position: relative !important;
+        transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+
+    #processing-modal #processing-progress-bar::after {
+        content: '' !important;
+        position: absolute !important;
+        right: -4px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        width: 14px !important;
+        height: 14px !important;
+        background: #ffffff !important;
+        border-radius: 50% !important;
+        box-shadow: 0 0 15px #ffffff, 
+                    0 0 25px #f97316, 
+                    0 0 35px #facc15 !important;
+        animation: pulse-tip-glow-premium 1s ease-in-out infinite alternate !important;
+    }
+
+    #processing-status-text {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+        letter-spacing: -0.02em !important;
+        font-size: 1.25rem !important;
+        text-shadow: 0 0 20px rgba(255, 255, 255, 0.25) !important;
+        margin-top: 10px;
+    }
+
+    #thinking-text {
+        font-family: 'Courier New', Courier, monospace !important;
+        font-weight: bold !important;
+        color: #facc15 !important;
+        font-size: 0.88rem !important;
+        letter-spacing: 0.05em !important;
+        text-shadow: 0 0 10px rgba(250, 204, 21, 0.3) !important;
+        margin-top: 4px;
+    }
+
+    #processing-details-text {
+        font-family: 'Courier New', Courier, monospace !important;
+        color: #38bdf8 !important;
+        font-size: 0.78rem !important;
+        opacity: 0.85 !important;
+        margin-top: -5px;
+    }
+
+    /* --- Keyframes Futuristas de Alta Qualidade --- */
+    @keyframes grid-scroll {
+        0% {
+            background-position: 0 0;
         }
-
-        50% {
-            transform: translateY(-20px) rotateX(10deg);
+        100% {
+            background-position: 0 800px;
         }
     }
 
-    @keyframes pulse-core {
-
-        0%,
-        100% {
-            transform: scale(1);
-            opacity: 1;
-            box-shadow: 0 0 60px #3b82f6;
-        }
-
-        50% {
-            transform: scale(1.2);
+    @keyframes hologram-glow {
+        0% {
+            transform: scale(0.95);
             opacity: 0.8;
-            box-shadow: 0 0 100px #3b82f6;
+        }
+        100% {
+            transform: scale(1.05);
+            opacity: 1;
         }
     }
 
-    @keyframes spin-3d-x {
-        0% {
-            transform: translate(-50%, -50%) rotateX(0deg) rotateY(0deg);
+    @keyframes core-float-premium {
+        0%, 100% {
+            transform: translateY(0) rotateX(0deg) rotateY(0deg);
         }
-
-        100% {
-            transform: translate(-50%, -50%) rotateX(360deg) rotateY(180deg);
+        50% {
+            transform: translateY(-15px) rotateX(5deg) rotateY(10deg);
         }
     }
 
-    @keyframes spin-3d-y {
+    @keyframes core-pulse-premium {
         0% {
-            transform: translate(-50%, -50%) rotateY(0deg) rotateZ(0deg);
+            box-shadow: 0 0 45px rgba(56, 189, 248, 0.6), 
+                        0 0 90px rgba(37, 99, 235, 0.3), 
+                        inset 0 0 20px rgba(255, 255, 255, 0.3);
+            transform: scale(1);
         }
-
         100% {
-            transform: translate(-50%, -50%) rotateY(360deg) rotateZ(180deg);
+            box-shadow: 0 0 60px rgba(56, 189, 248, 0.8), 
+                        0 0 110px rgba(37, 99, 235, 0.5), 
+                        inset 0 0 30px rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+    }
+
+    @keyframes spin-3d-ring1 {
+        0% {
+            transform: translate(-50%, -50%) rotateX(65deg) rotateY(15deg) rotateZ(0deg);
+        }
+        100% {
+            transform: translate(-50%, -50%) rotateX(65deg) rotateY(15deg) rotateZ(360deg);
+        }
+    }
+
+    @keyframes spin-3d-ring2 {
+        0% {
+            transform: translate(-50%, -50%) rotateX(-20deg) rotateY(60deg) rotateZ(360deg);
+        }
+        100% {
+            transform: translate(-50%, -50%) rotateX(-20deg) rotateY(60deg) rotateZ(0deg);
+        }
+    }
+
+    @keyframes spin-3d-ring4 {
+        0% {
+            transform: translate(-50%, -50%) rotateX(70deg) rotateY(-40deg) rotateZ(0deg);
+        }
+        100% {
+            transform: translate(-50%, -50%) rotateX(70deg) rotateY(-40deg) rotateZ(360deg);
         }
     }
 
@@ -713,80 +870,46 @@
         0% {
             transform: translate(-50%, -50%) rotateZ(0deg);
         }
-
         100% {
             transform: translate(-50%, -50%) rotateZ(360deg);
         }
     }
 
-    @keyframes particle-orbit {
+    @keyframes particle-orbit-1 {
         0% {
-            transform: rotate(0deg) translateX(var(--orbit-radius, 80px)) rotate(0deg);
-            opacity: 0;
+            transform: rotateX(65deg) rotateY(15deg) rotate(0deg) translateX(75px) rotate(0deg);
         }
-
-        20% {
-            opacity: 1;
-        }
-
-        80% {
-            opacity: 1;
-        }
-
         100% {
-            transform: rotate(360deg) translateX(var(--orbit-radius, 80px)) rotate(-360deg);
-            opacity: 0;
+            transform: rotateX(65deg) rotateY(15deg) rotate(360deg) translateX(75px) rotate(-360deg);
         }
     }
 
-
-    @keyframes spin-v9-reverse {
+    @keyframes particle-orbit-2 {
         0% {
-            transform: translate(-50%, -50%) rotate(360deg);
+            transform: rotateX(-20deg) rotateY(60deg) rotate(360deg) translateX(95px) rotate(-360deg);
         }
-
         100% {
-            transform: translate(-50%, -50%) rotate(0deg);
+            transform: rotateX(-20deg) rotateY(60deg) rotate(0deg) translateX(95px) rotate(0deg);
         }
     }
 
-    @keyframes packet-travel {
+    @keyframes particle-orbit-3 {
         0% {
-            transform: translate(-50%, -50%) rotate(var(--angle)) translateX(140px);
-            opacity: 0;
+            transform: rotateX(75deg) rotateY(-10deg) rotate(0deg) translateX(115px) rotate(0deg);
         }
-
-        10% {
-            opacity: 1;
-        }
-
         100% {
-            transform: translate(-50%, -50%) rotate(var(--angle)) translateX(20px);
-            opacity: 0;
+            transform: rotateX(75deg) rotateY(-10deg) rotate(360deg) translateX(115px) rotate(-360deg);
         }
     }
 
-    #thinking-text {
-        font-family: 'Courier New', Courier, monospace;
-        font-weight: bold;
-        color: var(--dark-accent);
-        animation: text-glitch 3s linear infinite;
-    }
-
-    @keyframes text-glitch {
-
-        2%,
-        64% {
-            transform: translate(2px, 0) skew(0deg);
+    @keyframes pulse-tip-glow-premium {
+        0% {
+            box-shadow: 0 0 10px #ffffff, 0 0 18px #f97316, 0 0 25px #facc15;
+            transform: translateY(-50%) scale(0.9);
         }
-
-        4%,
-        60% {
-            transform: translate(-2px, 0) skew(0deg);
-        }
-
-        62% {
-            transform: translate(0, 0) skew(5deg);
+        100% {
+            box-shadow: 0 0 18px #ffffff, 0 0 28px #f97316, 0 0 40px #facc15;
+            transform: translateY(-50%) scale(1.1);
         }
     }
 </style>
@@ -2576,15 +2699,16 @@
     <div class="modal fade no-print" id="processing-modal" data-bs-backdrop="static" data-bs-keyboard="false"
         tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="background-color: var(--dark-surface); backdrop-filter: blur(12px);">
+            <div class="modal-content">
                 <div class="modal-body text-center p-4">
-                    <!-- NOVA ANIMAÇÃO V10 - "QUANTUM LOGISTICS CORE" -->
+                    <!-- NOVA ANIMAÇÃO V11 - "QUANTUM LOGISTICS CORE" -->
                     <div class="loading-animation-container">
                         <div class="quantum-core">
                             <div class="core-sphere"></div>
                             <div class="orbital-ring ring-1"></div>
                             <div class="orbital-ring ring-2"></div>
                             <div class="orbital-ring ring-3"></div>
+                            <div class="orbital-ring ring-4"></div>
                             <div class="energy-particle particle-1"></div>
                             <div class="energy-particle particle-2"></div>
                             <div class="energy-particle particle-3"></div>
@@ -2595,11 +2719,10 @@
                     <h5 id="processing-status-text" class="mb-2">Montando Cargas...</h5>
                     <p id="thinking-text" class="text-muted small mb-3" style="height: 20px;"></p>
                     <p id="processing-details-text" class="text-muted small mb-3" style="height: 20px;"></p>
-                    <div class="progress" role="progressbar"
-                        style="height: 6px; background-color: rgba(255,255,255,0.1);">
+                    <div class="progress" role="progressbar">
                         <div id="processing-progress-bar"
                             class="progress-bar progress-bar-striped progress-bar-animated"
-                            style="width: 0%; background-color: var(--dark-primary);"></div>
+                            style="width: 0%;"></div>
                     </div>
                 </div>
             </div>
