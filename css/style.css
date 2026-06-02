@@ -5465,3 +5465,20 @@ tr.search-highlight > td, tr.search-highlight > th {
 .custom-capacity-bar.glow-danger {
     animation: pulse-red-glow 1.2s infinite ease-in-out;
 }
+
+/* --- ESTILOS PARA CARTÕES RECOLHIDOS (COMPACT VIEW) --- */
+.premium-load-card.card-collapsed .table-container-premium,
+.premium-load-card.card-collapsed .observation-section,
+.premium-load-card.card-collapsed .print-info-bottom-wrapper,
+.premium-load-card.card-collapsed .print-footer-bottom {
+    display: none !important;
+}
+
+.premium-load-card.card-collapsed .premium-card-body {
+    padding-bottom: 6px !important;
+}
+
+.premium-load-card.card-collapsed {
+    border-bottom: 3px solid var(--dark-primary-glow) !important;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}

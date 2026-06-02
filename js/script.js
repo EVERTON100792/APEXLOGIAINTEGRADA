@@ -5277,9 +5277,12 @@ function renderLoadCard(load, vehicleType, vInfo) {
         </div>
     `;
 
+    const isCollapsed = load.collapsed || false;
+    const collapseClass = isCollapsed ? 'card-collapsed' : '';
+
     return `
         <div id="${load.id}" 
-             class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''} ${manyOrdersClass}" 
+             class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''} ${manyOrdersClass} ${collapseClass}" 
              data-load-id="${load.id}" 
              data-vehicle-type="${vehicleType}"
              ondragover="dragOver(event)" 
@@ -5306,6 +5309,10 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 <div class="header-actions no-print">
                     ${vehicleSelectDropdown}
                     <div class="action-buttons-group">
+                        <button class="premium-action-btn btn-collapse-card" onclick="toggleLoadCollapse('${load.id}', event)" title="${isCollapsed ? 'Expandir Carga' : 'Recolher Carga'}">
+                            <i class="bi ${isCollapsed ? 'bi-chevron-down' : 'bi-chevron-up'}"></i>
+                            <span>${isCollapsed ? 'Expandir' : 'Recolher'}</span>
+                        </button>
                         <button class="premium-action-btn btn-mapa-local" onclick="showRouteOnMap('${load.id}')" title="Roteirização Nativa (Local)"><i class="bi bi-map-fill"></i><span>Mapa Local</span></button>
                         <button class="premium-action-btn btn-google-maps" onclick="abrirMapaCarga('${load.id}')" title="Roteirização Externa (Google Maps)"><i class="bi bi-geo-alt-fill"></i><span>Google Maps</span></button>
                         <button class="premium-action-btn btn-imprimir" onclick="imprimirCargaIndividual('${load.id}')" title="Imprimir Carga"><i class="bi bi-printer-fill"></i><span>Imprimir</span></button>
@@ -7473,6 +7480,28 @@ function drop(event) {
 
     updateAndRenderKPIs();
     updateAndRenderChart();
+    saveStateToLocalStorage();
+}
+
+function toggleLoadCollapse(loadId, event) {
+    if (event) event.stopPropagation();
+    const load = activeLoads[loadId];
+    if (!load) return;
+    load.collapsed = !load.collapsed;
+    
+    const card = document.getElementById(loadId);
+    if (card) {
+        const vehicleInfo = {
+            fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
+            van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
+            tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
+            toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+            especial: { name: 'Especial', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-star-fill' }
+        };
+        const newCardHTML = renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType]);
+        card.outerHTML = newCardHTML;
+    }
+    
     saveStateToLocalStorage();
 }
 
