@@ -1458,6 +1458,36 @@
             transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
+        /* --- SUGESTÃO GEOGRÁFICA DE ROTA (VERDE-LIMÃO NEON) --- */
+        @keyframes pulse-suggested {
+            0% {
+                border-color: rgba(163, 230, 53, 0.4);
+                box-shadow: 0 0 5px rgba(163, 230, 53, 0.15);
+            }
+            50% {
+                border-color: rgba(163, 230, 53, 1);
+                box-shadow: 0 0 15px rgba(163, 230, 53, 0.6);
+            }
+            100% {
+                border-color: rgba(163, 230, 53, 0.4);
+                box-shadow: 0 0 5px rgba(163, 230, 53, 0.15);
+            }
+        }
+
+        .drop-zone-card.drop-compatible.drop-suggested {
+            border: 2.5px dashed #a3e635 !important;
+            animation: pulse-suggested 1.2s infinite ease-in-out;
+            opacity: 1 !important;
+        }
+
+        .drop-zone-card.drag-over.drop-compatible.drop-suggested {
+            border: 2.5px solid #a3e635 !important;
+            background: rgba(163, 230, 53, 0.08) !important;
+            box-shadow: 0 0 25px rgba(163, 230, 53, 0.7) !important;
+            transform: scale(1.02);
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
         @keyframes spring-pop {
             0% {
                 transform: scaleY(0.5) translateY(-15px);

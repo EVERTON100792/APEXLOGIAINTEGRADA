@@ -7216,6 +7216,44 @@ function cancelManualLoad() {
     showToast('Montagem de carga manual cancelada.', 'info');
 }
 
+// Helper geográfico para cálculo de distâncias entre coordenadas (Fórmula de Haversine)
+function getGeographicDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c; // Distância em km
+}
+
+function getCityCoords(cidadeName, ufName) {
+    if (!cidadeName) return null;
+    const cleanCity = String(cidadeName).split(',')[0].trim().toUpperCase();
+    const cleanUf = ufName ? String(ufName).trim().toUpperCase() : '';
+    
+    const keysToTry = [
+        cleanUf ? `${cleanCity}, ${cleanUf}` : '',
+        cleanUf ? `${cleanCity} , ${cleanUf}` : '',
+        cleanCity
+    ].filter(Boolean);
+    
+    for (const key of keysToTry) {
+        if (cityCoordsCache[key]) {
+            return cityCoordsCache[key];
+        }
+    }
+    
+    for (const key in cityCoordsCache) {
+        if (key.startsWith(cleanCity)) {
+            return cityCoordsCache[key];
+        }
+    }
+    return null;
+}
+
 function dragStart(event, pedidoId, clienteId, sourceId) {
     event.dataTransfer.setData("text/plain", JSON.stringify({ pedidoId, clienteId, sourceId }));
     event.dataTransfer.effectAllowed = "move";
@@ -7254,6 +7292,11 @@ function dragStart(event, pedidoId, clienteId, sourceId) {
         totalCubagem: clientBlockCubagem,
         isSpecial: clientOrdersToMove.some(isSpecialClient)
     };
+
+    // Obter dados de geolocalização do pedido sendo arrastado
+    const dragCity = clientOrdersToMove[0].Cidade;
+    const dragUf = clientOrdersToMove[0].UF || clientOrdersToMove[0].Estado;
+    const dragCoords = getCityCoords(dragCity, dragUf);
     
     // Adicionar destaque nas drop zones compatíveis
     const dropZones = document.querySelectorAll('.drop-zone-card');
@@ -7275,6 +7318,38 @@ function dragStart(event, pedidoId, clienteId, sourceId) {
             const targetVehicleType = targetLoad.vehicleType;
             if (isMoveValid(targetLoad, groupToAdd, targetVehicleType)) {
                 zone.classList.add('drop-compatible');
+
+                // Validar proximidade geográfica de rota
+                if (targetLoad.pedidos && targetLoad.pedidos.length > 0) {
+                    let hasGeoMatch = false;
+                    for (const p of targetLoad.pedidos) {
+                        const targetCity = p.Cidade;
+                        const targetUf = p.UF || p.Estado;
+                        
+                        // 1. Igualdade de cidade
+                        const c1 = String(dragCity).split(',')[0].trim().toUpperCase();
+                        const c2 = String(targetCity).split(',')[0].trim().toUpperCase();
+                        if (c1 === c2) {
+                            hasGeoMatch = true;
+                            break;
+                        }
+                        
+                        // 2. Proximidade por coordenadas geográficas
+                        if (dragCoords) {
+                            const targetCoords = getCityCoords(targetCity, targetUf);
+                            if (targetCoords) {
+                                const dist = getGeographicDistance(dragCoords.lat, dragCoords.lng, targetCoords.lat, targetCoords.lng);
+                                if (dist <= 45) { // Cidades vizinhas/próximas até 45km em linha reta
+                                    hasGeoMatch = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (hasGeoMatch) {
+                        zone.classList.add('drop-suggested');
+                    }
+                }
             } else {
                 zone.classList.add('drop-incompatible');
             }
@@ -7285,7 +7360,7 @@ function dragStart(event, pedidoId, clienteId, sourceId) {
 function dragEnd(event) {
     const dropZones = document.querySelectorAll('.drop-zone-card');
     dropZones.forEach(zone => {
-        zone.classList.remove('drop-compatible', 'drop-incompatible', 'drag-over');
+        zone.classList.remove('drop-compatible', 'drop-incompatible', 'drag-over', 'drop-suggested');
     });
 }
 
