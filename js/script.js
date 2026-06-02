@@ -2741,15 +2741,18 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
             else if (vehicleType === 'tresQuartos') rowClass = 'route-tresQuartos';
         }
 
-        const isDraggable = sourceId !== ''; // Sá³ permite arrastar se tiver um sourceId
+        const isDraggable = sourceId !== ''; // Só permite arrastar se tiver um sourceId
         const clienteIdNormalizado = normalizeClientId(p.Cliente);
+        const isLastMoved = window.lastMovedClientId && clienteIdNormalizado === window.lastMovedClientId;
+        const animationClass = isLastMoved ? 'new-inserted-row' : '';
         table += `<tr id="pedido-${p.Num_Pedido}"
-                                     class="${rowClass} order-item-row"
+                                     class="${rowClass} order-item-row ${animationClass}"
                                      data-cliente-id="${clienteIdNormalizado}" 
                                      data-pedido-id="${p.Num_Pedido}"
                                      onclick="highlightClientRows(event); selectOrder(this, '${p.Num_Pedido}')"
                                      draggable="${isDraggable}"
-                                     ondragstart="dragStart(event, '${p.Num_Pedido}', '${clienteIdNormalizado}', '${sourceId}')">`;
+                                     ondragstart="dragStart(event, '${p.Num_Pedido}', '${clienteIdNormalizado}', '${sourceId}')"
+                                     ondragend="dragEnd(event)">`;
         table += `<td><input type="checkbox" class="form-check-input row-checkbox" value="${p.Num_Pedido}" onclick="updateBulkActionsPanel(event)"></td>`;
         colunasExibir.forEach(c => {
             let cellContent = p[c] === undefined || p[c] === null ? '' : p[c];
@@ -7172,6 +7175,74 @@ function cancelManualLoad() {
 function dragStart(event, pedidoId, clienteId, sourceId) {
     event.dataTransfer.setData("text/plain", JSON.stringify({ pedidoId, clienteId, sourceId }));
     event.dataTransfer.effectAllowed = "move";
+    
+    // Identificar a carga de origem
+    let sourceLoad;
+    let sourceIsLeftovers = sourceId === 'leftovers';
+    let sourceIsGeral = sourceId === 'geral';
+    let sourceIsManualBuilder = sourceId === 'manual-builder';
+    let sourceIsSpecialLoad = sourceId && (sourceId.startsWith('especial-') || sourceId.startsWith('load-') || sourceId.startsWith('roteiro-'));
+    
+    if (sourceIsLeftovers) {
+        sourceLoad = { pedidos: currentLeftoversForPrinting };
+    } else if (sourceIsGeral) {
+        sourceLoad = { pedidos: pedidosGeraisAtuais };
+    } else if (sourceIsManualBuilder) {
+        sourceLoad = manualLoadInProgress;
+    } else if (sourceIsSpecialLoad && activeLoads[sourceId]) {
+        sourceLoad = activeLoads[sourceId];
+    } else {
+        sourceLoad = activeLoads[sourceId];
+    }
+    
+    if (!sourceLoad) return;
+    
+    // Obter as ordens do cliente que estão sendo arrastadas
+    const clientOrdersToMove = sourceLoad.pedidos.filter(p => normalizeClientId(p.Cliente) === clienteId);
+    if (clientOrdersToMove.length === 0) return;
+    
+    const clientBlockKg = clientOrdersToMove.reduce((sum, p) => sum + p.Quilos_Saldo, 0);
+    const clientBlockCubagem = clientOrdersToMove.reduce((sum, p) => sum + p.Cubagem, 0);
+    
+    const groupToAdd = {
+        pedidos: clientOrdersToMove,
+        totalKg: clientBlockKg,
+        totalCubagem: clientBlockCubagem,
+        isSpecial: clientOrdersToMove.some(isSpecialClient)
+    };
+    
+    // Adicionar destaque nas drop zones compatíveis
+    const dropZones = document.querySelectorAll('.drop-zone-card');
+    dropZones.forEach(zone => {
+        const targetId = zone.dataset.loadId;
+        
+        // Se for a mesma carga de origem, não destaca
+        if (targetId === sourceId) return;
+        
+        // Se for leftovers, geral ou manual-builder, sempre aceita
+        if (targetId === 'leftovers' || targetId === 'geral' || targetId === 'manual-builder') {
+            zone.classList.add('drop-compatible');
+            return;
+        }
+        
+        // Carga de destino no activeLoads
+        const targetLoad = activeLoads[targetId];
+        if (targetLoad) {
+            const targetVehicleType = targetLoad.vehicleType;
+            if (isMoveValid(targetLoad, groupToAdd, targetVehicleType)) {
+                zone.classList.add('drop-compatible');
+            } else {
+                zone.classList.add('drop-incompatible');
+            }
+        }
+    });
+}
+
+function dragEnd(event) {
+    const dropZones = document.querySelectorAll('.drop-zone-card');
+    dropZones.forEach(zone => {
+        zone.classList.remove('drop-compatible', 'drop-incompatible', 'drag-over');
+    });
 }
 
 function dragOver(event) {
@@ -7292,6 +7363,9 @@ function drop(event) {
 
     dropZoneCard.classList.add('drop-valid-target');
     setTimeout(() => dropZoneCard.classList.remove('drop-valid-target'), 700);
+
+    window.lastMovedClientId = clienteId;
+    setTimeout(() => { window.lastMovedClientId = null; }, 1500);
 
     if (sourceIsLeftovers) {
         currentLeftoversForPrinting = sourceLoad.pedidos.filter(p => !orderIdsToMove.has(p.Num_Pedido));
