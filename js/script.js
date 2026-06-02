@@ -3322,20 +3322,9 @@ function createPrintWindow(title, bodyContent) {
                     font-weight: 700 !important;
                     color: #78350f !important;
                     margin-top: 4px !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    gap: 4px !important;
+                    display: block !important;
                     border-top: 1px dashed #fcd34d !important;
                     padding-top: 4px !important;
-                }
-                .romaneio-print-field::after {
-                    content: "";
-                    flex-grow: 1;
-                    border-bottom: 1px dashed #b45309 !important;
-                    margin-left: 5px !important;
-                    max-width: 150px !important;
-                    display: inline-block !important;
-                    height: 12px !important;
                 }
 
                 .premium-observation-box {
