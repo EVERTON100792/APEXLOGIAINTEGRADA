@@ -5398,3 +5398,76 @@ tr.search-highlight > td, tr.search-highlight > th {
 .print-info-top {
     display: none !important;
 }
+
+/* --- INDICADOR DINÂMICO DE CAPACIDADE (GLOW PROGRESS) --- */
+.premium-capacity-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+    margin-bottom: 12px;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+}
+
+.capacity-bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.capacity-bar-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--dark-text-secondary);
+    text-transform: uppercase;
+}
+
+.custom-capacity-progress {
+    height: 5px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.custom-capacity-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Cores e Efeitos Glow Neon */
+.custom-capacity-bar.glow-success {
+    background-color: var(--dark-accent-secondary) !important;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.45);
+}
+
+.custom-capacity-bar.glow-warning {
+    background-color: var(--dark-primary) !important;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.45);
+}
+
+@keyframes pulse-red-glow {
+    0% {
+        background-color: #ef4444;
+        box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+    }
+    50% {
+        background-color: #f87171;
+        box-shadow: 0 0 12px rgba(239, 68, 68, 0.8);
+    }
+    100% {
+        background-color: #ef4444;
+        box-shadow: 0 0 4px rgba(239, 68, 68, 0.4);
+    }
+}
+
+.custom-capacity-bar.glow-danger {
+    animation: pulse-red-glow 1.2s infinite ease-in-out;
+}

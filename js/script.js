@@ -5242,6 +5242,52 @@ function renderLoadCard(load, vehicleType, vInfo) {
     const hasManyOrders = load.pedidos.length > 15;
     const manyOrdersClass = hasManyOrders ? 'has-many-orders' : '';
 
+    // Calcular limites dinâmicos de capacidade (Glow Progress)
+    const configCap = getVehicleConfigSafe(vehicleType);
+    
+    // Peso
+    const weightPercent = configCap.softMaxKg > 0 ? (load.totalKg / configCap.softMaxKg) * 100 : 0;
+    const weightBarWidth = Math.min(weightPercent, 100);
+    let weightGlowClass = 'glow-success';
+    if (load.totalKg > configCap.softMaxKg) {
+        weightGlowClass = 'glow-danger';
+    } else if (load.totalKg >= (configCap.softMaxKg * 0.8)) {
+        weightGlowClass = 'glow-warning';
+    }
+    
+    // Cubagem
+    const cubagePercent = configCap.softMaxCubage > 0 ? (load.totalCubagem / configCap.softMaxCubage) * 100 : 0;
+    const cubageBarWidth = Math.min(cubagePercent, 100);
+    let cubageGlowClass = 'glow-success';
+    if (load.totalCubagem > configCap.softMaxCubage) {
+        cubageGlowClass = 'glow-danger';
+    } else if (load.totalCubagem >= (configCap.softMaxCubage * 0.8)) {
+        cubageGlowClass = 'glow-warning';
+    }
+
+    const capacityBarsHtml = `
+        <div class="premium-capacity-container no-print">
+            <div class="capacity-bar-wrapper">
+                <div class="capacity-bar-header">
+                    <span>Peso: ${Math.round(weightPercent)}%</span>
+                    <span>${load.totalKg.toLocaleString('pt-BR')} / ${configCap.softMaxKg.toLocaleString('pt-BR')} kg</span>
+                </div>
+                <div class="custom-capacity-progress">
+                    <div class="custom-capacity-bar ${weightGlowClass}" style="width: ${weightBarWidth}%"></div>
+                </div>
+            </div>
+            <div class="capacity-bar-wrapper">
+                <div class="capacity-bar-header">
+                    <span>Cubagem: ${Math.round(cubagePercent)}%</span>
+                    <span>${load.totalCubagem.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} / ${configCap.softMaxCubage.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})} m³</span>
+                </div>
+                <div class="custom-capacity-progress">
+                    <div class="custom-capacity-bar ${cubageGlowClass}" style="width: ${cubageBarWidth}%"></div>
+                </div>
+            </div>
+        </div>
+    `;
+
     return `
         <div id="${load.id}" 
              class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''} ${manyOrdersClass}" 
@@ -5298,6 +5344,8 @@ function renderLoadCard(load, vehicleType, vInfo) {
                     </div>
 
                 </div>
+
+                ${capacityBarsHtml}
 
                 <div class="observation-section">
                     <div id="obs-container-${load.id}">${initialObservationHtml}</div>
@@ -7420,6 +7468,14 @@ function drop(event) {
             const newTargetCardHTML = renderLoadCard(targetLoad, targetLoad.vehicleType, vehicleInfo[targetLoad.vehicleType]);
             targetCard.outerHTML = newTargetCardHTML;
         }
+    }
+
+    // Recalcular frete automaticamente após o drop de pedidos
+    if (!sourceIsGeral && !sourceIsLeftovers && !sourceIsManualBuilder) {
+        refreshLoadFreight(sourceId);
+    }
+    if (!targetIsGeral && !targetIsLeftovers && !targetIsManualBuilder) {
+        refreshLoadFreight(targetId);
     }
 
     // Update the "Pedidos Disponá­veis" list
