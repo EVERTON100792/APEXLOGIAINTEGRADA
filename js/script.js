@@ -5300,7 +5300,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                     <div id="obs-container-${load.id}">${initialObservationHtml}</div>
                 </div>
 
-                <div class="print-info-row print-info-top">
+                <div class="print-info-row print-info-top" style="display: none;">
                     ${oldestDateHtml}
                     <div class="print-vehicle-footer print-footer-top">
                         <span>COD MOTORISTA: ______________________________</span>
