@@ -5326,3 +5326,7 @@ tr.search-highlight > td, tr.search-highlight > th {
 .print-info-row {
     display: block;
 }
+
+.print-info-top {
+    display: none !important;
+}
