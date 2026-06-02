@@ -3364,18 +3364,14 @@ function createPrintWindow(title, bodyContent) {
                     display: none !important;
                 }
                 .has-many-orders .print-footer-top {
-                    display: flex !important;
-                    flex-direction: column !important;
-                    align-items: flex-start !important;
-                    gap: 12px !important;
+                    display: inline-block !important;
                     margin-left: auto !important;
-                    width: fit-content !important;
-                    font-size: 11pt !important;
-                    font-weight: 800 !important;
+                    font-size: 14pt !important;
+                    font-weight: 900 !important;
                     color: black !important;
                     text-transform: uppercase !important;
                     border: 2px solid black !important;
-                    padding: 14px 20px !important;
+                    padding: 8px 15px !important;
                     background: white !important;
                     border-radius: 4px !important;
                     font-family: Arial, sans-serif !important;
@@ -3399,20 +3395,16 @@ function createPrintWindow(title, bodyContent) {
                     flex-grow: 1 !important;
                 }
                 .premium-load-card:not(.has-many-orders) .print-footer-bottom {
-                    display: flex !important;
-                    flex-direction: column !important;
-                    align-items: flex-start !important;
-                    gap: 12px !important;
+                    display: inline-block !important;
                     position: fixed !important;
                     bottom: 10mm !important;
-                    left: 50% !important;
-                    transform: translateX(-50%) !important;
-                    font-size: 11pt !important;
-                    font-weight: 800 !important;
+                    right: 10mm !important;
+                    font-size: 14pt !important;
+                    font-weight: 900 !important;
                     color: black !important;
                     text-transform: uppercase !important;
                     border: 2px solid black !important;
-                    padding: 14px 20px !important;
+                    padding: 8px 15px !important;
                     background: white !important;
                     z-index: 99999 !important;
                     border-radius: 4px !important;
@@ -3424,7 +3416,7 @@ function createPrintWindow(title, bodyContent) {
                 .footer-vehicle-type {
                     font-size: 14pt !important;
                     font-weight: 900 !important;
-                    margin-top: 4px !important;
+                    margin: 0 !important;
                 }
                 .delivery-summary-container {
                     margin-top: 10px !important;
@@ -5350,8 +5342,6 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 <div class="print-info-row print-info-top" style="display: none;">
                     ${oldestDateHtml}
                     <div class="print-vehicle-footer print-footer-top">
-                        <span>COD MOTORISTA: ______________________________</span>
-                        <span>PLACA DO VEÍCULO: ______________________________</span>
                         <span class="footer-vehicle-type">VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}</span>
                     </div>
                 </div>
@@ -5375,8 +5365,6 @@ function renderLoadCard(load, vehicleType, vInfo) {
             </div>
             
             <div class="print-vehicle-footer print-footer-bottom">
-                <span>COD MOTORISTA: ______________________________</span>
-                <span>PLACA DO VEÍCULO: ______________________________</span>
                 <span class="footer-vehicle-type">VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}</span>
             </div>
             <div class="card-footer-neon"></div>
