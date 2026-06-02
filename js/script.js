@@ -3355,7 +3355,7 @@ function createPrintWindow(title, bodyContent) {
                     display: none; /* Oculta por padrão, controlado pelas regras abaixo */
                 }
 
-                /* REGRAS PARA CARGA COM MUITOS PEDIDOS (MAIS DE 15) */
+                /* REGRAS PARA CARGA COM MUITOS PEDIDOS (MAIS DE 16) */
                 .has-many-orders .print-info-top {
                     display: flex !important;
                 }
@@ -3366,6 +3366,7 @@ function createPrintWindow(title, bodyContent) {
                 .has-many-orders .print-footer-top {
                     display: inline-block !important;
                     margin-left: auto !important;
+                    align-self: flex-start !important;
                     font-size: 14pt !important;
                     font-weight: 900 !important;
                     color: black !important;
@@ -3380,7 +3381,7 @@ function createPrintWindow(title, bodyContent) {
                     break-inside: avoid !important;
                 }
 
-                /* REGRAS PARA CARGA NORMAL (15 OU MENOS PEDIDOS - VOLTA ONDE ESTAVA) */
+                /* REGRAS PARA CARGA NORMAL (16 OU MENOS PEDIDOS - VOLTA ONDE ESTAVA) */
                 .premium-load-card:not(.has-many-orders) .print-info-top {
                     display: none !important;
                 }
@@ -5220,7 +5221,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
         freightStyle = "font-size: 0.95rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer; transition: all 0.2s;";
     }
 
-    const hasManyOrders = load.pedidos.length > 15;
+    const hasManyOrders = load.pedidos.length > 16;
     const manyOrdersClass = hasManyOrders ? 'has-many-orders' : '';
 
     // Calcular limites dinâmicos de capacidade (Glow Progress)
