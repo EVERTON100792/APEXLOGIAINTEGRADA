@@ -5221,7 +5221,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
         freightStyle = "font-size: 0.95rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer; transition: all 0.2s;";
     }
 
-    const hasManyOrders = load.pedidos.length > 16;
+    const hasManyOrders = totalDeliveries > 16;
     const manyOrdersClass = hasManyOrders ? 'has-many-orders' : '';
 
     // Calcular limites dinâmicos de capacidade (Glow Progress)
