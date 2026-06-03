@@ -3058,6 +3058,40 @@ function displayRota1(div, pedidos) {
 
 function createPrintWindow(title, bodyContent) {
     const isLoadPrint = title.includes('Carga');
+    
+    // Obter data e hora atuais formatadas para o carimbo de impressão
+    const now = new Date();
+    const formattedDateTime = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    let processedBodyContent = bodyContent;
+    
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(bodyContent, 'text/html');
+        const headers = doc.querySelectorAll('.header-main-info');
+        
+        if (headers.length > 0) {
+            headers.forEach(header => {
+                const timestampHtml = `
+                    <div class="print-timestamp">
+                        <i class="bi bi-printer-fill"></i>
+                        <span>Impresso em: ${formattedDateTime}</span>
+                    </div>`;
+                header.insertAdjacentHTML('beforeend', timestampHtml);
+            });
+            processedBodyContent = doc.body.innerHTML;
+        } else {
+            // Relatórios sem cabeçalho (.header-main-info) recebem carimbo global sutil no topo
+            const globalTimestampHtml = `
+                <div class="print-global-timestamp d-flex align-items-center gap-1.5">
+                    <i class="bi bi-printer-fill me-1.5"></i>
+                    <span>Relatório impresso em: ${formattedDateTime}</span>
+                </div>`;
+            processedBodyContent = globalTimestampHtml + bodyContent;
+        }
+    } catch (e) {
+        console.error("Erro ao injetar timestamp na impressão:", e);
+    }
 
     const html = `<!DOCTYPE html>
 <html>
@@ -3113,6 +3147,30 @@ function createPrintWindow(title, bodyContent) {
                     display: flex !important;
                     align-items: center !important;
                     gap: 12px !important;
+                    width: 100% !important;
+                }
+                .print-timestamp {
+                    margin-left: auto !important;
+                    font-size: 7.5pt !important;
+                    font-weight: 600 !important;
+                    color: #475569 !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    gap: 4px !important;
+                    border: 1px dashed #cbd5e1 !important;
+                    padding: 3px 8px !important;
+                    border-radius: 4px !important;
+                    background: #f8fafc !important;
+                    font-family: 'Plus Jakarta Sans', sans-serif !important;
+                }
+                .print-global-timestamp {
+                    font-size: 7.5pt !important;
+                    font-weight: 500 !important;
+                    color: #64748b !important;
+                    font-family: 'Plus Jakarta Sans', sans-serif !important;
+                    border-bottom: 1px dashed #e2e8f0 !important;
+                    padding-bottom: 6px !important;
+                    margin-bottom: 10px !important;
                     width: 100% !important;
                 }
                 .load-badge-id { 
@@ -3490,7 +3548,7 @@ function createPrintWindow(title, bodyContent) {
 </head>
 <body>
     <div class="print-container">
-        ${bodyContent}
+        ${processedBodyContent}
     </div>
 </body>
 </html>`;
@@ -3617,11 +3675,27 @@ function imprimirTocoIndividual(cf) {
         return;
     }
 
-    const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const totalCubagemFormatado = grupo.totalCubagem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const vInfo = { name: 'Toco', icon: 'bi-truck-flatbed' };
+    const loadFake = {
+        id: `toco-${cf}`,
+        numero: `CF: ${cf}`,
+        shortId: cf,
+        totalKg: grupo.totalKg,
+        totalCubagem: grupo.totalCubagem,
+        pedidos: grupo.pedidos,
+        collapsed: false,
+        observation: ""
+    };
     
-    let contentToPrint = `<h3>Carga Toco CF: ${cf} - Total: ${totalKgFormatado} kg / ${totalCubagemFormatado} mÂ³</h3>` + createTable(grupo.pedidos, null, `toco-${cf}`); // prettier-ignore
-    createPrintWindow('Imprimir Carga Toco CF: ' + cf, contentToPrint);
+    if (typeof renderLoadCard === 'function') {
+        const contentToPrint = renderLoadCard(loadFake, 'toco', vInfo);
+        createPrintWindow('Imprimir Carga Toco CF: ' + cf, contentToPrint);
+    } else {
+        const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const totalCubagemFormatado = grupo.totalCubagem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        let contentToPrint = `<h3>Carga Toco CF: ${cf} - Total: ${totalKgFormatado} kg / ${totalCubagemFormatado} mÂ³</h3>` + createTable(grupo.pedidos, null, `toco-${cf}`); // prettier-ignore
+        createPrintWindow('Imprimir Carga Toco CF: ' + cf, contentToPrint);
+    }
 
     // Remove o grupo Toco da lista de disponá­veis e atualiza a UI
     delete gruposToco[cf];
