@@ -463,19 +463,24 @@ function updateLoadFreightDisplay(loadId, distanceKm = null) {
 
 
     if (load.distanceKm) {
-        const freightValue = calculateFreightValue(load.vehicleType, load.distanceKm);
-        load.freightValue = freightValue; // Salva valor calculado
+        const distKm = parseFloat(load.distanceKm);
+        const LIMITE_KM_RODADO = 500;
+        const freightValue = calculateFreightValue(load.vehicleType, distKm);
+        load.freightValue = freightValue;
         if (typeof debouncedSaveState === 'function') debouncedSaveState();
         else saveStateToLocalStorage();
 
-
-        if (freightValue > 0) {
-            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${loadId}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
+        if (distKm > LIMITE_KM_RODADO) {
+            // Acima de 500 km: KM Rodado — mostra só a distância, operador define valor manualmente
+            freightEl.innerHTML = `<i class="bi bi-signpost-2 me-1.5"></i><span style="font-size: 0.95em; font-weight: 700;">${distKm} km</span> <span style="font-size: 0.75em; opacity: 0.75;">(Rodado — definir valor)</span>`;
+            freightEl.className = "load-meta-item badge bg-warning text-dark border border-warning fw-bold ms-2";
+            freightEl.style.cssText = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;";
+        } else if (freightValue > 0) {
+            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${loadId}')" title="Clique para editar o KM manualmente">(${distKm} km)</span>`;
             freightEl.className = "load-meta-item badge bg-success text-white border border-success fw-bold ms-2";
             freightEl.style.cssText = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;";
         } else {
-            // Se valor for 0 (ex: Van 'A combinar'), mostra texto informativo com KM
-            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${loadId}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
+            freightEl.innerHTML = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${loadId}')" title="Clique para editar o KM manualmente">(${distKm} km)</span>`;
             freightEl.className = "load-meta-item badge bg-secondary text-white border border-secondary fw-bold ms-2";
             freightEl.style.cssText = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;";
         }

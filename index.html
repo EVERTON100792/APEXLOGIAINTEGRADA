@@ -39,7 +39,7 @@
     <script src="js/toll_logic.js?v=3.0.3"></script> <!-- Carregar lógica de pedágios ANTES do simulador -->
     <script src="js/route_simulator.js"></script> <!-- Script do Novo Simulador -->
 
-    <link rel="stylesheet" href="css/style.css?v=3.0.7">
+    <link rel="stylesheet" href="css/style.css?v=3.0.8">
     <link rel="stylesheet" href="css/email-generator.css">
 </head>
 <style>
@@ -1290,6 +1290,11 @@
                                             class="bi bi-boxes"></i>Toco <span id="badge-toco"
                                             class="badge bg-white text-secondary ms-2 rounded-pill d-none">0</span></button>
                                 </li>
+                                <li class="nav-item" role="presentation"><button class="nav-link tab-truck"
+                                        data-bs-toggle="tab" data-bs-target="#truck-tab-pane"><i
+                                            class="bi bi-truck-flatbed"></i>Truck <span id="badge-truck"
+                                            class="badge bg-white text-danger ms-2 rounded-pill d-none">0</span></button>
+                                </li>
                                 <li class="nav-item" role="presentation"><button class="nav-link tab-pr"
                                         data-bs-toggle="tab" data-bs-target="#cargas-fechadas-pr-tab-pane"><i
                                             class="bi bi-geo-alt"></i>PR Fechado <span id="badge-pr"
@@ -1428,6 +1433,23 @@
                                     <div id="resultado-toco">
                                         <div class="empty-state"><i class="bi bi-inboxes-fill"></i>
                                             <p>Nenhuma carga "Toco" encontrada. Processe um arquivo.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="truck-tab-pane" role="tabpanel">
+                                    <div
+                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Gerencie as cargas consolidadas de Truck.</p>
+                                        <div class="btn-group">
+                                            <button class="btn btn-primary"
+                                                onclick="imprimirCargasGeneric('resultado-truck', 'Cargas de Truck')">
+                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="resultado-truck">
+                                        <div class="empty-state"><i class="bi bi-truck"></i>
+                                            <p>Nenhuma carga "Truck" encontrada.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -2696,6 +2718,32 @@
         </div>
     </div>
 
+    <!-- Modal para Montar Truck Consolidado -->
+    <div class="modal fade" id="modalMontarTruck" tabindex="-1" aria-labelledby="modalMontarTruckLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalMontarTruckLabel"><i class="bi bi-truck me-2 text-danger"></i>Montar Carga Truck</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Digite a meta de peso desejada para consolidar os pedidos da rota em uma carga do tipo Truck. O sistema selecionará os pedidos disponíveis sequencialmente (priorizando os mais antigos de pré-data) até atingir o peso informado:</p>
+                    
+                    <div class="card bg-dark-glass text-light border border-secondary rounded-3">
+                        <div class="card-body">
+                            <label for="truckPesoDesejado" class="form-label small fw-bold text-secondary-emphasis"><i class="bi bi-speedometer2 me-1"></i>Meta de Peso para o Truck (kg):</label>
+                            <input type="number" class="form-control form-control-lg text-light bg-dark border-secondary fw-bold" id="truckPesoDesejado" value="8000" min="1000" step="500" style="font-size: 1.25rem;">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmarMontagemTruck()"><i class="bi bi-truck me-1.5"></i>Montar Truck</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade no-print" id="processing-modal" data-bs-backdrop="static" data-bs-keyboard="false"
         tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
@@ -2824,8 +2872,8 @@
     </div>
 
 
-    <script src="js/script.js?v=3.0.7"></script>
-    <script src="js/freight_logic.js?v=3.0.7"></script>
+    <script src="js/script.js?v=3.0.8"></script>
+    <script src="js/freight_logic.js?v=3.0.8"></script>
     <script src="js/email-generator.js"></script>
 
     <!-- Modal Novo Motorista -->

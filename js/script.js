@@ -693,7 +693,8 @@ const defaultConfigs = {
     fiorinoMinCapacity: 300, fiorinoMaxCapacity: 500, fiorinoCubage: 1.5, fiorinoHardMaxCapacity: 560, fiorinoHardCubage: 1.7,
     vanMinCapacity: 1100, vanMaxCapacity: 1560, vanCubage: 5.0, vanHardMaxCapacity: 1600, vanHardCubage: 5.6,
     tresQuartosMinCapacity: 2300, tresQuartosMaxCapacity: 4100, tresQuartosCubage: 15.0, tresQuartosHardMaxCapacity: 4100, tresQuartosHardCubage: 15.0,
-    tocoMinCapacity: 5000, tocoMaxCapacity: 8500, tocoCubage: 30.0
+    tocoMinCapacity: 5000, tocoMaxCapacity: 8500, tocoCubage: 30.0,
+    truckMinCapacity: 8000, truckMaxCapacity: 14000, truckCubage: 45.0, truckHardMaxCapacity: 15000, truckHardCubage: 50.0
 };
 
 // --- NOVO: Funá§á£o de Notificaá§á£o (Toast) ---
@@ -1885,7 +1886,9 @@ function atualizarUIAposAcao(mensagemToast, affectedLoadId = null) {
                 fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
                 van: { name: 'Van', colorClass: 'bg-van', textColor: 'text-white', icon: 'bi-truck-front-fill' },
                 tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
-                toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' }
+                toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+                truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
+                especial: { name: 'Especial', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-clipboard-check-fill' }
             };
             const vInfo = vehicleInfo[load.vehicleType];
             if (vInfo) {
@@ -2169,9 +2172,11 @@ function processar() {
             // Pedidos mais antigos (menor Data Ped) devem aparecer antes nas listas.
             // Isso garante que nenhum pedido fique parado enquanto pedidos novos saem na frente.
             const getDataPed = (p) => {
-                const d = p['predat'] || p['dat_ped'] || p['Dat_Ped'] || p['PREDAT'] || p['Data_Ped'];
+                const d = p['Predat'] || p['PREDAT'] || p['predat'] || p['Dat_Ped'] || p['DAT_PED'] || p['dat_ped'] || p['Data_Ped'];
                 if (!d) return Infinity; // Sem data: vai para o fim
-                if (d instanceof Date) return d.getTime();
+                if (d instanceof Date) return isNaN(d.getTime()) ? Infinity : d.getTime();
+                const parsedBr = parseDateBR(d);
+                if (parsedBr && !isNaN(parsedBr.getTime())) return parsedBr.getTime();
                 const parsed = new Date(d);
                 return isNaN(parsed.getTime()) ? Infinity : parsed.getTime();
             };
@@ -2298,6 +2303,7 @@ function renderActiveLoadCards() {
         fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
         van: { name: 'Van', colorClass: 'bg-van', textColor: 'text-white', icon: 'bi-truck-front-fill' },
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
+        truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
         especial: { name: 'Especial', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-clipboard-check-fill' }
     };
 
@@ -2306,6 +2312,8 @@ function renderActiveLoadCards() {
     document.getElementById('resultado-van-pr').innerHTML = '';
     document.getElementById('resultado-van-sp').innerHTML = '';
     // document.getElementById('resultado-34-geral').innerHTML = ''; // Removido pois a aba 3/4 foi excluída
+    const truckContainer = document.getElementById('resultado-truck');
+    if (truckContainer) truckContainer.innerHTML = '';
     const especialContainer = document.getElementById('resultado-montagens-especiais');
     if (especialContainer) especialContainer.innerHTML = '';
 
@@ -2345,6 +2353,8 @@ function renderActiveLoadCards() {
                 } else {
                     containerId = 'resultado-van-sp';
                 }
+            } else if (load.vehicleType === 'truck') {
+                containerId = 'resultado-truck';
             } else if (load.vehicleType === 'especial') {
                 containerId = 'resultado-montagens-especiais';
             }
@@ -2450,6 +2460,7 @@ function updateTabCounts() {
         // Mantemos tresQuartos zerado ou somado onde fizer sentido, mas a UI agora foca em Van PR/SP
         tresQuartos: 0,
         toco: Object.keys(gruposToco).length,
+        truck: Object.values(activeLoads).filter(l => l.vehicleType === 'truck' && !l.id.startsWith('roteiro-')).length,
         pr: new Set(cargasFechadasPR.map(p => {
             const col5 = String(p.Coluna5 || '').toUpperCase();
             return (col5.includes('CONDOR') ? 'CONDOR' : p.CF);
@@ -2475,6 +2486,7 @@ function updateTabCounts() {
     updateBadge('badge-van-ms', counts.vanMS);
     updateBadge('badge-tres-quartos', counts.tresQuartos);
     updateBadge('badge-toco', counts.toco);
+    updateBadge('badge-truck', counts.truck);
     updateBadge('badge-pr', counts.pr);
     updateBadge('badge-br', counts.br);
     updateBadge('badge-roteirizados', counts.roteirizados);
@@ -2729,12 +2741,15 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
     });
     table += '</tr></thead><tbody>';
     pedidos.forEach(p => {
-        // Lá³gica para aplicar a cor da rota
         const isPriorityRow = pedidosPrioritarios.includes(String(p.Num_Pedido));
         const isRecallRow = pedidosRecall.includes(String(p.Num_Pedido));
         let rowClass = '';
-        if (isPriorityRow) rowClass = 'table-warning'; else if (isRecallRow) rowClass = 'table-info';
-        else if (sourceId === 'geral') {
+        
+        if (isPriorityRow) {
+            rowClass = (sourceId === 'geral') ? 'table-danger border-danger-emphasis fw-semibold' : 'table-warning';
+        } else if (isRecallRow) {
+            rowClass = (sourceId === 'geral') ? 'table-danger border-danger-emphasis fw-semibold' : 'table-info';
+        } else if (sourceId === 'geral') {
             const vehicleType = rotaVeiculoMap[p.Cod_Rota]?.type;
             if (vehicleType === 'fiorino') rowClass = 'route-fiorino';
             else if (vehicleType === 'van') rowClass = 'route-van';
@@ -2759,7 +2774,16 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
             if (c === 'Num_Pedido') {
                 const isPriority = pedidosPrioritarios.includes(String(p.Num_Pedido));
                 const isRecall = pedidosRecall.includes(String(p.Num_Pedido));
-                const priorityBadge = isPriority ? ' <span class="badge bg-warning text-dark">Prioridade</span>' : (isRecall ? ' <span class="badge bg-info">Recall</span>' : '');
+                let priorityBadge = '';
+                if (isPriority) {
+                    priorityBadge = (sourceId === 'geral') 
+                        ? ' <span class="badge bg-danger text-white animated pulse infinite"><i class="bi bi-exclamation-circle-fill me-1"></i>Prioridade Pendente</span>' 
+                        : ' <span class="badge bg-warning text-dark">Prioridade</span>';
+                } else if (isRecall) {
+                    priorityBadge = (sourceId === 'geral') 
+                        ? ' <span class="badge bg-danger text-white animated pulse infinite"><i class="bi bi-exclamation-circle-fill me-1"></i>Recall Pendente</span>' 
+                        : ' <span class="badge bg-info">Recall</span>';
+                }
                 table += `<td>${cellContent}${priorityBadge}</td>`;
             } else if (c === 'Agendamento' && cellContent === 'Sim') {
                 table += `<td><span class="badge bg-warning text-dark">${cellContent}</span></td>`;
@@ -2894,10 +2918,10 @@ function displayGerais(div, grupos) {
 
     rotasOrdenadas.forEach((rota, index) => {
         const grupo = grupos[rota];
-        if (!grupo) return; // Pula se ná£o houver pedidos pendentes para esta rota
+        if (!grupo) return; // Pula se não houver pedidos pendentes para esta rota
         hasPendingItems = true;
         const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const veiculo = rotaVeiculoMap[rota]?.type || 'van'; // Assume 'van' para rotas ná£o mapeadas
+        const veiculo = rotaVeiculoMap[rota]?.type || 'van'; // Assume 'van' para rotas não mapeadas
         let veiculoClass = '';
         if (veiculo === 'fiorino') veiculoClass = 'route-fiorino';
         else if (veiculo === 'van') veiculoClass = 'route-van';
@@ -2907,16 +2931,55 @@ function displayGerais(div, grupos) {
         let rotaDisplay = getRouteDisplayTitle(rota, veiculo);
         // CORREÇÃO: O ID do collapse agora usa a rota, que é um identificador estável.
         const collapseId = `collapseGeral-${getSafeRouteId(rota)}`;
-        accordionHtml += `<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span></button></h2>
+        
+        const contemPrioritarioDisponivel = grupo.pedidos.some(p => 
+            pedidosPrioritarios.includes(String(p.Num_Pedido)) || 
+            pedidosRecall.includes(String(p.Num_Pedido))
+        );
+
+        let itemStyle = "";
+        let badgePrioritario = "";
+        let buttonStyle = "";
+        
+        if (contemPrioritarioDisponivel) {
+            itemStyle = 'style="border: 1px solid rgba(239, 68, 68, 0.45) !important; background: rgba(239, 68, 68, 0.04) !important; border-radius: 6px; margin-bottom: 8px; box-shadow: 0 0 10px rgba(239, 68, 68, 0.1);"';
+            buttonStyle = 'style="color: #ef4444 !important; font-weight: bold;"';
+            badgePrioritario = `<span class="badge bg-danger text-white ms-2 animate-pulse"><i class="bi bi-exclamation-octagon-fill me-1"></i>Prioritário Pendente</span>`;
+        }
+
+        let bodyHtml = '';
+        if (grupo.totalKg >= 8000) {
+            bodyHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-3 p-2 rounded no-print" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 6px;">
+                    <span class="text-danger-emphasis small fw-bold"><i class="bi bi-info-circle me-1.5 text-danger"></i>Esta rota possui peso para montagem de Truck (${totalKgFormatado} kg)</span>
+                    <button class="btn btn-danger btn-xs fw-bold text-uppercase py-1 px-2.5" onclick="abrirModalMontarTruck('${rota}')" style="border-radius: 4px; font-size: 0.72rem; letter-spacing: 0.3px;">
+                        <i class="bi bi-truck me-1"></i>Montar Truck
+                    </button>
+                </div>`;
+        }
+        bodyHtml += createTable(grupo.pedidos, null, 'geral');
+
+        accordionHtml += `<div class="accordion-item" ${itemStyle}><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" ${buttonStyle} type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; ${badgePrioritario} <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span></button></h2>
                                   <div id="${collapseId}" class="accordion-collapse collapse" data-bs-parent="#accordionGeral">
-                                    <div class="accordion-body">${createTable(grupo.pedidos, null, 'geral')}</div></div></div>`;
+                                    <div class="accordion-body">${bodyHtml}</div></div></div>`;
     });
     accordionHtml += '</div>';
 
+    const pesoTotalVarejo = Object.values(grupos).reduce((sum, g) => sum + g.totalKg, 0);
+    const pesoTotalFormatado = pesoTotalVarejo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    let summaryPanelHtml = `
+        <div class="varejo-summary-panel mb-3 p-3 rounded no-print" style="background: rgba(30, 41, 59, 0.45); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.085); border-radius: 8px;">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-secondary small text-uppercase fw-bold"><i class="bi bi-calculator me-1.5 text-primary"></i>Peso Total Varejo</span>
+                <span class="badge bg-primary text-white fw-bold fs-6" style="padding: 6px 12px; border-radius: 6px;">${pesoTotalFormatado} kg</span>
+            </div>
+        </div>`;
+
     if (!hasPendingItems) {
-        div.innerHTML = '<div class="empty-state"><i class="bi bi-check-circle-fill"></i><p>Todos os pedidos disponá­veis foram alocados.</p></div>';
+        div.innerHTML = '<div class="empty-state"><i class="bi bi-check-circle-fill"></i><p>Todos os pedidos disponíveis foram alocados.</p></div>';
     } else {
-        div.innerHTML = accordionHtml;
+        div.innerHTML = summaryPanelHtml + accordionHtml;
     }
 
     // --- CORREá‡áƒO DE UX (Manter Acordeá£o Aberto) ---
@@ -3398,6 +3461,12 @@ function createPrintWindow(title, bodyContent) {
                 .no-print, .progress, .card-glass-overlay, .progress-glow, .action-buttons-group, .premium-dropdown-container, .btn-add-obs-premium, .premium-progress-container, .card-footer-neon, .observation-actions, .header-actions, .progress-glow, .select-icon { 
                     display: none !important; 
                 } 
+                .print-only {
+                    display: inline !important;
+                    font-size: 0.95rem;
+                    color: #111 !important;
+                    font-weight: 600;
+                }
                 .print-info-row {
                     display: flex !important;
                     justify-content: space-between !important;
@@ -3746,6 +3815,13 @@ function isMoveValid(load, groupToAdd, vehicleType) {
 
     if ((load.totalKg + groupToAdd.totalKg) > config.hardMaxKg) return false;
     if ((load.totalCubagem + groupToAdd.totalCubagem) > config.hardMaxCubage) return false;
+
+    // Para o veículo do tipo Truck, flexibilizamos as regras de clientes especiais
+    // e agendamento na validação estática de movimentação. As validações de agendamento
+    // com permissão do usuário ocorrerão nos fluxos interativos (drop e montagem manual).
+    if (vehicleType === 'truck') {
+        return true;
+    }
 
     // Se o grupo a ser adicionado é um cliente especial ou a carga já contém um, aplicam-se regras especiais.
     if (groupToAdd.isSpecial || load.pedidos.some(isSpecialClient)) {
@@ -4252,22 +4328,21 @@ window.reaplicarRegrasPainelInterno = function() {
     let packableGroups = Object.values(clientGroupsMap);
 
     // NOVO: Calcula a data de pedido mais antiga para cada grupo de cliente.
-    // (Movido para antes da lá³gica da rota 11711 para garantir que os grupos excluá­dos tambá©m tenham a data calculada para a cascata)
+    // (Movido para antes da lógica da rota 11711 para garantir que os grupos excluídos também tenham a data calculada para a cascata)
     packableGroups.forEach(group => {
         group.oldestDate = group.pedidos.reduce((oldest, p) => {
-            // Prioridade: Dat_Ped (Data do Pedido) para FIFO. Fallback para Predat se Dat_Ped estiver vazio.
-            let pDate = p.Dat_Ped;
+            // Prioridade: Predat (Data do Pré-Cadastro) para FIFO. Fallback para Dat_Ped se Predat estiver vazio.
+            let pDate = p.Predat;
             if (!pDate || (pDate instanceof Date && isNaN(pDate.getTime()))) {
-                pDate = p.Predat;
+                pDate = p.Dat_Ped;
             }
 
             if (pDate) {
                 let dateObj = pDate;
                 if (!(dateObj instanceof Date)) {
-                    if (typeof pDate === 'string' && pDate.includes('/')) {
-                        const parts = pDate.split(' ')[0].split('/');
-                        if (parts.length === 3) dateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-                        else dateObj = new Date(pDate);
+                    const parsedBr = parseDateBR(pDate);
+                    if (parsedBr && !isNaN(parsedBr.getTime())) {
+                        dateObj = parsedBr;
                     } else {
                         dateObj = new Date(pDate);
                     }
@@ -4414,7 +4489,7 @@ window.reaplicarRegrasPainelInterno = function() {
     // ========================================================================
     // INÍCIO DA NOVA LÓGICA DE CASCATA (Fiorino -> Van -> 3/4 -> Toco)
     // ========================================================================
-    let primaryLoads = initialRefinedLoads;
+    let primaryLoads = initialRefinedLoads.map(l => ({ ...l, vehicleType: l.vehicleType || vehicleType }));
     let leftoverGroups = initialLeftovers;
     let secondaryLoads = [];
     let tertiaryLoads = [];
@@ -4425,7 +4500,11 @@ window.reaplicarRegrasPainelInterno = function() {
         if (groups.length === 0) return { loads: [], leftovers: [] };
         console.log(`CASCATA: Tentando montar ${cascadeVehicleType} com ${groups.length} grupos de sobras.`);
         // Usamos a heurística simples (Nível 1) para as etapas da cascata para manter a velocidade.
-        return runHeuristicOptimization(groups, cascadeVehicleType);
+        const res = runHeuristicOptimization(groups, cascadeVehicleType);
+        if (res && res.loads) {
+            res.loads = res.loads.map(l => ({ ...l, vehicleType: l.vehicleType || cascadeVehicleType }));
+        }
+        return res;
     };
 
     // CORREÇÃO: Processa explicitamente os grupos de cidades não permitidas para Fiorino
@@ -5096,6 +5175,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 <option value="van" ${vehicleType === 'van' ? 'selected' : ''}>Van</option>
                 <option value="tresQuartos" ${vehicleType === 'tresQuartos' ? 'selected' : ''}>3/4</option>
                 <option value="toco" ${vehicleType === 'toco' ? 'selected' : ''}>Toco</option>
+                <option value="truck" ${vehicleType === 'truck' ? 'selected' : ''}>Truck</option>
                 <option value="especial" ${vehicleType === 'especial' ? 'selected' : ''}>Manual</option>
             </select>
             <i class="bi bi-chevron-down select-icon"></i>
@@ -5127,6 +5207,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
     else if (vehicleType === 'van') titleIconColor = '#3b82f6';
     else if (vehicleType === 'tresQuartos') titleIconColor = '#f59e0b';
     else if (vehicleType === 'toco') titleIconColor = '#6c757d';
+    else if (vehicleType === 'truck') titleIconColor = '#ef4444';
     else if (vehicleType === 'manual' || vehicleType === 'especial') titleIconColor = '#0dcaf0'; // Cyan para manual/especial
 
     // --- LÓGICA DE DETECÇÃO DE ROTA "FIORINO - VAN" ---
@@ -5273,15 +5354,23 @@ function renderLoadCard(load, vehicleType, vInfo) {
     let freightClass = "metric-value freight-value-pending";
     let freightStyle = "cursor: pointer;";
     let freightHtml = "";
+    const LIMITE_KM_RODADO = 500;
 
     if (load.distanceKm) {
-        const freightValue = typeof calculateFreightValue === 'function' ? calculateFreightValue(vehicleType, load.distanceKm) : 0;
-        if (freightValue > 0) {
-            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
+        const distKm = parseFloat(load.distanceKm);
+        const freightValue = typeof calculateFreightValue === 'function' ? calculateFreightValue(vehicleType, distKm) : 0;
+
+        if (distKm > LIMITE_KM_RODADO) {
+            // Acima de 500 km: pago por KM rodado — exibe só a distância
+            freightHtml = `<i class="bi bi-signpost-2 me-1.5"></i><span class="ms-1" style="font-size: 0.95em; font-weight: 700;">${distKm} km</span> <span style="font-size: 0.75em; opacity: 0.75;">(Rodado — definir valor)</span>`;
+            freightClass = "load-meta-item badge bg-warning text-dark border border-warning fw-bold ms-2";
+            freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
+        } else if (freightValue > 0) {
+            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${distKm} km)</span>`;
             freightClass = "load-meta-item badge bg-success text-white border border-success fw-bold ms-2";
             freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
         } else {
-            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${load.distanceKm} km)</span>`;
+            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${distKm} km)</span>`;
             freightClass = "load-meta-item badge bg-secondary text-white border border-secondary fw-bold ms-2";
             freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
         }
@@ -5383,6 +5472,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                         <button class="premium-action-btn btn-mapa-local" onclick="showRouteOnMap('${load.id}')" title="Roteirização Nativa (Local)"><i class="bi bi-map-fill"></i><span>Mapa Local</span></button>
                         <button class="premium-action-btn btn-google-maps" onclick="abrirMapaCarga('${load.id}')" title="Roteirização Externa (Google Maps)"><i class="bi bi-geo-alt-fill"></i><span>Google Maps</span></button>
                         <button class="premium-action-btn btn-imprimir" onclick="imprimirCargaIndividual('${load.id}')" title="Imprimir Carga"><i class="bi bi-printer-fill"></i><span>Imprimir</span></button>
+                        <button class="premium-action-btn btn-esvaziar-carga text-danger" onclick="removerTodasAsCargasDoMapa('${load.id}')" title="Voltar Saldo (Esvaziar Carga)"><i class="bi bi-arrow-counterclockwise text-danger"></i><span class="text-danger">Voltar Saldo</span></button>
                     </div>
                 </div>
             </div>
@@ -5400,10 +5490,19 @@ function renderLoadCard(load, vehicleType, vInfo) {
                         <span class="metric-value">${totalCubagemFormatado} <small>m³</small></span>
                     </div>
                     <div class="metric-item" id="freight-container-${load.id}">
-                        <span class="metric-label">Est. Frete</span>
-                        <span id="freight-${load.id}" class="${freightClass}" onclick="refreshLoadFreight('${load.id}')" style="${freightStyle}" title="Clique para calcular">
-                            ${freightHtml}
-                        </span>
+                        <span class="metric-label">${(load.distanceKm && parseFloat(load.distanceKm) > 500) ? 'Frete (Rodado)' : 'Frete Dentro da Tabela'}</span>
+                        ${(load.distanceKm && parseFloat(load.distanceKm) > 500) ? `
+                            <span class="load-meta-item badge bg-warning text-dark border border-warning fw-bold ms-2 no-print" style="font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important;">
+                                <i class="bi bi-signpost-2 me-1"></i>${parseFloat(load.distanceKm)} km <span style="font-size: 0.75em; opacity: 0.75;">(Rodado)</span>
+                            </span>
+                            <span class="print-only" style="display: none; font-size: 0.95rem; color: #111; font-weight: 600; line-height: 1.6;">
+                                ${parseFloat(load.distanceKm)} km<br>Valor: R$
+                            </span>
+                        ` : `
+                            <span id="freight-${load.id}" class="${freightClass}" onclick="refreshLoadFreight('${load.id}')" style="${freightStyle}" title="Clique para calcular">
+                                ${freightHtml}
+                            </span>
+                        `}
                     </div>
 
                 </div>
@@ -6243,6 +6342,7 @@ function removerParadaDoMapa(loadId, cityKey) {
                 van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
                 tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
                 toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+                truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
                 especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-clipboard-check-fill' }
             };
             const vInfo = vehicleInfo[load.vehicleType];
@@ -6302,6 +6402,7 @@ function removerTodasAsCargasDoMapa(loadId) {
     const cardElement = document.getElementById(loadId);
     if (cardElement) cardElement.remove();
 
+    if (typeof updateTabCounts === 'function') updateTabCounts();
     saveStateToLocalStorage();
 }
 
@@ -6370,6 +6471,7 @@ function removerPedidoDoMapa(loadId, orderNumber) {
                 van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
                 tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
                 toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+                truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
                 especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-clipboard-check-fill' }
             };
             const vInfo = vehicleInfo[load.vehicleType];
@@ -7541,6 +7643,20 @@ function drop(event) {
             setTimeout(() => dropZoneCard.classList.remove('drop-invalid'), 500);
             return;
         }
+
+        // Validação adicional de agendamento interativa para o Truck
+        if (targetVehicleType === 'truck') {
+            const hasAgendamento = groupToAdd.pedidos.some(p => p.Agendamento === 'Sim');
+            if (hasAgendamento) {
+                const userConfirmed = confirm("Este cliente possui agendamento. Deseja realmente incluí-lo na carga do Truck?");
+                if (!userConfirmed) {
+                    showToast("Operação cancelada pelo operador. Carga do Truck não modificada.", "warning");
+                    dropZoneCard.classList.add('drop-invalid');
+                    setTimeout(() => dropZoneCard.classList.remove('drop-invalid'), 500);
+                    return;
+                }
+            }
+        }
     }
 
     dropZoneCard.classList.add('drop-valid-target');
@@ -7579,6 +7695,7 @@ function drop(event) {
         van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
         toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+        truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
         especial: { name: 'Especial', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-star-fill' }
     };
 
@@ -7634,6 +7751,7 @@ function toggleLoadCollapse(loadId, event) {
             van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
             tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
             toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+            truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
             especial: { name: 'Especial', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-star-fill' }
         };
         const newCardHTML = renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType]);
@@ -8345,24 +8463,39 @@ function exportarRelatorioDisponiveisPDF() {
         return;
     }
 
-    // 2. Ordenar estritamente por Dat_Ped (Mais antigo primeiro)
+    // 2. Ordenar por Predata (mais antigo primeiro) e depois por Data Pedido
     todosPedidos.sort((a, b) => {
         const pA = a.data;
         const pB = b.data;
-        const dateA = pA.Dat_Ped instanceof Date ? pA.Dat_Ped : new Date(pA.Dat_Ped || '9999-12-31');
-        const dateB = pB.Dat_Ped instanceof Date ? pB.Dat_Ped : new Date(pB.Dat_Ped || '9999-12-31');
+        
+        const getComparableDate = (val) => {
+            if (!val) return new Date('9999-12-31');
+            if (val instanceof Date) return val;
+            const d = parseDateBR(val);
+            return (d && !isNaN(d)) ? d : new Date(val);
+        };
+        
+        const predatA = getComparableDate(pA.Predat);
+        const predatB = getComparableDate(pB.Predat);
+        
+        if (predatA.getTime() !== predatB.getTime()) {
+            return predatA - predatB;
+        }
+        
+        const dateA = getComparableDate(pA.Dat_Ped);
+        const dateB = getComparableDate(pB.Dat_Ped);
         return dateA - dateB;
     });
 
-    // 3. Configuraá§á£o do PDF
+    // 3. Configuração do PDF
     const today = new Date().toLocaleDateString('pt-BR');
     doc.setFontSize(16);
-    doc.text("Relatá³rio de Fila de Pedidos (Por Data)", 14, 20);
+    doc.text("Relatório de Fila de Pedidos (Por Data)", 14, 20);
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Gerado em: ${today} - Total Pendente: ${todosPedidos.length} pedidos`, 14, 28);
 
-    const tableColumn = ["Data Ped.", "Rota", "Cá³d.", "Cliente", "Pedido", "Tipo", "Peso (kg)"];
+    const tableColumn = ["Predata", "Data Ped.", "Rota", "Cód.", "Cliente", "Pedido", "Tipo", "Peso (kg)"];
     const tableRows = [];
 
     todosPedidos.forEach(item => {
@@ -8374,8 +8507,24 @@ function exportarRelatorioDisponiveisPDF() {
                 dataFormatada = d.toLocaleDateString('pt-BR');
             }
         }
+        
+        let predataFormatada = "S/ Data";
+        if (p.Predat) {
+            const d = p.Predat instanceof Date ? p.Predat : parseDateBR(p.Predat);
+            if (d && !isNaN(d)) {
+                predataFormatada = d.toLocaleDateString('pt-BR');
+            } else {
+                const dateObj = new Date(p.Predat);
+                if (!isNaN(dateObj)) {
+                    predataFormatada = dateObj.toLocaleDateString('pt-BR');
+                } else {
+                    predataFormatada = p.Predat || "S/ Data";
+                }
+            }
+        }
 
         const rowData = [
+            predataFormatada,
             dataFormatada,
             String(p.Cod_Rota || ''),
             normalizeClientId(p.Cliente),
@@ -8395,13 +8544,14 @@ function exportarRelatorioDisponiveisPDF() {
         styles: { fontSize: 9, cellPadding: 2 },
         headStyles: { fillColor: [41, 128, 185] },
         columnStyles: {
-            0: { fontStyle: 'bold' }, // Data em negrito
-            6: { halign: 'right' }    // Peso alinhado á  direita
+            0: { fontStyle: 'bold' }, // Predata em negrito
+            1: { fontStyle: 'bold' }, // Data Pedido em negrito
+            7: { halign: 'right' }    // Peso alinhado à direita
         }
     });
 
     doc.save(`Relatorio_Fila_Pedidos_${today.replace(/\//g, '-')}.pdf`);
-    showToast("Relatá³rio de fila gerado com sucesso!", 'success');
+    showToast("Relatório de fila gerado com sucesso!", 'success');
 }
 
 function exportarRelatorioDisponiveisExcel() {
@@ -8424,28 +8574,56 @@ function exportarRelatorioDisponiveisExcel() {
         return;
     }
 
-    // 2. Ordenar por Data
+    // 2. Ordenar por Predata (mais antigo primeiro) e depois por Data Pedido
     todosPedidos.sort((a, b) => {
-        const dateA = a.Dat_Ped instanceof Date ? a.Dat_Ped : new Date(a.Dat_Ped || '9999-12-31');
-        const dateB = b.Dat_Ped instanceof Date ? b.Dat_Ped : new Date(b.Dat_Ped || '9999-12-31');
+        const getComparableDate = (val) => {
+            if (!val) return new Date('9999-12-31');
+            if (val instanceof Date) return val;
+            const d = parseDateBR(val);
+            return (d && !isNaN(d)) ? d : new Date(val);
+        };
+        
+        const predatA = getComparableDate(a.Predat);
+        const predatB = getComparableDate(b.Predat);
+        
+        if (predatA.getTime() !== predatB.getTime()) {
+            return predatA - predatB;
+        }
+        
+        const dateA = getComparableDate(a.Dat_Ped);
+        const dateB = getComparableDate(b.Dat_Ped);
         return dateA - dateB;
     });
 
+    // Helper para converter data para Date compatível com Excel (SheetJS)
+    const toExcelDate = (val) => {
+        if (!val) return "";
+        if (val instanceof Date) return val;
+        const d = parseDateBR(val);
+        return (d && !isNaN(d)) ? d : new Date(val);
+    };
+
     // 3. Preparar dados para Excel
-    const dataToExport = todosPedidos.map(p => ({
-        'Data Pedido': p.Dat_Ped,
-        'Rota': p.Cod_Rota,
-        'Cá³digo Cliente': normalizeClientId(p.Cliente),
-        'Nome Cliente': p.Nome_Cliente,
-        'Náºmero Pedido': p.Num_Pedido,
-        'Tipo': p.Tipo,
-        'Peso (kg)': p.Quilos_Saldo,
-        'Cidade': p.Cidade,
-        'UF': p.UF
-    }));
+    const dataToExport = todosPedidos.map(p => {
+        let predExcel = toExcelDate(p.Predat);
+        let datPedExcel = toExcelDate(p.Dat_Ped);
+        return {
+            'Predata': predExcel instanceof Date && isNaN(predExcel.getTime()) ? p.Predat : predExcel,
+            'Data Pedido': datPedExcel instanceof Date && isNaN(datPedExcel.getTime()) ? p.Dat_Ped : datPedExcel,
+            'Rota': p.Cod_Rota,
+            'Código Cliente': normalizeClientId(p.Cliente),
+            'Nome Cliente': p.Nome_Cliente,
+            'Número Pedido': p.Num_Pedido,
+            'Tipo': p.Tipo,
+            'Peso (kg)': p.Quilos_Saldo,
+            'Cidade': p.Cidade,
+            'UF': p.UF
+        };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport, { cellDates: true });
-    const wscols = [{ wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 20 }, { wch: 5 }];
+    // wscols atualizado: adicionamos a coluna de Predata (12) no início e mantivemos as demais
+    const wscols = [{ wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 20 }, { wch: 5 }];
     worksheet['!cols'] = wscols;
 
     const workbook = XLSX.utils.book_new();
@@ -8806,7 +8984,18 @@ async function montarCargasPrioritarias() {
 
     // 4. Atualiza a interface geral para garantir que tudo esteja sincronizado
     renderAllUI();
-    showToast("Processamento de cargas prioritárias concluído!", "success");
+
+    // 5. Verifica se restou algum prioritário pendente na lista de disponíveis
+    const prioritariosRestantes = pedidosGeraisAtuais.filter(p =>
+        pedidosPrioritarios.includes(String(p.Num_Pedido)) ||
+        pedidosRecall.includes(String(p.Num_Pedido))
+    );
+
+    if (prioritariosRestantes.length > 0) {
+        showToast(`Processamento concluído! Atenção: ${prioritariosRestantes.length} pedido(s) prioritário(s) não pôde(ram) ser montado(s) e está(ão) em destaque vermelho nos disponíveis.`, "warning");
+    } else {
+        showToast("Processamento de cargas prioritárias concluído! Todos os prioritários foram alocados com sucesso.", "success");
+    }
 }
 
 /**
@@ -9217,7 +9406,7 @@ async function processarRoteirizacaoLista() {
                     load.numero = `R-${Date.now().toString().slice(-4)}-${idx + 1}`;
                     load.id = `roteiro-${Date.now()}-${idx}`;
                     const citiesInLoad = [...new Set(load.pedidos.map(p => p.Cidade))];
-                    load.observation = `Roteirizaá§á£o por Lista (${citiesInLoad.length} cidades)`;
+                    load.observation = `Roteirização por Lista (${citiesInLoad.length} cidades)`;
                     activeLoads[load.id] = load;
 
                     // Agora direciona todas as cargas para o container de roteirizados
@@ -9225,6 +9414,9 @@ async function processarRoteirizacaoLista() {
                         const cardHtml = renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType]);
                         roteirizadosContainer.insertAdjacentHTML('beforeend', cardHtml);
                     }
+                    
+                    // Dispara o cálculo de frete automático
+                    if (typeof refreshLoadFreight === 'function') refreshLoadFreight(load.id);
                 });
 
                 // Remove apenas os pedidos que foram efetivamente alocados em cargas vá¡lidas
@@ -9573,6 +9765,7 @@ function reRenderManualLoads() {
         van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
         toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+        truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
         especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-warning', icon: 'bi-tools', borderClass: 'border-warning' } // Updated label
     };
 
@@ -9592,6 +9785,8 @@ function reRenderManualLoads() {
             resultadoId = 'resultado-34-geral';
         } else if (load.vehicleType === 'toco') {
             resultadoId = 'resultado-toco';
+        } else if (load.vehicleType === 'truck') {
+            resultadoId = 'resultado-truck';
         }
 
         const resultadoDiv = document.getElementById(resultadoId);
@@ -9899,6 +10094,7 @@ function changeLoadVehicleType(loadId, newVehicleType) {
         van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
         toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
+        truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
         especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-warning', icon: 'bi-tools', borderClass: 'border-warning' }
     };
 
@@ -12337,4 +12533,194 @@ if (originalRenderAllUI) {
             window._apexApplyClientObservations();
         }
     };
+}
+
+// =======================================================================================
+// MONTAGEM DE TRUCK CONSOLIDADA
+// =======================================================================================
+
+function abrirModalMontarTruck(rota) {
+    if (!rota) {
+        showToast("Erro: Rota não especificada para montagem de Truck!", "danger");
+        return;
+    }
+    window.truckActiveRota = rota;
+    
+    // Pré-preenche com o peso total disponível na rota como sugestão
+    const pedidosDaRota = pedidosGeraisAtuais.filter(p =>
+        String(p.Cod_Rota || '').trim() === String(rota).trim() &&
+        p.Agendamento !== 'Sim'
+    );
+    const totalKgRota = pedidosDaRota.reduce((sum, p) => sum + p.Quilos_Saldo, 0);
+    const inputPeso = document.getElementById('truckPesoDesejado');
+    if (inputPeso) {
+        // Sugere o mínimo entre o total disponível e 8000 kg
+        inputPeso.value = Math.min(Math.floor(totalKgRota), 28000);
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalMontarTruck'));
+    modal.show();
+}
+
+function confirmarMontagemTruck() {
+    const pesoDesejado = document.getElementById('truckPesoDesejado').value;
+    const rota = window.truckActiveRota;
+    montarTruckCarga('peso', pesoDesejado, rota);
+}
+
+function montarTruckCarga(opcao, pesoDesejado, rota) {
+    if (!rota) {
+        showToast("Erro: Nenhuma rota ativa para montar o Truck!", "danger");
+        return;
+    }
+    
+    let pedidosParaTruck = [];
+    
+    if (opcao === 'checkbox') {
+        const checkboxes = document.querySelectorAll('.row-checkbox:checked');
+        if (checkboxes.length === 0) {
+            showToast(`Nenhum pedido selecionado por checkbox para a Rota ${rota}!`, "warning");
+            return;
+        }
+        const selectedIds = new Set(Array.from(checkboxes).map(cb => cb.value));
+        
+        // Filtra apenas os pedidos selecionados e que pertencem a esta rota
+        pedidosParaTruck = pedidosGeraisAtuais.filter(p => 
+            selectedIds.has(String(p.Num_Pedido)) && 
+            String(p.Cod_Rota || '').trim() === String(rota).trim()
+        );
+        
+        if (pedidosParaTruck.length === 0) {
+            showToast(`Nenhum dos pedidos selecionados pertence à Rota ${rota}!`, "warning");
+            return;
+        }
+        
+        // Validação com Autorização: Se houver pedido com agendamento, pede confirmação
+        const hasAgendamento = pedidosParaTruck.some(p => p.Agendamento === 'Sim');
+        if (hasAgendamento) {
+            const userConfirmed = confirm(`A seleção da Rota ${rota} contém pedidos com agendamento. Deseja realmente incluí-los na carga do Truck?`);
+            if (!userConfirmed) {
+                showToast("Montagem cancelada pelo operador. Remova os pedidos agendados ou cancele a seleção.", "warning");
+                return;
+            }
+        }
+    } else if (opcao === 'peso') {
+        const limite = parseFloat(pesoDesejado);
+        if (isNaN(limite) || limite <= 0) {
+            showToast("Digite um peso válido para o Truck!", "warning");
+            return;
+        }
+        
+        // Filtra apenas pedidos da rota selecionada
+        const pedidosDaRota = pedidosGeraisAtuais.filter(p => String(p.Cod_Rota || '').trim() === String(rota).trim());
+        
+        // Ordena os pedidos da rota para priorizar a Predat mais antiga e, em caso de empate, a Dat_Ped mais antiga
+        pedidosDaRota.sort((a, b) => {
+            const getComparableDate = (val) => {
+                if (!val) return new Date('9999-12-31');
+                if (val instanceof Date) return val;
+                const d = parseDateBR(val);
+                return (d && !isNaN(d)) ? d : new Date(val);
+            };
+            const predatA = getComparableDate(a.Predat);
+            const predatB = getComparableDate(b.Predat);
+            if (predatA.getTime() !== predatB.getTime()) {
+                return predatA - predatB;
+            }
+            const dateA = getComparableDate(a.Dat_Ped);
+            const dateB = getComparableDate(b.Dat_Ped);
+            return dateA - dateB;
+        });
+        
+        let pesoAcumulado = 0;
+        for (const p of pedidosDaRota) {
+            // Ignorar silenciosamente pedidos agendados
+            if (p.Agendamento === 'Sim') continue;
+            
+            pedidosParaTruck.push(p);
+            pesoAcumulado += p.Quilos_Saldo;
+            if (pesoAcumulado >= limite) {
+                break;
+            }
+        }
+        
+        // Se o total de peso obtido dos pedidos não agendados da rota for menor que o limite solicitado, cancela a operação
+        if (pesoAcumulado < limite) {
+            showToast(`Operação cancelada! Peso total disponível sem agendamento na Rota ${rota} (${pesoAcumulado.toLocaleString('pt-BR')} kg) é insuficiente para atingir a meta de ${limite.toLocaleString('pt-BR')} kg.`, "danger");
+            return;
+        }
+        
+        if (pedidosParaTruck.length === 0) {
+            showToast(`Não há pedidos de Varejo disponíveis sem agendamento na Rota ${rota} para montar o Truck!`, "warning");
+            return;
+        }
+    }
+    
+    // Ordena os pedidos alocados para o Truck final, priorizando a data Predat mais antiga e depois Dat_Ped mais antiga
+    pedidosParaTruck.sort((a, b) => {
+        const getComparableDate = (val) => {
+            if (!val) return new Date('9999-12-31');
+            if (val instanceof Date) return val;
+            const d = parseDateBR(val);
+            return (d && !isNaN(d)) ? d : new Date(val);
+        };
+        const predatA = getComparableDate(a.Predat);
+        const predatB = getComparableDate(b.Predat);
+        if (predatA.getTime() !== predatB.getTime()) {
+            return predatA - predatB;
+        }
+        const dateA = getComparableDate(a.Dat_Ped);
+        const dateB = getComparableDate(b.Dat_Ped);
+        return dateA - dateB;
+    });
+    
+    const totalKg = pedidosParaTruck.reduce((sum, p) => sum + p.Quilos_Saldo, 0);
+    const totalCubagem = pedidosParaTruck.reduce((sum, p) => sum + (p.Cubagem || 0), 0);
+    
+    const numTrucks = Object.values(activeLoads).filter(l => l.vehicleType === 'truck').length;
+    const newLoad = {
+        id: `manual-truck-${Date.now()}`,
+        numero: `TRK-${numTrucks + 1}`,
+        shortId: generateLoadId(),
+        routesKey: rota, // Associa a rota correspondente à carga consolidada
+        vehicleType: 'truck',
+        totalKg: totalKg,
+        totalCubagem: totalCubagem,
+        pedidos: [...pedidosParaTruck],
+        collapsed: false,
+        observation: ""
+    };
+    
+    // Adicionar às cargas ativas
+    activeLoads[newLoad.id] = newLoad;
+    
+    // Recalcular frete automático do Truck
+    if (typeof refreshLoadFreight === 'function') refreshLoadFreight(newLoad.id);
+    
+    // Remover os pedidos do banco de disponíveis
+    const usedOrderIds = new Set(pedidosParaTruck.map(p => String(p.Num_Pedido)));
+    pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !usedOrderIds.has(String(p.Num_Pedido)));
+    
+    // Limpar seleção
+    clearBulkSelection();
+    window.truckActiveRota = null;
+    
+    // Fechar o modal
+    const modalEl = document.getElementById('modalMontarTruck');
+    if (modalEl) {
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+    }
+    
+    // Mudar de aba para a aba Truck
+    const truckTabBtn = document.querySelector('button[data-bs-target="#truck-tab-pane"]');
+    if (truckTabBtn) {
+        const tabInstance = bootstrap.Tab.getOrCreateInstance(truckTabBtn);
+        tabInstance.show();
+    }
+    
+    // Re-renderizar a UI
+    renderAllUI();
+    
+    showToast(`Carga Truck ${newLoad.numero} montada para a Rota ${rota} com ${newLoad.pedidos.length} pedidos (${totalKg.toLocaleString('pt-BR')} kg)!`, "success");
 }
