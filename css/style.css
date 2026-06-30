@@ -5512,3 +5512,44 @@ tr.search-highlight > td, tr.search-highlight > th {
     border-bottom: 3px solid var(--dark-primary-glow) !important;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
+
+/* --- AUTO MONTAR MODAL STYLES --- */
+.route-select-item {
+    transition: all 0.2s ease;
+}
+.route-select-item:hover {
+    background: rgba(30, 41, 59, 0.5) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+}
+.route-select-item.selected {
+    background: rgba(245, 158, 11, 0.05) !important;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+}
+@keyframes pulse-red-dot {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+@keyframes pulse-yellow-dot {
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(245, 158, 11, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+}
+.pulsing-dot-red {
+    animation: pulse-red-dot 1.8s infinite;
+}
+.pulsing-dot-yellow {
+    animation: pulse-yellow-dot 1.8s infinite;
+}

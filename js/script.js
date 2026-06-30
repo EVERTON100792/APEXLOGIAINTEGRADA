@@ -3188,6 +3188,9 @@ function createPrintWindow(title, bodyContent) {
                     letter-spacing: 0.3px;
                 }
                 .premium-load-card, .load-card { 
+                    position: relative !important;
+                    page-break-after: always !important; 
+                    break-after: page !important; 
                     break-inside: auto !important; 
                     page-break-inside: auto !important; 
                     border: none !important;
@@ -3195,6 +3198,9 @@ function createPrintWindow(title, bodyContent) {
                     padding: 0 !important;
                     display: block;
                 } 
+                .premium-load-card:not(.has-many-orders), .load-card:not(.has-many-orders) {
+                    min-height: 270mm !important;
+                }
                 .premium-card-header { 
                     padding: 6px 10px !important;
                     background: #f8fafc !important;
@@ -3524,7 +3530,7 @@ function createPrintWindow(title, bodyContent) {
                 }
                 .premium-load-card:not(.has-many-orders) .print-footer-bottom {
                     display: inline-block !important;
-                    position: fixed !important;
+                    position: absolute !important;
                     bottom: 10mm !important;
                     right: 10mm !important;
                     font-size: 14pt !important;
@@ -8999,8 +9005,322 @@ async function montarCargasPrioritarias() {
 }
 
 /**
- * NOVO: Funá§á£o para montar todas as rotas disponá­veis sequencialmente.
- * Simula o clique manual em cada botá£o de rota.
+ * Abre o modal de Auto Montar inteligente carregando as rotas disponíveis
+ * com cálculo de pesos, prioridades e volume.
+ */
+function abrirModalAutoMontar() {
+    if (!pedidosGeraisAtuais || pedidosGeraisAtuais.length === 0) {
+        showToast("Não há pedidos disponíveis para montar.", "info");
+        return;
+    }
+
+    const listContainer = document.getElementById('auto-montar-routes-list');
+    if (!listContainer) return;
+    listContainer.innerHTML = '';
+
+    // 1. Agrupar pedidos disponíveis por rota
+    const routeGroups = pedidosGeraisAtuais.reduce((acc, p) => {
+        const rota = String(p.Cod_Rota || 'Sem Rota');
+        if (!acc[rota]) {
+            acc[rota] = {
+                rota: rota,
+                pedidos: [],
+                totalKg: 0,
+                contemPrioritario: false
+            };
+        }
+        acc[rota].pedidos.push(p);
+        acc[rota].totalKg += p.Quilos_Saldo || 0;
+        
+        // Verificar se é prioritário ou recall
+        const isPri = (window.pedidosPrioritarios && window.pedidosPrioritarios.includes(String(p.Num_Pedido))) || 
+                      (window.pedidosRecall && window.pedidosRecall.includes(String(p.Num_Pedido)));
+        if (isPri) {
+            acc[rota].contemPrioritario = true;
+        }
+        return acc;
+    }, {});
+
+    const uniqueRoutes = Object.keys(routeGroups);
+    if (uniqueRoutes.length === 0) {
+        showToast("Não há rotas com pedidos pendentes.", "info");
+        return;
+    }
+
+    // Ordena as rotas usando o critério padrão do Varejo
+    const rotasOrdenadas = getSortedVarejoRoutes(uniqueRoutes);
+
+    // 2. Renderizar cada rota com seu respectivo veículo e estado
+    let htmlContent = '';
+    
+    rotasOrdenadas.forEach(rota => {
+        const group = routeGroups[rota];
+        let config = window.rotaVeiculoMap?.[rota];
+        if (!config) {
+            config = { type: 'van', title: `Van / 3/4 São Paulo - Rota ${rota}` };
+        }
+
+        const vehicleType = config.type || 'van';
+        const routeTitle = getRouteDisplayTitle(rota, vehicleType).replace('Rota: ', '');
+        
+        // Detalhes do veículo para badge
+        const vehicleNames = { fiorino: 'Fiorino', van: 'Van', tresQuartos: '3/4', toco: 'Toco', truck: 'Truck' };
+        const vehicleName = vehicleNames[vehicleType] || 'Outro';
+        
+        const badgeVehicleClasses = {
+            fiorino: 'bg-success text-white',
+            van: 'bg-primary text-white',
+            tresQuartos: 'bg-warning text-dark',
+            toco: 'bg-secondary text-white',
+            truck: 'bg-danger text-white'
+        };
+        const badgeVehicleClass = badgeVehicleClasses[vehicleType] || 'bg-secondary text-light';
+
+        // Badges e Luzes de Atenção
+        let badgePriority = '';
+        let badgeHighVolume = '';
+        let attentionLight = '';
+        let hasPriority = group.contemPrioritario;
+
+        // Configuração de capacidade
+        const vehicleConfig = getVehicleConfig(vehicleType);
+        const softMax = vehicleConfig ? vehicleConfig.softMaxKg : 1560;
+        const isHighVolume = group.totalKg >= (softMax * 0.8);
+
+        if (hasPriority) {
+            badgePriority = `<span class="badge-neon-danger ms-1" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;"><i class="bi bi-lightning-charge-fill me-1"></i>Prioritário</span>`;
+            attentionLight = `<div class="pulsing-dot-red" title="Atenção Máxima: Rota com pedidos prioritários" style="width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; box-shadow: 0 0 10px #ef4444;"></div>`;
+        } else if (isHighVolume) {
+            badgeHighVolume = `<span class="badge-neon-priority ms-1" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i>Volume Alto</span>`;
+            attentionLight = `<div class="pulsing-dot-yellow" title="Atenção Média: Alto volume acumulado" style="width: 10px; height: 10px; border-radius: 50%; background-color: #f59e0b; box-shadow: 0 0 10px #f59e0b;"></div>`;
+        } else {
+            attentionLight = `<div style="width: 10px; height: 10px; border-radius: 50%; background-color: #475569;" title="Volume normal"></div>`;
+        }
+
+        const weightFormatted = group.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kg';
+
+        htmlContent += `
+            <div class="route-select-item p-3 rounded-3 border border-secondary border-opacity-15 d-flex align-items-center justify-content-between transition-all mb-2" 
+                 style="background: rgba(30, 41, 59, 0.2); cursor: pointer;" 
+                 onclick="toggleRouteRowCheckbox(this, event)">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check m-0">
+                        <input class="form-check-input route-checkbox" type="checkbox" value="${rota}" id="chk-route-${rota}" 
+                               onclick="event.stopPropagation(); updateSelectedRoutesCount();">
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="text-light fw-bold" style="font-size: 0.9rem;">${routeTitle}</span>
+                            <span class="badge ${badgeVehicleClass}" style="font-size: 0.7rem;">${vehicleName}</span>
+                            ${badgePriority}
+                            ${badgeHighVolume}
+                        </div>
+                        <div class="text-secondary small mt-1 font-monospace" style="font-size: 0.75rem;">
+                            Código Rota: ${rota} | Pedidos Disponíveis: ${group.pedidos.length}
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end d-flex align-items-center gap-3">
+                    <div>
+                        <span class="text-light fw-semibold font-monospace" style="font-size: 0.95rem;">${weightFormatted}</span>
+                        <div class="text-secondary small" style="font-size: 0.65rem;">Peso Acumulado</div>
+                    </div>
+                    ${attentionLight}
+                </div>
+            </div>
+        `;
+    });
+
+    listContainer.innerHTML = htmlContent;
+    updateSelectedRoutesCount();
+
+    // Exibir o modal usando Bootstrap
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('autoMontarModal'));
+    modal.show();
+}
+
+/**
+ * Alterna a seleção de uma linha de rota ao clicar nela (exceto no checkbox)
+ */
+function toggleRouteRowCheckbox(rowElement, event) {
+    const checkbox = rowElement.querySelector('.route-checkbox');
+    if (!checkbox) return;
+
+    // Se o clique já foi no próprio checkbox, não faz nada (o clique nativo já altera o estado)
+    if (event.target === checkbox) return;
+
+    checkbox.checked = !checkbox.checked;
+    
+    // Atualiza classe visual no container
+    if (checkbox.checked) {
+        rowElement.classList.add('selected');
+    } else {
+        rowElement.classList.remove('selected');
+    }
+    
+    updateSelectedRoutesCount();
+}
+
+/**
+ * Seleciona ou desmarca todas as rotas no modal
+ */
+function toggleSelectAllAutoMontar(select) {
+    const checkboxes = document.querySelectorAll('#auto-montar-routes-list .route-checkbox');
+    checkboxes.forEach(chk => {
+        chk.checked = select;
+        const row = chk.closest('.route-select-item');
+        if (row) {
+            if (select) row.classList.add('selected');
+            else row.classList.remove('selected');
+        }
+    });
+    updateSelectedRoutesCount();
+}
+
+/**
+ * Atualiza o contador de rotas selecionadas na interface
+ */
+function updateSelectedRoutesCount() {
+    const checkedBoxes = document.querySelectorAll('#auto-montar-routes-list .route-checkbox:checked');
+    const badge = document.getElementById('selected-routes-count');
+    const startBtn = document.getElementById('btn-start-auto-montar');
+    
+    if (badge) {
+        badge.textContent = `${checkedBoxes.length} rotas selecionadas`;
+        if (checkedBoxes.length > 0) {
+            badge.classList.remove('bg-secondary');
+            badge.classList.add('bg-warning', 'text-dark');
+        } else {
+            badge.classList.remove('bg-warning', 'text-dark');
+            badge.classList.add('bg-secondary');
+        }
+    }
+    
+    if (startBtn) {
+        startBtn.disabled = checkedBoxes.length === 0;
+    }
+
+    // Adiciona classe de selecionado para linhas que tiverem com check
+    const checkboxes = document.querySelectorAll('#auto-montar-routes-list .route-checkbox');
+    checkboxes.forEach(chk => {
+        const row = chk.closest('.route-select-item');
+        if (row) {
+            if (chk.checked) row.classList.add('selected');
+            else row.classList.remove('selected');
+        }
+    });
+}
+
+/**
+ * Aciona o início da montagem coletando os dados selecionados
+ */
+function iniciarAutoMontagemSelecionadas() {
+    const checkedBoxes = document.querySelectorAll('#auto-montar-routes-list .route-checkbox:checked');
+    if (checkedBoxes.length === 0) {
+        showToast("Nenhuma rota selecionada para montagem.", "warning");
+        return;
+    }
+
+    const selectedRoutes = Array.from(checkedBoxes).map(chk => chk.value);
+    processarAutoMontarSelecionadas(selectedRoutes);
+}
+
+/**
+ * Processa a montagem sequencial em lote das rotas selecionadas
+ */
+async function processarAutoMontarSelecionadas(selectedRoutes) {
+    // 1. Fechar o modal de auto montar
+    const autoMontarModalEl = document.getElementById('autoMontarModal');
+    const autoMontarModal = bootstrap.Modal.getInstance(autoMontarModalEl);
+    if (autoMontarModal) autoMontarModal.hide();
+
+    // 2. Mostrar o modal global de processamento/carregamento
+    const modalElement = document.getElementById('processing-modal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    const progressBar = document.getElementById('processing-progress-bar');
+    const statusText = document.getElementById('processing-status-text');
+    const thinkingText = document.getElementById('thinking-text');
+    const detailsText = document.getElementById('processing-details-text');
+
+    progressBar.style.width = '0%';
+    statusText.textContent = `Auto Montagem em Lote...`;
+    thinkingText.textContent = "Preparando a montagem das rotas selecionadas...";
+    detailsText.textContent = "";
+    modal.show();
+    startThinkingText();
+
+    // 3. Limpar mensagens de sucesso anteriores
+    document.querySelectorAll('.route-success-message').forEach(el => el.remove());
+
+    const processedInThisBatch = new Set();
+    const rotasOrdenadas = getSortedVarejoRoutes(selectedRoutes);
+
+    let idx = 0;
+    
+    // 4. Executar sequencialmente a montagem rota por rota com as regras nativas
+    for (const rota of rotasOrdenadas) {
+        if (processedInThisBatch.has(rota)) continue;
+
+        idx++;
+        const percent = Math.round((idx / rotasOrdenadas.length) * 100);
+        progressBar.style.width = `${percent}%`;
+        thinkingText.textContent = `Processando rota ${rota}...`;
+        detailsText.textContent = `Montando ${idx} de ${rotasOrdenadas.length} rotas selecionadas.`;
+
+        let config = window.rotaVeiculoMap?.[rota];
+        if (!config) config = { type: 'van', title: `Rota ${rota} (Automática)` };
+
+        let rotasParaProcessar = rota;
+        if (config.combined) {
+            const combinedRoutes = [rota, ...config.combined];
+            rotasParaProcessar = combinedRoutes;
+            combinedRoutes.forEach(r => processedInThisBatch.add(r));
+        } else {
+            processedInThisBatch.add(rota);
+        }
+
+        // Determina div de destino baseada no veículo e localização geográfica
+        let divId;
+        if (config.type === 'fiorino') {
+            divId = 'resultado-fiorino-geral';
+        } else if (config.type === 'van' || config.type === 'tresQuartos') {
+            const rotaStr = String(rota);
+            const isPR = config.title.startsWith('Rota 1') || rotaStr.startsWith('1');
+            const isMS = rotaStr.startsWith('3');
+
+            if (isPR) {
+                divId = 'resultado-van-pr';
+            } else if (isMS) {
+                divId = 'resultado-van-ms';
+            } else {
+                divId = 'resultado-van-sp';
+            }
+        } else {
+            divId = 'resultado-fiorino-geral';
+        }
+
+        const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
+
+        // Chama a função nativa de separação de cargas com as mesmas regras
+        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, config.type, null, true);
+        
+        // Delay para animação visual e respiro do Web Worker
+        await new Promise(r => setTimeout(r, 400));
+    }
+
+    // 5. Finalizar processamento
+    progressBar.style.width = '100%';
+    stopThinkingText();
+    modal.hide();
+
+    // Atualizar UI e LocalStorage
+    renderAllUI();
+    showToast("Auto Montagem concluída com sucesso para as rotas selecionadas!", "success");
+}
+
+/**
+ * NOVO: Função para montar todas as rotas disponíveis sequencialmente.
+ * Simula o clique manual em cada botão de rota.
  */
 async function montarTodasAsRotas() {
     if (pedidosGeraisAtuais.length === 0) {
