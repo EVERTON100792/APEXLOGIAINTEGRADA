@@ -4412,7 +4412,7 @@ window.reaplicarRegrasPainelInterno = function() {
     // Mostra o modal de processamento para otimizaá§áµes que demoram
     if (optimizationLevel !== '1') {
         progressBar.style.width = '0%';
-        statusText.textContent = `Otimizando ${title}...`;
+        statusText.textContent = `Montando Rota ${title}...`;
         startThinkingText();
         modal.show();
     } else {

@@ -548,175 +548,278 @@
         font-weight: 500;
     }
 
-    /* --- "QUANTUM LOGISTICS CORE" (V11) - PREMIUM SURREAL ANIMATION --- */
+    /* --- "FUTURISTIC CARGO LOADING SCENE" (V12) --- */
     .loading-animation-container {
         position: relative;
         width: 100%;
-        height: 320px;
+        height: 240px;
         overflow: hidden;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
         background: radial-gradient(circle at center, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 1) 100%);
         border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 24px;
-        box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.95), 
-                    0 0 30px rgba(59, 130, 246, 0.15);
-        perspective: 1200px;
+        border-radius: 20px;
+        box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.8), 
+                    0 0 30px rgba(59, 130, 246, 0.1);
+        perspective: 800px;
     }
 
-    /* Grade 3D Cibernética de Fundo */
-    .loading-animation-container::before {
-        content: '';
-        position: absolute;
-        width: 200%;
-        height: 200%;
-        top: -50%;
-        left: -50%;
-        background-image: 
-            linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
-        background-size: 40px 40px;
-        transform: rotateX(60deg) translateY(0);
-        animation: grid-scroll 20s linear infinite;
-        opacity: 0.7;
-        z-index: 1;
-        pointer-events: none;
-    }
-
-    /* Brilho Holográfico de Fundo */
-    .loading-animation-container::after {
-        content: '';
-        position: absolute;
-        width: 300px;
-        height: 300px;
-        background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
-        border-radius: 50%;
-        filter: blur(20px);
-        z-index: 2;
-        pointer-events: none;
-        animation: hologram-glow 4s ease-in-out infinite alternate;
-    }
-
-    /* O Núcleo Quântico */
-    .quantum-core {
-        position: relative;
-        width: 90px;
-        height: 90px;
-        transform-style: preserve-3d;
-        animation: core-float-premium 6s ease-in-out infinite;
-        z-index: 5;
-    }
-
-    /* Esfera Central Planetária */
-    .core-sphere {
+    /* Grade Holográfica de Fundo */
+    .hologram-grid {
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at 35% 35%, #38bdf8 0%, #1e40af 60%, #030712 100%);
-        border-radius: 50%;
-        box-shadow: 0 0 45px rgba(56, 189, 248, 0.7), 
-                    0 0 90px rgba(37, 99, 235, 0.4), 
-                    inset 0 0 25px rgba(255, 255, 255, 0.4);
-        animation: core-pulse-premium 3s ease-in-out infinite alternate;
-        z-index: 10;
-    }
-
-    /* Anéis Orbitais */
-    .orbital-ring {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform-style: preserve-3d;
-        border-radius: 50%;
-        border: 2px solid transparent;
-    }
-
-    /* Anel 1 (Azul/Ciano - Vertical inclinado) */
-    .ring-1 {
-        width: 150px;
-        height: 150px;
-        border-top: 3px solid rgba(56, 189, 248, 0.85);
-        border-bottom: 3px solid rgba(56, 189, 248, 0.85);
-        transform: translate(-50%, -50%) rotateX(65deg) rotateY(15deg);
-        animation: spin-3d-ring1 3.5s linear infinite;
-        box-shadow: 0 0 25px rgba(56, 189, 248, 0.5);
-    }
-
-    /* Anel 2 (Roxo/Magenta - Horizontal inclinado) */
-    .ring-2 {
-        width: 190px;
-        height: 190px;
-        border-left: 2px solid rgba(168, 85, 247, 0.95);
-        border-right: 2px solid rgba(236, 72, 153, 0.95);
-        transform: translate(-50%, -50%) rotateX(-20deg) rotateY(60deg);
-        animation: spin-3d-ring2 5s linear infinite;
-        box-shadow: 0 0 25px rgba(168, 85, 247, 0.4);
-    }
-
-    /* Anel 3 (Anel de poeira cósmica/Dados - Tracejado) */
-    .ring-3 {
-        width: 230px;
-        height: 230px;
-        border: 1px dashed rgba(255, 255, 255, 0.25);
-        transform: translate(-50%, -50%) rotateX(75deg) rotateY(-10deg);
-        animation: spin-z 12s linear infinite;
-    }
-
-    /* Anel 4 (Neon Laranja Ultra Rápido - Órbita Elíptica) */
-    .ring-4 {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 260px;
-        height: 90px;
-        border: 1.5px solid rgba(249, 115, 22, 0.8);
-        border-radius: 50%;
-        transform: translate(-50%, -50%) rotateX(70deg) rotateY(-40deg);
-        animation: spin-3d-ring4 2.5s linear infinite;
-        box-shadow: 0 0 20px rgba(249, 115, 22, 0.6);
-        transform-style: preserve-3d;
-    }
-
-    /* Partículas de Dados/Energia */
-    .energy-particle {
-        position: absolute;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        transform-style: preserve-3d;
+        background-image: 
+            linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+        background-size: 20px 20px;
+        opacity: 0.6;
         pointer-events: none;
     }
 
-    .particle-1 {
-        background: #ffffff;
-        box-shadow: 0 0 12px #fff, 0 0 20px #38bdf8;
-        top: 50%;
-        left: 50%;
-        transform-origin: 75px 0px;
-        animation: particle-orbit-1 2.2s linear infinite;
+    .logistics-scene {
+        position: relative;
+        width: 420px;
+        height: 180px;
+        display: flex;
+        align-items: flex-end;
     }
 
-    .particle-2 {
-        background: #a855f7;
-        box-shadow: 0 0 12px #a855f7, 0 0 20px #ec4899;
-        top: 50%;
-        left: 50%;
-        transform-origin: -95px 15px;
-        animation: particle-orbit-2 3.2s linear infinite;
-        animation-delay: 0.3s;
+    /* Plataforma de Carga (Chão) */
+    .loading-dock {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 25px;
+        height: 4px;
+        background: linear-gradient(90deg, #f97316 0%, #38bdf8 100%);
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        border-radius: 2px;
     }
 
-    .particle-3 {
-        background: #22d3ee;
-        box-shadow: 0 0 12px #22d3ee, 0 0 25px #06b6d4;
+    /* Caminhão Futurista */
+    .futuristic-truck {
+        position: absolute;
+        right: 20px;
+        bottom: 25px;
+        width: 190px;
+        height: 100px;
+        display: flex;
+        align-items: flex-end;
+        animation: truck-vibe 2s ease-in-out infinite alternate;
+    }
+
+    /* Baú de Carga */
+    .truck-cargo {
+        position: relative;
+        width: 130px;
+        height: 80px;
+        background: rgba(30, 41, 59, 0.5);
+        border: 2px solid rgba(56, 189, 248, 0.4);
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.15);
+    }
+
+    /* Grade Interna do Baú */
+    .cargo-grid {
+        position: absolute;
+        inset: 0;
+        background-image: 
+            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 15px 15px;
+    }
+
+    /* Laser Scanner do Baú */
+    .laser-scanner {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #10b981;
+        box-shadow: 0 0 8px #10b981, 0 0 15px #10b981;
+        animation: laser-scan-horizontal 3s ease-in-out infinite;
+    }
+
+    /* Caixas de Carga (Animação de Preenchimento) */
+    .cargo-box {
+        position: absolute;
+        width: 25px;
+        height: 20px;
+        background: rgba(249, 115, 22, 0.35);
+        border: 1px solid rgba(249, 115, 22, 0.8);
+        border-radius: 2px;
+        box-shadow: 0 0 8px rgba(249, 115, 22, 0.4);
+        opacity: 0;
+    }
+
+    /* Posicionamento e delay das caixas entrando */
+    .box-a { left: 10px; bottom: 5px; animation: box-fill-a 6s ease-in-out infinite; }
+    .box-b { left: 40px; bottom: 5px; animation: box-fill-b 6s ease-in-out infinite; }
+    .box-c { left: 10px; bottom: 28px; animation: box-fill-c 6s ease-in-out infinite; }
+    .box-d { left: 70px; bottom: 5px; animation: box-fill-d 6s ease-in-out infinite; }
+
+    /* Cabine do Caminhão */
+    .truck-cabin {
+        position: relative;
+        width: 50px;
+        height: 55px;
+        background: #1e293b;
+        border: 2px solid rgba(56, 189, 248, 0.4);
+        border-left: none;
+        border-radius: 0 10px 4px 0;
+        clip-path: polygon(0 0, 75% 0, 100% 40%, 100% 100%, 0 100%);
+    }
+
+    .cabin-window {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        width: 26px;
+        height: 18px;
+        background: rgba(56, 189, 248, 0.2);
+        border: 1px solid rgba(56, 189, 248, 0.6);
+        border-radius: 0 6px 0 0;
+        clip-path: polygon(0 0, 80% 0, 100% 100%, 0 100%);
+    }
+
+    .cabin-headlight {
+        position: absolute;
+        bottom: 12px;
+        right: 2px;
+        width: 6px;
+        height: 6px;
+        background: #38bdf8;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8;
+        animation: headlight-pulse 1s linear infinite alternate;
+    }
+
+    /* Rodas */
+    .truck-wheels {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -12px;
+        height: 24px;
+        pointer-events: none;
+    }
+
+    .wheel {
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: #0f172a;
+        border: 2px solid #38bdf8;
+        border-radius: 50%;
+        box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+        animation: spin-wheels 2s linear infinite;
+    }
+    
+    .wheel::after {
+        content: '';
+        position: absolute;
         top: 50%;
         left: 50%;
-        transform-origin: 10px 115px;
-        animation: particle-orbit-3 2.8s linear infinite;
-        animation-delay: 0.7s;
+        transform: translate(-50%, -50%);
+        width: 8px;
+        height: 2px;
+        background: #38bdf8;
     }
+
+    .wheel-back-1 { left: 20px; }
+    .wheel-back-2 { left: 46px; }
+    .wheel-front { right: 28px; }
+
+    /* Operador Holográfico */
+    .hologram-operator {
+        position: absolute;
+        left: 170px;
+        bottom: 25px;
+        width: 40px;
+        height: 70px;
+        transform-style: preserve-3d;
+        filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.7));
+    }
+
+    /* Corpo do Operador */
+    .operator-body {
+        position: absolute;
+        bottom: 0;
+        left: 15px;
+        width: 10px;
+        height: 38px;
+        background: rgba(56, 189, 248, 0.6);
+        border: 1px solid #38bdf8;
+        border-radius: 4px;
+        animation: operator-lean 6s ease-in-out infinite;
+    }
+
+    .operator-head {
+        position: absolute;
+        top: 18px;
+        left: 13px;
+        width: 14px;
+        height: 14px;
+        background: rgba(56, 189, 248, 0.7);
+        border: 1px solid #38bdf8;
+        border-radius: 50%;
+        animation: operator-head-bob 6s ease-in-out infinite;
+    }
+
+    /* Braço do Operador */
+    .operator-arm {
+        position: absolute;
+        top: 34px;
+        left: 18px;
+        width: 18px;
+        height: 6px;
+        background: #38bdf8;
+        border-radius: 3px;
+        transform-origin: left center;
+        animation: operator-arm-move 6s ease-in-out infinite;
+    }
+
+    /* Caixa segurada */
+    .operator-package {
+        position: absolute;
+        width: 18px;
+        height: 15px;
+        background: rgba(249, 115, 22, 0.85);
+        border: 1px solid #f97316;
+        border-radius: 2px;
+        box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+        left: 28px;
+        top: 28px;
+        animation: operator-package-move 6s ease-in-out infinite;
+    }
+
+    /* Palete de Origem */
+    .warehouse-pallet {
+        position: absolute;
+        left: 60px;
+        bottom: 25px;
+        width: 60px;
+        height: 12px;
+        background: #334155;
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        border-radius: 2px;
+    }
+
+    .pallet-box {
+        position: absolute;
+        width: 20px;
+        height: 16px;
+        background: rgba(249, 115, 22, 0.4);
+        border: 1px solid rgba(249, 115, 22, 0.7);
+        border-radius: 2px;
+    }
+
+    .pallet-box-1 { left: 5px; bottom: 12px; animation: pallet-box-disappear-1 6s ease-in-out infinite; }
+    .pallet-box-2 { left: 30px; bottom: 12px; animation: pallet-box-disappear-2 6s ease-in-out infinite; }
+    .pallet-box-3 { left: 18px; bottom: 27px; animation: pallet-box-disappear-3 6s ease-in-out infinite; }
 
     /* Estilização Customizada do Modal para Visual Glassmorphism */
     #processing-modal .modal-content {
@@ -795,111 +898,102 @@
     }
 
     /* --- Keyframes Futuristas de Alta Qualidade --- */
-    @keyframes grid-scroll {
-        0% {
-            background-position: 0 0;
-        }
-        100% {
-            background-position: 0 800px;
-        }
+    @keyframes truck-vibe {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-1.5px); }
     }
 
-    @keyframes hologram-glow {
+    @keyframes headlight-pulse {
+        0% { opacity: 0.6; box-shadow: 0 0 10px #38bdf8; }
+        100% { opacity: 1; box-shadow: 0 0 18px #38bdf8, 0 0 30px #38bdf8; }
+    }
+
+    @keyframes spin-wheels {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(-360deg); }
+    }
+
+    @keyframes laser-scan-horizontal {
+        0%, 100% { left: 0%; opacity: 0.7; }
+        50% { left: 100%; opacity: 1; }
+    }
+
+    @keyframes operator-lean {
+        0%, 100% { transform: rotate(0deg); }
+        35% { transform: rotate(-10deg); }
+        70% { transform: rotate(5deg); }
+    }
+
+    @keyframes operator-head-bob {
+        0%, 100% { transform: translate(0, 0); }
+        35% { transform: translate(-2px, 3px); }
+        70% { transform: translate(2px, -1px); }
+    }
+
+    @keyframes operator-arm-move {
+        0%, 100% { transform: rotate(0deg); }
+        35% { transform: rotate(-25deg) scaleX(0.9); }
+        70% { transform: rotate(15deg) scaleX(1.1); }
+    }
+
+    @keyframes operator-package-move {
         0% {
-            transform: scale(0.95);
-            opacity: 0.8;
+            opacity: 0;
+            transform: translate(0, 0);
         }
-        100% {
-            transform: scale(1.05);
+        25% {
             opacity: 1;
         }
-    }
-
-    @keyframes core-float-premium {
-        0%, 100% {
-            transform: translateY(0) rotateX(0deg) rotateY(0deg);
+        35% {
+            transform: translate(-10px, 12px) scale(0.9);
+            opacity: 1;
         }
-        50% {
-            transform: translateY(-15px) rotateX(5deg) rotateY(10deg);
+        60% {
+            opacity: 1;
         }
-    }
-
-    @keyframes core-pulse-premium {
-        0% {
-            box-shadow: 0 0 45px rgba(56, 189, 248, 0.6), 
-                        0 0 90px rgba(37, 99, 235, 0.3), 
-                        inset 0 0 20px rgba(255, 255, 255, 0.3);
-            transform: scale(1);
+        70% {
+            transform: translate(25px, 2px) scale(0.85);
+            opacity: 1;
         }
-        100% {
-            box-shadow: 0 0 60px rgba(56, 189, 248, 0.8), 
-                        0 0 110px rgba(37, 99, 235, 0.5), 
-                        inset 0 0 30px rgba(255, 255, 255, 0.5);
-            transform: scale(1.05);
+        80%, 100% {
+            opacity: 0;
+            transform: translate(25px, 2px) scale(0.85);
         }
     }
 
-    @keyframes spin-3d-ring1 {
-        0% {
-            transform: translate(-50%, -50%) rotateX(65deg) rotateY(15deg) rotateZ(0deg);
-        }
-        100% {
-            transform: translate(-50%, -50%) rotateX(65deg) rotateY(15deg) rotateZ(360deg);
-        }
+    @keyframes pallet-box-disappear-1 {
+        0%, 30% { opacity: 1; }
+        35%, 100% { opacity: 0; }
     }
 
-    @keyframes spin-3d-ring2 {
-        0% {
-            transform: translate(-50%, -50%) rotateX(-20deg) rotateY(60deg) rotateZ(360deg);
-        }
-        100% {
-            transform: translate(-50%, -50%) rotateX(-20deg) rotateY(60deg) rotateZ(0deg);
-        }
+    @keyframes pallet-box-disappear-2 {
+        0%, 63% { opacity: 1; }
+        68%, 100% { opacity: 0; }
     }
 
-    @keyframes spin-3d-ring4 {
-        0% {
-            transform: translate(-50%, -50%) rotateX(70deg) rotateY(-40deg) rotateZ(0deg);
-        }
-        100% {
-            transform: translate(-50%, -50%) rotateX(70deg) rotateY(-40deg) rotateZ(360deg);
-        }
+    @keyframes pallet-box-disappear-3 {
+        0%, 46% { opacity: 1; }
+        51%, 100% { opacity: 0; }
     }
 
-    @keyframes spin-z {
-        0% {
-            transform: translate(-50%, -50%) rotateZ(0deg);
-        }
-        100% {
-            transform: translate(-50%, -50%) rotateZ(360deg);
-        }
+    @keyframes box-fill-a {
+        0%, 35% { opacity: 0; transform: translateY(-5px); }
+        40%, 100% { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes particle-orbit-1 {
-        0% {
-            transform: rotateX(65deg) rotateY(15deg) rotate(0deg) translateX(75px) rotate(0deg);
-        }
-        100% {
-            transform: rotateX(65deg) rotateY(15deg) rotate(360deg) translateX(75px) rotate(-360deg);
-        }
+    @keyframes box-fill-b {
+        0%, 68% { opacity: 0; transform: translateY(-5px); }
+        73%, 100% { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes particle-orbit-2 {
-        0% {
-            transform: rotateX(-20deg) rotateY(60deg) rotate(360deg) translateX(95px) rotate(-360deg);
-        }
-        100% {
-            transform: rotateX(-20deg) rotateY(60deg) rotate(0deg) translateX(95px) rotate(0deg);
-        }
+    @keyframes box-fill-c {
+        0%, 51% { opacity: 0; transform: translateY(-5px); }
+        56%, 100% { opacity: 1; transform: translateY(0); }
     }
 
-    @keyframes particle-orbit-3 {
-        0% {
-            transform: rotateX(75deg) rotateY(-10deg) rotate(0deg) translateX(115px) rotate(0deg);
-        }
-        100% {
-            transform: rotateX(75deg) rotateY(-10deg) rotate(360deg) translateX(115px) rotate(-360deg);
-        }
+    @keyframes box-fill-d {
+        0%, 82% { opacity: 0; transform: translateY(-5px); }
+        87%, 100% { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes pulse-tip-glow-premium {
@@ -977,9 +1071,8 @@
                         stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
             </div>
-            <span class="sidebar-brand-text">ApexLog <span
-                    class="badge bg-primary-subtle text-primary-emphasis fw-normal"
-                    style="font-size: 0.6rem; vertical-align: top;">v3.0</span></span>
+            <span class="sidebar-brand-text">ApexLog <span class="ms-1"
+                    style="font-size: 0.6rem; vertical-align: top; letter-spacing: 0.05em; padding: 2.5px 6px; border-radius: 4px; background: #f97316 !important; color: #ffffff !important; font-weight: 800; display: inline-block; line-height: 1;">4.0 PRO</span></span>
         </div>
 
         <!-- Navigation -->
@@ -1129,7 +1222,7 @@
                     <i class="bi bi-three-dots-vertical ms-auto text-muted small"></i>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-dark-glass p-2 mb-2 ms-2">
-                    <li><span class="dropdown-header py-0">ApexLog v3.0</span></li>
+                    <li><span class="dropdown-header py-0">ApexLog 4.0 PRO</span></li>
                     <li>
                         <hr class="dropdown-divider border-white-10">
                     </li>
@@ -2795,17 +2888,52 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-body text-center p-4">
-                    <!-- NOVA ANIMAÇÃO V11 - "QUANTUM LOGISTICS CORE" -->
+                    <!-- NOVA ANIMAÇÃO V12 - "FUTURISTIC CARGO LOADING SCENE" -->
                     <div class="loading-animation-container">
-                        <div class="quantum-core">
-                            <div class="core-sphere"></div>
-                            <div class="orbital-ring ring-1"></div>
-                            <div class="orbital-ring ring-2"></div>
-                            <div class="orbital-ring ring-3"></div>
-                            <div class="orbital-ring ring-4"></div>
-                            <div class="energy-particle particle-1"></div>
-                            <div class="energy-particle particle-2"></div>
-                            <div class="energy-particle particle-3"></div>
+                        <div class="logistics-scene">
+                            <!-- Plataforma/Dock de Carga -->
+                            <div class="loading-dock"></div>
+                            
+                            <!-- Caminhão Futurista -->
+                            <div class="futuristic-truck">
+                                <div class="truck-cargo">
+                                    <div class="cargo-grid"></div>
+                                    <!-- Caixas que vão enchendo no baú -->
+                                    <div class="cargo-box box-a"></div>
+                                    <div class="cargo-box box-b"></div>
+                                    <div class="cargo-box box-c"></div>
+                                    <div class="cargo-box box-d"></div>
+                                    <!-- Linha Laser de Varredura -->
+                                    <div class="laser-scanner"></div>
+                                </div>
+                                <div class="truck-cabin">
+                                    <div class="cabin-window"></div>
+                                    <div class="cabin-headlight"></div>
+                                </div>
+                                <div class="truck-wheels">
+                                    <div class="wheel wheel-back-1"></div>
+                                    <div class="wheel wheel-back-2"></div>
+                                    <div class="wheel wheel-front"></div>
+                                </div>
+                            </div>
+
+                            <!-- Operador Holográfico / Pessoa Carregando -->
+                            <div class="hologram-operator">
+                                <div class="operator-body"></div>
+                                <div class="operator-head"></div>
+                                <div class="operator-arm"></div>
+                                <div class="operator-package"></div>
+                            </div>
+
+                            <!-- Palete de Caixas Disponíveis -->
+                            <div class="warehouse-pallet">
+                                <div class="pallet-box pallet-box-1"></div>
+                                <div class="pallet-box pallet-box-2"></div>
+                                <div class="pallet-box pallet-box-3"></div>
+                            </div>
+                            
+                            <!-- Efeito de varredura global/holograma -->
+                            <div class="hologram-grid"></div>
                         </div>
                     </div>
 
