@@ -74,6 +74,30 @@ function parseDateBR(dStr) {
     return isNaN(d.getTime()) ? null : d;
 }
 
+// Normaliza qualquer formato de data para um Date local com hora 00:00:00 para comparação precisa de dias
+function getComparableDate(val) {
+    if (!val) return null;
+    if (val instanceof Date) {
+        if (isNaN(val.getTime())) return null;
+        return new Date(val.getFullYear(), val.getMonth(), val.getDate());
+    }
+    const d = parseDateBR(val);
+    if (d && !isNaN(d.getTime())) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    const nd = new Date(val);
+    if (!isNaN(nd.getTime())) {
+        if (typeof val === 'string' && val.includes('-')) {
+            const parts = val.split('T')[0].split('-');
+            if (parts.length === 3) {
+                return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            }
+        }
+        return new Date(nd.getFullYear(), nd.getMonth(), nd.getDate());
+    }
+    return null;
+}
+
 function safeDateCompare(aOldest, bOldest) {
     const timeA = aOldest ? new Date(aOldest).getTime() : Infinity;
     const timeB = bOldest ? new Date(bOldest).getTime() : Infinity;
@@ -231,10 +255,8 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
     // Pega a data do item mais antigo na lista de empacotamento, tratando datas serializadas.
     const getOldestDateTimestamp = (items) => {
         if (items.length > 0 && items[0].oldestDate) {
-            const date = new Date(items[0].oldestDate); // Converte string para Date
-            if (!isNaN(date.getTime())) {
-                return date.getTime();
-            }
+            const date = getComparableDate(items[0].oldestDate);
+            return date ? date.getTime() : null;
         }
         return null;
     };
@@ -278,10 +300,13 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
     loads.forEach(load => {
         // Adicionado: Verifica se a carga contém um pedido que é do dia mais antigo.
         const containsOldestOrder = oldestItemTimestamp && load.pedidos.some(p => {
-            const pDateValue = p.Dat_Ped || p.Predat;
+            let pDateValue = p.Predat;
+            if (!pDateValue || (pDateValue instanceof Date && isNaN(pDateValue.getTime()))) {
+                pDateValue = p.Dat_Ped;
+            }
             if (!pDateValue) return false;
-            const pDate = new Date(pDateValue); // Converte string para Date
-            return !isNaN(pDate.getTime()) && pDate.getTime() === oldestItemTimestamp;
+            const pDate = getComparableDate(pDateValue);
+            return pDate && pDate.getTime() === oldestItemTimestamp;
         });
 
         // Verifica se a carga contém pedidos prioritários ou recall
@@ -585,10 +610,8 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
         // Obtém o timestamp do pedido mais antigo na entrada do Simulated Annealing
         const getOldestDateTimestamp = (items) => {
             if (items.length > 0 && items[0].oldestDate) {
-                const date = new Date(items[0].oldestDate);
-                if (!isNaN(date.getTime())) {
-                    return date.getTime();
-                }
+                const date = getComparableDate(items[0].oldestDate);
+                return date ? date.getTime() : null;
             }
             return null;
         };
@@ -631,10 +654,13 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
             }
 
             const containsOldestOrder = oldestItemTimestamp && load.pedidos.some(p => {
-                const pDateValue = p.Dat_Ped || p.Predat;
+                let pDateValue = p.Predat;
+                if (!pDateValue || (pDateValue instanceof Date && isNaN(pDateValue.getTime()))) {
+                    pDateValue = p.Dat_Ped;
+                }
                 if (!pDateValue) return false;
-                const pDate = new Date(pDateValue);
-                return !isNaN(pDate.getTime()) && pDate.getTime() === oldestItemTimestamp;
+                const pDate = getComparableDate(pDateValue);
+                return pDate && pDate.getTime() === oldestItemTimestamp;
             });
 
             const containsPriority = load.pedidos.some(p => 
