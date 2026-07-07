@@ -2896,10 +2896,12 @@ function displayGerais(div, grupos) {
             // UX Tática: Botoes menores e mais tecnicos
             let btnHtml = '';
             if (processedRoutes.has(routesKeyString)) {
+                const isActive = (window.currentActiveRouteKey === routesKeyString) ? 'route-active-highlight' : '';
+                const isGroupActive = (window.currentActiveRouteKey === routesKeyString) ? 'btn-tactical-group-active' : '';
                 btnHtml = `
-                            <div class="btn-group mt-2 me-2" role="group">
-                                <button id="${btnId}" class="btn btn-tactical ${vehicleType} active" onclick="exibirCargasDaRota('${routesKeyString}')"><i class="bi bi-check2-circle"></i>${buttonTitle}</button>
-                                <button class="btn btn-tactical ${vehicleType} active" onclick="reprocessarRota('${routesKeyString}', event)" title="Reprocessar Rota"><i class="bi bi-arrow-clockwise"></i></button>
+                            <div class="btn-group mt-2 me-2 ${isGroupActive}" role="group">
+                                <button id="${btnId}" class="btn btn-tactical ${vehicleType} active ${isActive}" onclick="exibirCargasDaRota('${routesKeyString}')"><i class="bi bi-check2-circle"></i>${buttonTitle}</button>
+                                <button class="btn btn-tactical ${vehicleType} active ${isActive}" onclick="reprocessarRota('${routesKeyString}', event)" title="Reprocessar Rota"><i class="bi bi-arrow-clockwise"></i></button>
                             </div>`;
             } else {
                 const functionCall = `separarCargasGeneric(${rotaValue}, '${divId}', '${buttonTitle}', '${vehicleType}', this)`;
@@ -4763,6 +4765,9 @@ function reprocessarRota(routesKey, event) {
     // 5. Remover a rota do conjunto de rotas processadas
     processedRoutes.delete(routesKey);
     delete processedRouteContexts[routesKey];
+    if (window.currentActiveRouteKey === routesKey) {
+        window.currentActiveRouteKey = null;
+    }
 
     // 6. Redesenhar a UI para refletir o estado atualizado
     // Limpa a visualizaá§á£o da rota se ela estiver sendo mostrada no momento
@@ -4777,6 +4782,28 @@ function reprocessarRota(routesKey, event) {
 }
 
 function exibirCargasDaRota(routesKey) {
+    window.currentActiveRouteKey = routesKey; // Guarda a rota ativa na tela!
+
+    // Remove destaque anterior de todos os botões de rota e grupos
+    document.querySelectorAll('.route-active-highlight').forEach(el => el.classList.remove('route-active-highlight'));
+    document.querySelectorAll('.btn-tactical-group-active').forEach(el => el.classList.remove('btn-tactical-group-active'));
+
+    // Encontra o botão específico desta rota e adiciona a classe (suporta rotas combinadas como 11721,11731)
+    const activeRoutesList = routesKey.split(',');
+    document.querySelectorAll('.btn-tactical').forEach(btn => {
+        const idParts = btn.id.split('-');
+        if (idParts.length >= 3) {
+            const btnRouteKey = idParts.slice(2).join('-');
+            if (activeRoutesList.includes(btnRouteKey)) {
+                btn.classList.add('route-active-highlight');
+                const parentGroup = btn.closest('.btn-group');
+                if (parentGroup) {
+                    parentGroup.classList.add('btn-tactical-group-active');
+                }
+            }
+        }
+    });
+
     const context = processedRouteContexts[routesKey];
     if (!context) return;
 
