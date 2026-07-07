@@ -4723,6 +4723,10 @@ window.reaplicarRegrasPainelInterno = function() {
     displayGerais(document.getElementById('resultado-geral'), pedidosGeraisAtuais.reduce((acc, p) => { const rota = p.Cod_Rota; if (!acc[rota]) { acc[rota] = { pedidos: [], totalKg: 0 }; } acc[rota].pedidos.push(p); acc[rota].totalKg += p.Quilos_Saldo; return acc; }, {}));
     handlePostProcessingUI(finalLeftoverGroups, routeOrRoutes, title, divId); // CORREá‡áƒO: Chamada ajustada
 
+    // Exibe as cargas da rota recém-montada automaticamente na tela se não estiver no modo Batch
+    if (!isBatchMode) {
+        exibirCargasDaRota(routesKey);
+    }
 }
 
 function reprocessarRota(routesKey, event) {
@@ -5021,6 +5025,147 @@ function refineLoadsWithSimpleFit(initialLoads, initialLeftovers) {
             i++;
         }
     }
+
+    // 3. Balanceamento inteligente: tenta promover sobras a novas cargas válidas doando peso de cargas com folga
+    const resultPromovido = promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers);
+    return { refinedLoads: resultPromovido.refinedLoads, remainingLeftovers: resultPromovido.remainingLeftovers };
+}
+
+function promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers) {
+    if (remainingLeftovers.length === 0 || refinedLoads.length === 0) {
+        return { refinedLoads, remainingLeftovers };
+    }
+
+    // Agrupa as sobras por rota para processar de forma isolada
+    const rotasSobras = [...new Set(remainingLeftovers.flatMap(g => g.pedidos.map(p => String(p.Cod_Rota))))];
+
+    for (const rota of rotasSobras) {
+        const leftoversDaRota = remainingLeftovers.filter(g => g.pedidos.some(p => String(p.Cod_Rota) === rota));
+        const pesoTotalLeftovers = leftoversDaRota.reduce((sum, g) => sum + g.totalKg, 0);
+
+        // Encontra as cargas válidas criadas para essa rota
+        const cargasDaRota = refinedLoads.filter(load => 
+            load.pedidos.some(p => String(p.Cod_Rota) === rota)
+        );
+
+        if (cargasDaRota.length === 0) continue;
+
+        const vehicleType = cargasDaRota[0].vehicleType;
+        const config = getVehicleConfigSafe(vehicleType);
+        if (!config) continue;
+
+        const deficit = config.minKg - pesoTotalLeftovers;
+
+        if (deficit > 0) {
+            // Busca cargas da rota que possuem peso acima do mínimo configurado (folga)
+            let doadoresPotenciais = cargasDaRota.filter(load => load.totalKg > config.minKg);
+            if (doadoresPotenciais.length === 0) continue;
+
+            for (const doador of doadoresPotenciais) {
+                // Agrupa os pedidos da carga doadora por cliente
+                const clientGroupsInDoador = Object.values(doador.pedidos.reduce((acc, p) => {
+                    const cId = normalizeClientId(p.Cliente);
+                    if (!acc[cId]) acc[cId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) };
+                    acc[cId].pedidos.push(p);
+                    acc[cId].totalKg += p.Quilos_Saldo;
+                    acc[cId].totalCubagem += p.Cubagem;
+                    return acc;
+                }, {}));
+
+                // Ordena por peso crescente para doar em pedaços pequenos
+                clientGroupsInDoador.sort((a, b) => a.totalKg - b.totalKg);
+
+                const folgaDoador = doador.totalKg - config.minKg;
+
+                // Tenta acumular a partir do menor para o maior
+                let gruposParaDoar = [];
+                let pesoDoado = 0;
+                let cubagemDoada = 0;
+
+                for (const grupo of clientGroupsInDoador) {
+                    if (pesoDoado + grupo.totalKg <= folgaDoador) {
+                        gruposParaDoar.push(grupo);
+                        pesoDoado += grupo.totalKg;
+                        cubagemDoada += grupo.totalCubagem;
+                        if (pesoTotalLeftovers + pesoDoado >= config.minKg) break;
+                    }
+                }
+
+                // Se o acumulado não atingiu o déficit, tenta encontrar um único grupo de cliente com peso ideal
+                if (pesoTotalLeftovers + pesoDoado < config.minKg) {
+                    gruposParaDoar = [];
+                    pesoDoado = 0;
+                    cubagemDoada = 0;
+
+                    const grupoIdeal = clientGroupsInDoador.find(g => g.totalKg >= deficit && g.totalKg <= folgaDoador);
+                    if (grupoIdeal) {
+                        gruposParaDoar = [grupoIdeal];
+                        pesoDoado = grupoIdeal.totalKg;
+                        cubagemDoada = grupoIdeal.totalCubagem;
+                    }
+                }
+
+                // Se temos uma doação viável que cobre o déficit e respeita a folga do doador
+                if (pesoTotalLeftovers + pesoDoado >= config.minKg && pesoDoado <= folgaDoador) {
+                    // Instancia a nova carga temporária
+                    let novaCarga = {
+                        pedidos: leftoversDaRota.flatMap(g => g.pedidos),
+                        totalKg: pesoTotalLeftovers,
+                        totalCubagem: leftoversDaRota.reduce((sum, g) => sum + g.totalCubagem, 0),
+                        vehicleType: vehicleType,
+                        usedHardLimit: false
+                    };
+
+                    // Valida a inserção de cada grupo doado na nova carga usando isMoveValid
+                    let doacaoValida = true;
+                    for (const grupo of gruposParaDoar) {
+                        if (!isMoveValid(novaCarga, grupo, vehicleType)) {
+                            doacaoValida = false;
+                            break;
+                        }
+                        novaCarga.pedidos.push(...grupo.pedidos);
+                        novaCarga.totalKg += grupo.totalKg;
+                        novaCarga.totalCubagem += grupo.totalCubagem;
+                    }
+
+                    // Valida que o doador continuará válido após a retirada
+                    const idsDoados = new Set(gruposParaDoar.flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
+                    let doadorAposDoacao = {
+                        pedidos: doador.pedidos.filter(p => !idsDoados.has(p.Num_Pedido)),
+                        totalKg: doador.totalKg - pesoDoado,
+                        totalCubagem: doador.totalCubagem - cubagemDoada,
+                        vehicleType: doador.vehicleType,
+                        usedHardLimit: false
+                    };
+
+                    if (doacaoValida && doadorAposDoacao.pedidos.length > 0 && doadorAposDoacao.totalKg >= config.minKg) {
+                        // Efetiva a transferência de verdade
+                        console.log(`[Otimizador APEX] Promoção de carga na rota ${rota}: Movidos ${pesoDoado.toFixed(2)}kg da carga ${doador.numero || 'existente'} para criar nova carga com sobras.`);
+                        
+                        // Atualiza a carga doadora
+                        doador.pedidos = doadorAposDoacao.pedidos;
+                        doador.totalKg = doadorAposDoacao.totalKg;
+                        doador.totalCubagem = doadorAposDoacao.totalCubagem;
+                        doador.usedHardLimit = (doador.totalKg > config.softMaxKg || doador.totalCubagem > config.softMaxCubage);
+
+                        // Cria a nova carga de fato
+                        novaCarga.usedHardLimit = (novaCarga.totalKg > config.softMaxKg || novaCarga.totalCubagem > config.softMaxCubage);
+                        refinedLoads.push(novaCarga);
+
+                        // Remove os pedidos promovidos do array de sobras remanescentes
+                        const idsSobrasRemovidas = new Set(leftoversDaRota.flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
+                        remainingLeftovers = remainingLeftovers.filter(g => 
+                            !g.pedidos.some(p => idsSobrasRemovidas.has(p.Num_Pedido))
+                        );
+
+                        // Rota balanceada com sucesso, para de procurar doadores
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     return { refinedLoads, remainingLeftovers };
 }
 
@@ -5356,39 +5501,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
             </div>`;
     }
 
-    // Gerar dinamicamente a exibição de frete com base no estado atual da carga
-    let freightClass = "metric-value freight-value-pending";
-    let freightStyle = "cursor: pointer;";
-    let freightHtml = "";
-    const LIMITE_KM_RODADO = 500;
 
-    if (load.distanceKm) {
-        const distKm = parseFloat(load.distanceKm);
-        const freightValue = typeof calculateFreightValue === 'function' ? calculateFreightValue(vehicleType, distKm) : 0;
-
-        if (distKm > LIMITE_KM_RODADO) {
-            // Acima de 500 km: pago por KM rodado — exibe só a distância
-            freightHtml = `<i class="bi bi-signpost-2 me-1.5"></i><span class="ms-1" style="font-size: 0.95em; font-weight: 700;">${distKm} km</span> <span style="font-size: 0.75em; opacity: 0.75;">(Rodado — definir valor)</span>`;
-            freightClass = "load-meta-item badge bg-warning text-dark border border-warning fw-bold ms-2";
-            freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
-        } else if (freightValue > 0) {
-            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>R$ ${freightValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${distKm} km)</span>`;
-            freightClass = "load-meta-item badge bg-success text-white border border-success fw-bold ms-2";
-            freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
-        } else {
-            freightHtml = `<i class="bi bi-cash-stack me-1.5"></i>A Definir <span class="ms-1.5" style="font-size: 0.8em; opacity: 0.9; font-weight: 500; cursor: pointer; text-decoration: underline;" onclick="event.stopPropagation(); promptManualKm('${load.id}')" title="Clique para editar o KM manualmente">(${distKm} km)</span>`;
-            freightClass = "load-meta-item badge bg-secondary text-white border border-secondary fw-bold ms-2";
-            freightStyle = "font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important; cursor: pointer;";
-        }
-    } else if (load.isCalculatingFreight) {
-        freightHtml = `<i class="spinner-border spinner-border-sm me-1.5" role="status"></i>Calculando KM...`;
-        freightClass = "load-meta-item badge bg-info text-white border border-info fw-normal ms-2";
-        freightStyle = "font-size: 1.0rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer;";
-    } else {
-        freightHtml = `<i class="bi bi-calculator me-1.5"></i>Calc. KM p/ Frete`;
-        freightClass = "load-meta-item badge bg-dark text-muted border border-secondary fw-normal ms-2";
-        freightStyle = "font-size: 0.95rem !important; padding: 6px 12px !important; border-radius: 6px !important; cursor: pointer; transition: all 0.2s;";
-    }
 
     const hasManyOrders = totalDeliveries > 16;
     const manyOrdersClass = hasManyOrders ? 'has-many-orders' : '';
@@ -5496,19 +5609,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                         <span class="metric-value">${totalCubagemFormatado} <small>m³</small></span>
                     </div>
                     <div class="metric-item" id="freight-container-${load.id}">
-                        <span class="metric-label">${(load.distanceKm && parseFloat(load.distanceKm) > 500) ? 'Frete (Rodado)' : 'Frete Dentro da Tabela'}</span>
-                        ${(load.distanceKm && parseFloat(load.distanceKm) > 500) ? `
-                            <span class="load-meta-item badge bg-warning text-dark border border-warning fw-bold ms-2 no-print" style="font-size: 1.05rem !important; padding: 6px 12px !important; border-radius: 6px !important;">
-                                <i class="bi bi-signpost-2 me-1"></i>${parseFloat(load.distanceKm)} km <span style="font-size: 0.75em; opacity: 0.75;">(Rodado)</span>
-                            </span>
-                            <span class="print-only" style="display: none; font-size: 0.95rem; color: #111; font-weight: 600; line-height: 1.6;">
-                                ${parseFloat(load.distanceKm)} km<br>Valor: R$
-                            </span>
-                        ` : `
-                            <span id="freight-${load.id}" class="${freightClass}" onclick="refreshLoadFreight('${load.id}')" style="${freightStyle}" title="Clique para calcular">
-                                ${freightHtml}
-                            </span>
-                        `}
+                        ${typeof generateFreightContainerHtml === 'function' ? generateFreightContainerHtml(load, vehicleType) : ''}
                     </div>
 
                 </div>
@@ -6545,11 +6646,9 @@ async function refreshLoadFreight(loadId) {
 
     try {
         load.isCalculatingFreight = true;
-        // Atualiza UI para mostrar spinner se o elemento existir
-        const el = document.getElementById(`freight-${loadId}`);
-        if (el) {
-            el.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Calculando KM...';
-            el.className = "load-meta-item badge bg-info text-white border border-info fw-normal ms-2";
+        // Atualiza UI para mostrar spinner usando a função centralizada
+        if (typeof updateLoadFreightDisplay === 'function') {
+            updateLoadFreightDisplay(loadId);
         }
 
         const centroSelmi = { lat: -23.3002, lng: -51.3358 };
@@ -8991,6 +9090,17 @@ async function montarCargasPrioritarias() {
     // 4. Atualiza a interface geral para garantir que tudo esteja sincronizado
     renderAllUI();
 
+    // NOVO: Exibe as cargas da última rota montada de forma automática
+    if (rotasOrdenadas.length > 0) {
+        const ultimaRota = rotasOrdenadas[rotasOrdenadas.length - 1];
+        let config = window.rotaVeiculoMap?.[ultimaRota];
+        let routesKey = ultimaRota;
+        if (config && config.combined) {
+            routesKey = [ultimaRota, ...config.combined].sort().join(',');
+        }
+        exibirCargasDaRota(routesKey);
+    }
+
     // 5. Verifica se restou algum prioritário pendente na lista de disponíveis
     const prioritariosRestantes = pedidosGeraisAtuais.filter(p =>
         pedidosPrioritarios.includes(String(p.Num_Pedido)) ||
@@ -9316,6 +9426,17 @@ async function processarAutoMontarSelecionadas(selectedRoutes) {
     // Atualizar UI e LocalStorage
     renderAllUI();
     showToast("Auto Montagem concluída com sucesso para as rotas selecionadas!", "success");
+
+    // NOVO: Exibe as cargas da última rota selecionada e montada de forma automática
+    if (selectedRoutes.length > 0) {
+        const ultimaRota = selectedRoutes[selectedRoutes.length - 1];
+        let config = window.rotaVeiculoMap?.[ultimaRota];
+        let routesKey = ultimaRota;
+        if (config && config.combined) {
+            routesKey = [ultimaRota, ...config.combined].sort().join(',');
+        }
+        exibirCargasDaRota(routesKey);
+    }
 }
 
 /**
@@ -9366,6 +9487,17 @@ async function montarTodasAsRotas() {
 
     renderAllUI();
     showToast("Montagem automá¡tica de todas as rotas concluá­da!", "success");
+
+    // NOVO: Exibe as cargas da última rota montada de forma automática
+    if (rotasOrdenadas.length > 0) {
+        const ultimaRota = rotasOrdenadas[rotasOrdenadas.length - 1];
+        let config = window.rotaVeiculoMap?.[ultimaRota];
+        let routesKey = ultimaRota;
+        if (config && config.combined) {
+            routesKey = [ultimaRota, ...config.combined].sort().join(',');
+        }
+        exibirCargasDaRota(routesKey);
+    }
 }
 
 async function processarRoteirizacaoLista() {
