@@ -325,7 +325,7 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
                 isValid = load.totalKg >= config.minKg;
             }
         } else {
-            isValid = load.totalKg >= config.minKg || containsOldestOrder;
+            isValid = load.totalKg >= config.minKg;
         }
 
         if (load.pedidos.length > 0 && isValid) {
@@ -678,7 +678,7 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
                     isValid = load.totalKg >= config.minKg;
                 }
             } else {
-                isValid = load.totalKg >= config.minKg || containsOldestOrder;
+                isValid = load.totalKg >= config.minKg;
             }
 
             if (load.pedidos.length > 0 && isValid) {

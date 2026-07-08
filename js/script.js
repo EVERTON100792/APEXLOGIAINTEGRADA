@@ -3995,8 +3995,8 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType) {
             return !isNaN(pDate.getTime()) && pDate.getTime() === oldestItemTimestamp;
         });
 
-        // A carga é válida se atingir o peso mínimo OU se contiver um pedido do dia mais antigo.
-        if (load.pedidos.length > 0 && (load.totalKg >= config.minKg || containsOldestOrder)) {
+        // A carga é válida se atingir o peso mínimo.
+        if (load.pedidos.length > 0 && load.totalKg >= config.minKg) {
             finalLoads.push(load);
         } else if (load.pedidos.length > 0) {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
@@ -4405,6 +4405,111 @@ window.reaplicarRegrasPainelInterno = function() {
         else group.density = Infinity;
     });
 
+    // PREPROCESSAMENTO: Trata upgrades de veículos quando algum grupo excede a capacidade do veículo padrão da rota
+    const upgradeLoads = [];
+    const vehicleTypesOrder = ['fiorino', 'van', 'tresQuartos', 'toco'];
+    const defaultVehicleIndex = vehicleTypesOrder.indexOf(vehicleType);
+
+    if (defaultVehicleIndex !== -1) {
+        const defaultCfg = getVehicleConfigSafe(vehicleType);
+        const skippedUpgradeIndices = new Set();
+        
+        let changed = true;
+        while (changed) {
+            changed = false;
+            
+            // Encontra o primeiro grupo que excede o limite do veículo padrão e que ainda não tentamos
+            let upgradeGroupIndex = -1;
+            for (let i = 0; i < packableGroups.length; i++) {
+                if (skippedUpgradeIndices.has(i)) continue;
+                const g = packableGroups[i];
+                if (g.totalKg > defaultCfg.hardMaxKg || g.totalCubagem > defaultCfg.hardMaxCubage) {
+                    upgradeGroupIndex = i;
+                    break;
+                }
+            }
+            
+            if (upgradeGroupIndex !== -1) {
+                const groupToUpgrade = packableGroups[upgradeGroupIndex];
+                
+                // Determina o tipo de veículo necessário
+                let requiredType = null;
+                for (const type of vehicleTypesOrder) {
+                    const cfg = getVehicleConfigSafe(type);
+                    if (groupToUpgrade.totalKg <= cfg.hardMaxKg && groupToUpgrade.totalCubagem <= cfg.hardMaxCubage) {
+                        requiredType = type;
+                        break;
+                    }
+                }
+                
+                // Se o veículo necessário for maior que o padrão
+                if (requiredType && vehicleTypesOrder.indexOf(requiredType) > defaultVehicleIndex) {
+                    const reqCfg = getVehicleConfigSafe(requiredType);
+                    
+                    // Inicializa a carga de upgrade
+                    let upgradeLoad = {
+                        pedidos: [...groupToUpgrade.pedidos],
+                        totalKg: groupToUpgrade.totalKg,
+                        totalCubagem: groupToUpgrade.totalCubagem,
+                        vehicleType: requiredType,
+                        isSpecial: groupToUpgrade.isSpecial,
+                        usedHardLimit: (groupToUpgrade.totalKg > reqCfg.softMaxKg || groupToUpgrade.totalCubagem > reqCfg.softMaxCubage)
+                    };
+                    
+                    // Remove temporariamente o grupo de upgrade de packableGroups
+                    let tempRemainingGroups = packableGroups.filter((_, idx) => idx !== upgradeGroupIndex);
+                    
+                    // Se não atingiu o peso mínimo do novo veículo, tenta agrupar com outros grupos >= 1000kg
+                    if (upgradeLoad.totalKg < reqCfg.minKg) {
+                        let candidates = tempRemainingGroups.filter(g => g.totalKg >= 1000);
+                        candidates.sort((a, b) => b.totalKg - a.totalKg);
+                        
+                        const addedGroupIndices = [];
+                        
+                        for (let i = 0; i < candidates.length; i++) {
+                            const candidate = candidates[i];
+                            if (isMoveValid(upgradeLoad, candidate, requiredType)) {
+                                upgradeLoad.pedidos.push(...candidate.pedidos);
+                                upgradeLoad.totalKg += candidate.totalKg;
+                                upgradeLoad.totalCubagem += candidate.totalCubagem;
+                                upgradeLoad.usedHardLimit = (upgradeLoad.totalKg > reqCfg.softMaxKg || upgradeLoad.totalCubagem > reqCfg.softMaxCubage);
+                                
+                                const idxInTemp = tempRemainingGroups.indexOf(candidate);
+                                if (idxInTemp !== -1) {
+                                    addedGroupIndices.push(idxInTemp);
+                                }
+                                
+                                if (upgradeLoad.totalKg >= reqCfg.minKg) {
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (upgradeLoad.totalKg >= reqCfg.minKg) {
+                            upgradeLoads.push(upgradeLoad);
+                            // Atualiza packableGroups removendo os grupos adicionados
+                            packableGroups = tempRemainingGroups.filter((_, idx) => !addedGroupIndices.includes(idx));
+                            skippedUpgradeIndices.clear(); // Limpa pois os índices mudaram
+                            changed = true;
+                        } else {
+                            console.log(`Grupo de ${groupToUpgrade.totalKg}kg precisava de upgrade para ${requiredType}, mas não atingiu o mínimo de ${reqCfg.minKg}kg. Ficou como sobra.`);
+                            skippedUpgradeIndices.add(upgradeGroupIndex);
+                            changed = true; // Continua procurando outros, mas ignora este
+                        }
+                    } else {
+                        upgradeLoads.push(upgradeLoad);
+                        packableGroups = tempRemainingGroups;
+                        skippedUpgradeIndices.clear(); // Limpa pois os índices mudaram
+                        changed = true;
+                    }
+                } else {
+                    skippedUpgradeIndices.add(upgradeGroupIndex);
+                    changed = true;
+                }
+            }
+        }
+    }
+
     const optimizationLevel = document.getElementById('optimizationLevelSelect').value;
     let optimizationResult;
 
@@ -4501,7 +4606,7 @@ window.reaplicarRegrasPainelInterno = function() {
     // ========================================================================
     // INÍCIO DA NOVA LÓGICA DE CASCATA (Fiorino -> Van -> 3/4 -> Toco)
     // ========================================================================
-    let primaryLoads = initialRefinedLoads.map(l => ({ ...l, vehicleType: l.vehicleType || vehicleType }));
+    let primaryLoads = [...initialRefinedLoads.map(l => ({ ...l, vehicleType: l.vehicleType || vehicleType })), ...upgradeLoads];
     let leftoverGroups = initialLeftovers;
     let secondaryLoads = [];
     let tertiaryLoads = [];
@@ -4537,7 +4642,7 @@ window.reaplicarRegrasPainelInterno = function() {
         leftoverGroups.push(...tocoResultForExcluded.leftovers);
     }
 
-    primaryLoads.forEach(l => l.vehicleType = vehicleType);
+
 
     switch (vehicleType) {
         case 'fiorino':
