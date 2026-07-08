@@ -3697,30 +3697,30 @@ function imprimirCargasGeneric(divId, title) {
     const containerDiv = document.getElementById(divId);
     if (!containerDiv) return;
 
-    // CORREá‡áƒO: Busca todos os cards de carga dentro do container geral da aba (ex: 'resultado-fiorino-geral'),
+    // CORREÇÃO: Busca todos os cards de carga dentro do container geral da aba (ex: 'resultado-fiorino-geral'),
     // incluindo tanto os gerados pelo sistema quanto os manuais.
     const cardsParaImprimir = containerDiv.querySelectorAll('div[data-load-id]');
 
-    if (cardsParaImprimir.length === 0) { alert(`Nenhuma carga montada para imprimir na seá§á£o "${title}".`); return; }
+    if (cardsParaImprimir.length === 0) { alert(`Nenhuma carga montada para imprimir na seção "${title}".`); return; }
 
     const containerClone = document.createElement('div');
 
-    let finalTitle = title; // Comeá§a com o tá­tulo padrá£o
+    let finalTitle = title; // Começa com o título padrão
 
-    // Lá“GICA APRIMORADA: Verifica se QUALQUER carga a ser impressa contá©m rotas de SP, independentemente da aba.
+    // LÓGICA APRIMORADA: Verifica se QUALQUER carga a ser impressa contém rotas de SP, independentemente da aba.
     let isSaoPauloRoute = false;
     const spRoutes = new Set(['2555', '2560', '2561', '2571', '2575', '2705', '2735', '2745']);
     for (const card of cardsParaImprimir) {
         const loadId = card.dataset.loadId;
         if (activeLoads[loadId] && activeLoads[loadId].pedidos.some(p => spRoutes.has(String(p.Cod_Rota)))) {
             isSaoPauloRoute = true;
-            break; // Encontrou uma, já¡ pode parar
+            break; // Encontrou uma, já pode parar
         }
     }
 
-    // Se for uma rota de SP, altera o tá­tulo para refletir isso.
+    // Se for uma rota de SP, altera o título para refletir isso.
     if (isSaoPauloRoute) {
-        finalTitle = `${title} (Sá£o Paulo)`;
+        finalTitle = `${title} (São Paulo)`;
     }
 
     cardsParaImprimir.forEach(originalCard => {
@@ -3731,14 +3731,18 @@ function imprimirCargasGeneric(divId, title) {
         if (clonePrintDiv) {
             const printParagraph = clonePrintDiv.querySelector('p');
             if (printParagraph && observationText) {
-                printParagraph.innerHTML = `<strong>Observaá§áµes:</strong><br>${observationText.replace(/\n/g, '<br>')}`;
+                printParagraph.innerHTML = `<strong>Observações:</strong><br>${observationText.replace(/\n/g, '<br>')}`;
                 clonePrintDiv.style.display = 'block';
             }
         }
         containerClone.appendChild(cardClone);
     });
 
-    createPrintWindow(finalTitle, `<h3>${finalTitle}</h3>` + containerClone.innerHTML);
+    // Remove sufixo (Varejo) do título da aba/documento
+    const cleanTitle = finalTitle.replace(/\s*\(Varejo\)/gi, '');
+    
+    // O usuário solicitou a remoção completa do título principal <h3> do corpo da página impressa para evitar redundância com o cabeçalho dos cards.
+    createPrintWindow(cleanTitle, containerClone.innerHTML);
 }
 
 function imprimirTocoIndividual(cf) {
