@@ -4229,7 +4229,7 @@ function safeDateCompare(aOldest, bOldest) {
     return timeA - timeB;
 }
 
-async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, buttonElement, isBatchMode = false) {
+async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, buttonElement, isBatchMode = false, onlyPriority = false) {
     // NOVO: Remove mensagens de sucesso de rotas anteriores para manter a interface limpa.
     if (!isBatchMode) {
         document.querySelectorAll('.route-success-message').forEach(el => el.remove());
@@ -4634,7 +4634,14 @@ window.reaplicarRegrasPainelInterno = function() {
             isValid = load.totalKg >= config.minKg;
         }
 
-        if (load.pedidos.length > 0 && isValid) {
+        let isFinalValid = false;
+        if (onlyPriority) {
+            isFinalValid = isValid && containsPriority;
+        } else {
+            isFinalValid = isValid;
+        }
+
+        if (load.pedidos.length > 0 && isFinalValid) {
             finalValidLoads.push(load);
         } else {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
@@ -9363,18 +9370,36 @@ function iniciarAutoMontagemSelecionadas() {
     }
 
     const selectedRoutes = Array.from(checkedBoxes).map(chk => chk.value);
-    processarAutoMontarSelecionadas(selectedRoutes);
+    
+    // Salva temporariamente as rotas selecionadas
+    window.tempSelectedRoutes = selectedRoutes;
+
+    // Fecha o modal de auto montar
+    const autoMontarModalEl = document.getElementById('autoMontarModal');
+    const autoMontarModal = bootstrap.Modal.getInstance(autoMontarModalEl);
+    if (autoMontarModal) autoMontarModal.hide();
+
+    // Abre o modal de confirmação de prioridades
+    const confirmarPrioridadeModalEl = document.getElementById('modalConfirmarPrioridade');
+    const confirmarPrioridadeModal = bootstrap.Modal.getOrCreateInstance(confirmarPrioridadeModalEl);
+    confirmarPrioridadeModal.show();
+}
+
+/**
+ * Executa a auto montagem normal caso o usuário não queira priorizar nada
+ */
+function processarSemPriorizar() {
+    const confirmarPrioridadeModalEl = document.getElementById('modalConfirmarPrioridade');
+    const confirmarPrioridadeModal = bootstrap.Modal.getInstance(confirmarPrioridadeModalEl);
+    if (confirmarPrioridadeModal) confirmarPrioridadeModal.hide();
+
+    processarAutoMontarSelecionadas(window.tempSelectedRoutes, false);
 }
 
 /**
  * Processa a montagem sequencial em lote das rotas selecionadas
  */
-async function processarAutoMontarSelecionadas(selectedRoutes) {
-    // 1. Fechar o modal de auto montar
-    const autoMontarModalEl = document.getElementById('autoMontarModal');
-    const autoMontarModal = bootstrap.Modal.getInstance(autoMontarModalEl);
-    if (autoMontarModal) autoMontarModal.hide();
-
+async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = false) {
     // 2. Mostrar o modal global de processamento/carregamento
     const modalElement = document.getElementById('processing-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
@@ -9443,7 +9468,7 @@ async function processarAutoMontarSelecionadas(selectedRoutes) {
         const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
 
         // Chama a função nativa de separação de cargas com as mesmas regras
-        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, config.type, null, true);
+        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, config.type, null, true, onlyPriority);
         
         // Delay para animação visual e respiro do Web Worker
         await new Promise(r => setTimeout(r, 400));
@@ -9456,7 +9481,18 @@ async function processarAutoMontarSelecionadas(selectedRoutes) {
 
     // Atualizar UI e LocalStorage
     renderAllUI();
-    showToast("Auto Montagem concluída com sucesso para as rotas selecionadas!", "success");
+
+    // NOVO: Verifica se restou algum prioritário pendente na lista de disponíveis que pertencia às rotas selecionadas
+    const prioritariosRestantes = pedidosGeraisAtuais.filter(p =>
+        selectedRoutes.includes(String(p.Cod_Rota)) &&
+        (pedidosPrioritarios.includes(String(p.Num_Pedido)) || pedidosRecall.includes(String(p.Num_Pedido)))
+    );
+
+    if (prioritariosRestantes.length > 0) {
+        showToast(`Auto Montagem concluída! Atenção: ${prioritariosRestantes.length} pedido(s) prioritário(s) selecionado(s) não pôde(ram) ser montado(s) e está(ão) em destaque vermelho nos disponíveis.`, "warning");
+    } else {
+        showToast("Auto Montagem concluída com sucesso para as rotas selecionadas!", "success");
+    }
 
     // NOVO: Exibe as cargas da última rota selecionada e montada de forma automática
     if (selectedRoutes.length > 0) {
@@ -13206,4 +13242,324 @@ function montarTruckCarga(opcao, pesoDesejado, rota) {
     renderAllUI();
     
     showToast(`Carga Truck ${newLoad.numero} montada para a Rota ${rota} com ${newLoad.pedidos.length} pedidos (${totalKg.toLocaleString('pt-BR')} kg)!`, "success");
+}
+
+/**
+ * Abre o modal de seleção de prioridades filtrando e ordenando os pedidos
+ */
+function abrirModalSelecaoPrioridades() {
+    // 1. Fechar o modal de confirmação
+    const confirmarPrioridadeModalEl = document.getElementById('modalConfirmarPrioridade');
+    const confirmarPrioridadeModal = bootstrap.Modal.getInstance(confirmarPrioridadeModalEl);
+    if (confirmarPrioridadeModal) confirmarPrioridadeModal.hide();
+
+    // 2. Filtrar os pedidos de Varejo disponíveis nas rotas selecionadas
+    // Todos os pedidos em pedidosGeraisAtuais já são de Varejo.
+    const rotasSelecionadas = window.tempSelectedRoutes || [];
+    const pedidosFiltrados = pedidosGeraisAtuais.filter(p => {
+        return rotasSelecionadas.includes(String(p.Cod_Rota));
+    });
+
+    // 3. Ordenar os pedidos por data Predat (mais antiga para mais nova)
+    pedidosFiltrados.sort((a, b) => {
+        const getPredatObj = (p) => {
+            let pDate = p.Predat;
+            if (!pDate || (pDate instanceof Date && isNaN(pDate.getTime()))) {
+                pDate = p.Dat_Ped;
+            }
+            if (pDate) {
+                if (pDate instanceof Date) return pDate;
+                const parsedBr = parseDateBR(pDate);
+                if (parsedBr && !isNaN(parsedBr.getTime())) return parsedBr;
+                return new Date(pDate);
+            }
+            return new Date(0); // Fallback
+        };
+        const dateA = getPredatObj(a);
+        const dateB = getPredatObj(b);
+        return dateA - dateB; // Ordem crescente (mais antiga primeiro)
+    });
+
+    // 4. Salvar em memória para busca/filtro
+    window.pedidosPriorizarDisponiveisLote = pedidosFiltrados;
+
+    // 5. Renderizar na tabela
+    renderizarTabelaPrioridadesLote(pedidosFiltrados);
+
+    // Limpar o campo de busca
+    const buscaInput = document.getElementById('busca-pedidos-priorizar');
+    if (buscaInput) buscaInput.value = '';
+
+    // Desmarcar o checkbox principal
+    const checkAll = document.getElementById('check-all-priorizar');
+    if (checkAll) checkAll.checked = false;
+
+    // Resetar rádio de opção de regra para Montar Somente os Prioritários
+    const regraApenasPrioritarios = document.getElementById('regraApenasPrioritarios');
+    if (regraApenasPrioritarios) regraApenasPrioritarios.checked = true;
+
+    // Configurar eventos de Shift-Click e clique em linha na tabela
+    configurarShiftClickTabela();
+
+    // 6. Abrir o modal de priorização
+    const modalSelecaoEl = document.getElementById('modalPriorizacaoAutomontar');
+    const modalSelecao = bootstrap.Modal.getOrCreateInstance(modalSelecaoEl);
+    modalSelecao.show();
+}
+
+/**
+ * Renderiza os pedidos no corpo da tabela do modal e atualiza o painel de resumo
+ */
+function renderizarTabelaPrioridadesLote(pedidos) {
+    const tbody = document.getElementById('lista-pedidos-priorizar');
+    if (!tbody) return;
+
+    if (pedidos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted p-4">Nenhum pedido de varejo disponível para as rotas selecionadas.</td></tr>';
+        atualizarResumoSelecaoPrioritarios();
+        return;
+    }
+
+    let html = '';
+    pedidos.forEach(p => {
+        const predataStr = p.Predat ? (p.Predat instanceof Date ? p.Predat.toLocaleDateString('pt-BR') : String(p.Predat)) : '';
+        const datPedStr = p.Dat_Ped ? (p.Dat_Ped instanceof Date ? p.Dat_Ped.toLocaleDateString('pt-BR') : String(p.Dat_Ped)) : '';
+        const pesoStr = (p.Quilos_Saldo || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        
+        // Determina tipo dinamicamente
+        const tipoStr = p.Tipo || (String(p.Cod_Rota || '').startsWith('2') ? 'Varejo São Paulo' : 'Varejo');
+
+        // Verifica se já era prioritário no sistema para vir pré-marcado
+        const isAlreadyPriority = pedidosPrioritarios.includes(String(p.Num_Pedido)) || pedidosRecall.includes(String(p.Num_Pedido));
+        const checked = isAlreadyPriority ? 'checked' : '';
+
+        html += `
+            <tr data-pedido-num="${p.Num_Pedido}">
+                <td class="text-center">
+                    <input class="form-check-input check-pedido-priorizar" type="checkbox" value="${p.Num_Pedido}" ${checked} onchange="atualizarResumoSelecaoPrioritarios()">
+                </td>
+                <td>${predataStr}</td>
+                <td>${datPedStr}</td>
+                <td><span class="badge bg-secondary">${p.Cod_Rota}</span></td>
+                <td>${p.Cliente}</td>
+                <td class="text-start text-truncate" style="max-width: 250px;" title="${p.Nome_Cliente || ''}">${p.Nome_Cliente || ''}</td>
+                <td class="font-monospace fw-bold">${p.Num_Pedido}</td>
+                <td><span class="badge bg-dark bg-opacity-50 text-light">${tipoStr}</span></td>
+                <td>${pesoStr}</td>
+                <td class="text-start text-truncate" style="max-width: 150px;" title="${p.Cidade || ''}">${p.Cidade || ''}</td>
+                <td>${p.UF || ''}</td>
+            </tr>
+        `;
+    });
+
+    tbody.innerHTML = html;
+    
+    // Atualiza os contadores
+    atualizarResumoSelecaoPrioritarios();
+}
+
+/**
+ * Atualiza o painel de resumo de pedidos e pesos selecionados
+ */
+function atualizarResumoSelecaoPrioritarios() {
+    const checkboxes = document.querySelectorAll('#lista-pedidos-priorizar .check-pedido-priorizar');
+    let totalPedidos = 0;
+    let totalPeso = 0;
+    let selPedidos = 0;
+    let selPeso = 0;
+
+    checkboxes.forEach(cb => {
+        const numPedido = cb.value;
+        const pedidoObj = (window.pedidosPriorizarDisponiveisLote || []).find(p => String(p.Num_Pedido) === String(numPedido));
+        if (pedidoObj) {
+            const peso = pedidoObj.Quilos_Saldo || 0;
+            totalPedidos++;
+            totalPeso += peso;
+            if (cb.checked) {
+                selPedidos++;
+                selPeso += peso;
+            }
+        }
+    });
+
+    const elTotalPedidos = document.getElementById('prio-total-pedidos');
+    const elTotalPeso = document.getElementById('prio-total-peso');
+    const elSelPedidos = document.getElementById('prio-sel-pedidos');
+    const elSelPeso = document.getElementById('prio-sel-peso');
+
+    if (elTotalPedidos) elTotalPedidos.textContent = totalPedidos;
+    if (elTotalPeso) elTotalPeso.textContent = totalPeso.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (elSelPedidos) elSelPedidos.textContent = selPedidos;
+    if (elSelPeso) elSelPeso.textContent = selPeso.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * Filtra os pedidos da tabela em tempo real com base no termo digitado
+ */
+function filtrarPedidosPriorizar() {
+    const term = document.getElementById('busca-pedidos-priorizar').value.toLowerCase().trim();
+    const pedidos = window.pedidosPriorizarDisponiveisLote || [];
+
+    if (!term) {
+        renderizarTabelaPrioridadesLote(pedidos);
+        return;
+    }
+
+    const filtered = pedidos.filter(p => {
+        return String(p.Num_Pedido).toLowerCase().includes(term) ||
+               String(p.Nome_Cliente || '').toLowerCase().includes(term) ||
+               String(p.Cliente || '').toLowerCase().includes(term) ||
+               String(p.Cidade || '').toLowerCase().includes(term) ||
+               String(p.Cod_Rota || '').toLowerCase().includes(term);
+    });
+
+    renderizarTabelaPrioridadesLote(filtered);
+}
+
+/**
+ * Marca/desmarca todos os checkboxes de pedidos filtrados
+ */
+function toggleSelectAllPrioritarios(mainCheckbox) {
+    const checkboxes = document.querySelectorAll('#lista-pedidos-priorizar .check-pedido-priorizar');
+    checkboxes.forEach(cb => {
+        if (cb.offsetParent !== null) { // Apenas se visível
+            cb.checked = mainCheckbox.checked;
+        }
+    });
+    atualizarResumoSelecaoPrioritarios();
+}
+
+/**
+ * Volta do modal de seleção para o modal de confirmação
+ */
+function voltarParaConfirmacaoPrioridade() {
+    const modalSelecaoEl = document.getElementById('modalPriorizacaoAutomontar');
+    const modalSelecao = bootstrap.Modal.getInstance(modalSelecaoEl);
+    if (modalSelecao) modalSelecao.hide();
+
+    const confirmarPrioridadeModalEl = document.getElementById('modalConfirmarPrioridade');
+    const confirmarPrioridadeModal = bootstrap.Modal.getOrCreateInstance(confirmarPrioridadeModalEl);
+    confirmarPrioridadeModal.show();
+}
+
+/**
+ * Adiciona os pedidos selecionados à lista de prioridade e inicia a auto-montagem
+ */
+function confirmarPrioridadesEIniciar() {
+    const checkboxes = document.querySelectorAll('#lista-pedidos-priorizar .check-pedido-priorizar:checked');
+    const selectedOrders = Array.from(checkboxes).map(cb => cb.value);
+
+    // 1. Atualizar a lista global pedidosPrioritarios com os selecionados nesta tela
+    selectedOrders.forEach(num => {
+        if (!pedidosPrioritarios.includes(num)) {
+            pedidosPrioritarios.push(num);
+        }
+    });
+
+    // 2. Salvar o estado global para persistência
+    saveStateToLocalStorage();
+
+    // 3. Identificar a regra selecionada (apenas prioritários ou completar)
+    const radioApenasPrioritarios = document.getElementById('regraApenasPrioritarios');
+    const onlyPriority = radioApenasPrioritarios ? radioApenasPrioritarios.checked : false;
+
+    // 4. Fechar o modal de priorização
+    const modalSelecaoEl = document.getElementById('modalPriorizacaoAutomontar');
+    const modalSelecao = bootstrap.Modal.getInstance(modalSelecaoEl);
+    if (modalSelecao) modalSelecao.hide();
+
+    // Novo filtro: se onlyPriority for true, filtra as rotas selecionadas para processar
+    // apenas as que possuem pedidos marcados como prioridade nesta execução
+    let rotasFiltradas = window.tempSelectedRoutes || [];
+    if (onlyPriority) {
+        const rotasDosPedidosMarcados = new Set();
+        selectedOrders.forEach(num => {
+            const pedido = (window.pedidosPriorizarDisponiveisLote || []).find(p => String(p.Num_Pedido) === String(num));
+            if (pedido && pedido.Cod_Rota) {
+                rotasDosPedidosMarcados.add(String(pedido.Cod_Rota));
+            }
+        });
+        
+        rotasFiltradas = rotasFiltradas.filter(r => rotasDosPedidosMarcados.has(String(r)));
+        
+        if (rotasFiltradas.length === 0) {
+            showToast("Nenhum pedido prioritário selecionado. Nenhuma rota será montada.", "warning");
+            return;
+        }
+    }
+
+    // 5. Iniciar o processamento das rotas filtradas em lote
+    processarAutoMontarSelecionadas(rotasFiltradas, onlyPriority);
+}
+
+/**
+ * Configura os ouvintes de evento para Shift-Click e clique na linha (row toggle) na tabela de prioridades
+ */
+let lastCheckedCheckbox = null;
+function configurarShiftClickTabela() {
+    const tbody = document.getElementById('lista-pedidos-priorizar');
+    if (!tbody) return;
+
+    // Remove listener antigo se houver para evitar duplicados
+    tbody.removeEventListener('click', handleTbodyClickForShift);
+    tbody.addEventListener('click', handleTbodyClickForShift);
+    
+    // Reseta o estado do último selecionado
+    lastCheckedCheckbox = null;
+}
+
+/**
+ * Manipula o clique no corpo da tabela para suportar Shift-Click de range e clique para alternar seleção da linha
+ */
+function handleTbodyClickForShift(e) {
+    const target = e.target;
+    
+    // Identifica se clicou em um checkbox ou elemento interativo
+    const row = target.closest('tr');
+    if (!row) return;
+    
+    const checkbox = row.querySelector('.check-pedido-priorizar');
+    if (!checkbox) return;
+
+    // Se o clique foi diretamente no checkbox
+    if (target.classList.contains('check-pedido-priorizar')) {
+        const checkboxes = Array.from(document.querySelectorAll('#lista-pedidos-priorizar .check-pedido-priorizar'));
+        
+        if (e.shiftKey && lastCheckedCheckbox) {
+            let start = checkboxes.indexOf(checkbox);
+            let end = checkboxes.indexOf(lastCheckedCheckbox);
+            
+            const rangeStart = Math.min(start, end);
+            const rangeEnd = Math.max(start, end);
+            
+            for (let i = rangeStart; i <= rangeEnd; i++) {
+                checkboxes[i].checked = checkbox.checked;
+            }
+        }
+        lastCheckedCheckbox = checkbox;
+        atualizarResumoSelecaoPrioritarios();
+        return;
+    }
+
+    // Se clicou na linha (célula td), alterna a caixinha do checkbox e roda lógica de Shift-Click
+    if (target.tagName === 'TD' || target.closest('td')) {
+        // Ignora se clicou em outra entrada que não seja a célula em si (por exemplo, cliques com foco)
+        checkbox.checked = !checkbox.checked;
+        
+        const checkboxes = Array.from(document.querySelectorAll('#lista-pedidos-priorizar .check-pedido-priorizar'));
+        
+        if (e.shiftKey && lastCheckedCheckbox) {
+            let start = checkboxes.indexOf(checkbox);
+            let end = checkboxes.indexOf(lastCheckedCheckbox);
+            
+            const rangeStart = Math.min(start, end);
+            const rangeEnd = Math.max(start, end);
+            
+            for (let i = rangeStart; i <= rangeEnd; i++) {
+                checkboxes[i].checked = checkbox.checked;
+            }
+        }
+        lastCheckedCheckbox = checkbox;
+        atualizarResumoSelecaoPrioritarios();
+    }
 }
