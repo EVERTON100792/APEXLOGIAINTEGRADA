@@ -2764,6 +2764,8 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
                                      class="${rowClass} order-item-row ${animationClass}"
                                      data-cliente-id="${clienteIdNormalizado}" 
                                      data-pedido-id="${p.Num_Pedido}"
+                                     data-kg="${p.Quilos_Saldo || 0}"
+                                     data-cubagem="${p.Cubagem || 0}"
                                      onclick="highlightClientRows(event); selectOrder(this, '${p.Num_Pedido}')"
                                      draggable="${isDraggable}"
                                      ondragstart="dragStart(event, '${p.Num_Pedido}', '${clienteIdNormalizado}', '${sourceId}')"
@@ -2961,7 +2963,7 @@ function displayGerais(div, grupos) {
         }
         bodyHtml += createTable(grupo.pedidos, null, 'geral');
 
-        accordionHtml += `<div class="accordion-item" ${itemStyle}><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" ${buttonStyle} type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; ${badgePrioritario} <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span></button></h2>
+        accordionHtml += `<div class="accordion-item" ${itemStyle}><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" ${buttonStyle} type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; ${badgePrioritario} <span class="badge bg-secondary ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span><span class="badge bg-warning text-dark ms-2 selected-metrics-badge" id="selected-badge-${collapseId}" style="display: none; font-size: 0.8rem; padding: 3px 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.15);"></span></button></h2>
                                   <div id="${collapseId}" class="accordion-collapse collapse" data-bs-parent="#accordionGeral">
                                     <div class="accordion-body">${bodyHtml}</div></div></div>`;
     });
@@ -3749,23 +3751,29 @@ function imprimirTocoIndividual(cf) {
     if (!gruposToco[cf]) { showToast(`Nenhuma carga Toco encontrada para o CF: ${cf}`, 'warning'); return; }
     const grupo = gruposToco[cf];
 
-    // VERIFICAá‡áƒO: Impede a impressá£o e montagem se houver qualquer pedido bloqueado no grupo.
+    // VERIFICAÇÃO: Impede a impressão e montagem se houver qualquer pedido bloqueado no grupo.
     const hasBlockedOrder = grupo.pedidos.some(p => isPedidoBloqueado(p));
     if (hasBlockedOrder) {
         showToast(`Não é possível montar a carga Toco (CF: ${cf}) pois ela contém pedidos bloqueados.`, 'danger');
         return;
     }
 
+    const loadId = `toco-${cf}`;
+    const activeLoad = activeLoads[loadId] || {};
+
     const vInfo = { name: 'Toco', icon: 'bi-truck-flatbed' };
     const loadFake = {
-        id: `toco-${cf}`,
+        id: loadId,
         numero: `CF: ${cf}`,
         shortId: cf,
         totalKg: grupo.totalKg,
         totalCubagem: grupo.totalCubagem,
         pedidos: grupo.pedidos,
         collapsed: false,
-        observation: ""
+        observation: activeLoad.observation || "",
+        distanceKm: activeLoad.distanceKm,
+        freightValue: activeLoad.freightValue,
+        isCalculatingFreight: activeLoad.isCalculatingFreight
     };
     
     if (typeof renderLoadCard === 'function') {
@@ -7179,7 +7187,7 @@ function displayToco(div, grupos) {
         const loadId = `toco-${cf}`;
         grupo.id = loadId;
         grupo.vehicleType = 'toco';
-        grupo.numero = cf; // Garante que o náºmero seja o CF para exibiá§á£o correta
+        grupo.numero = cf; // Garante que o número seja o CF para exibição correta
         activeLoads[loadId] = grupo;
 
         const pedidos = grupo.pedidos;
@@ -7201,8 +7209,8 @@ function displayToco(div, grupos) {
         const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const isOverloaded = grupo.totalKg > maxKg;
         const weightBadge = isOverloaded
-            ? `<span class="badge bg-danger ms-2"><i class="bi bi-exclamation-triangle-fill me-1"></i>${totalKgFormatado} kg (ACIMA DO PESO!)</span>`
-            : `<span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span>`;
+            ? `<span class="badge bg-danger ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-exclamation-triangle-fill me-1"></i>${totalKgFormatado} kg (ACIMA DO PESO!)</span>`
+            : `<span class="badge bg-light text-dark ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span>`;
 
         const pesoPercentual = (grupo.totalKg / maxKg) * 100;
         let progressColor = 'bg-success';
@@ -7212,10 +7220,181 @@ function displayToco(div, grupos) {
         const progressBar = `<div class="progress mb-3" role="progressbar" style="height: 10px;"><div class="progress-bar ${progressColor}" style="width: ${Math.min(pesoPercentual, 100)}%"></div></div>`;
         const headerColorClass = isOverloaded ? 'bg-danger' : '';
 
-        accordionHtml += `<div class="accordion-item"><h2 class="accordion-header" id="headingToco${index}"><button class="accordion-button collapsed ${headerColorClass}" type="button" data-bs-toggle="collapse" data-bs-target="#collapseToco${index}"><strong>CF: ${cf}</strong> &nbsp; <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${pedidos.length}</span> ${weightBadge}</button></h2><div id="collapseToco${index}" class="accordion-collapse collapse" data-bs-parent="#accordionTocoMesa"><div class="accordion-body drop-zone-card" id="${loadId}" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)" data-load-id="${loadId}" data-vehicle-type="toco"><button class="btn btn-sm btn-outline-info mb-3 no-print" onclick="imprimirTocoIndividual('${cf}', event)"><i class="bi bi-printer-fill me-1"></i>Imprimir</button>${progressBar}${createTable(pedidos, null, loadId)}</div></div></div>`;
+        const freightHtml = typeof generateFreightContainerHtml === 'function' ? generateFreightContainerHtml(grupo, 'toco') : '';
+
+        const collapseTocoId = `collapseToco${index}`;
+        accordionHtml += `
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingToco${index}">
+                    <button class="accordion-button collapsed ${headerColorClass}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseTocoId}" onclick="onTocoAccordionOpen('${cf}')">
+                        <strong>CF: ${cf}</strong> &nbsp; 
+                        <span class="badge bg-secondary ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-box me-1"></i>${pedidos.length}</span> 
+                        ${weightBadge}
+                        <span class="badge bg-warning text-dark ms-2 selected-metrics-badge" id="selected-badge-${collapseTocoId}" style="display: none; font-size: 0.8rem; padding: 3px 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.15);"></span>
+                    </button>
+                </h2>
+                <div id="${collapseTocoId}" class="accordion-collapse collapse" data-bs-parent="#accordionTocoMesa">
+                    <div class="accordion-body drop-zone-card" id="${loadId}" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="drop(event)" data-load-id="${loadId}" data-vehicle-type="toco">
+                        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                            <div>
+                                <button class="btn btn-sm btn-outline-info no-print" onclick="imprimirTocoIndividual('${cf}', event)"><i class="bi bi-printer-fill me-1"></i>Imprimir</button>
+                                <button class="btn btn-sm btn-outline-warning ms-2 no-print" onclick="desmembrarToco('${cf}', event)"><i class="bi bi-scissors me-1"></i>Desmembrar Toco</button>
+                            </div>
+                            <div class="d-flex align-items-center border border-secondary border-opacity-10 rounded px-3 py-1.5 bg-black bg-opacity-20" id="freight-container-${loadId}">
+                                ${freightHtml}
+                            </div>
+                        </div>
+                        ${progressBar}
+                        ${createTable(pedidos, null, loadId)}
+                    </div>
+                </div>
+            </div>`;
     });
     accordionHtml += '</div>'; div.innerHTML = accordionHtml;
 }
+
+window.onTocoAccordionOpen = function(cf) {
+    const loadId = `toco-${cf}`;
+    const load = activeLoads[loadId];
+    if (load && !load.distanceKm && !load.isCalculatingFreight) {
+        refreshLoadFreight(loadId);
+    }
+};
+
+window.desmembrarToco = function(cf, event) {
+    if (event) event.stopPropagation();
+
+    const loadId = `toco-${cf}`;
+    const checkboxes = document.querySelectorAll(`#${loadId} .row-checkbox:checked`);
+    if (checkboxes.length === 0) {
+        showToast("Nenhum pedido selecionado para desmembrar.", "warning");
+        return;
+    }
+
+    const selectedPedidoIds = Array.from(checkboxes).map(cb => String(cb.value));
+
+    // Remove qualquer modal de desmembramento antigo do DOM
+    const oldModal = document.getElementById('desmembrarTocoModal');
+    if (oldModal) oldModal.remove();
+
+    // Cria o modal HTML
+    const modalHtml = `
+    <div class="modal fade" id="desmembrarTocoModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content text-bg-dark border-warning" style="background: rgba(20, 25, 40, 0.98); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10">
+                    <h5 class="modal-title text-warning"><i class="bi bi-scissors me-2"></i>Desmembrar Carga Toco</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-start">
+                    <p>Você selecionou <strong class="text-warning">${selectedPedidoIds.length}</strong> pedido(s) da carga Toco <strong class="text-info">CF: ${cf}</strong>.</p>
+                    <div class="mb-3">
+                        <label for="newVehicleTypeSelect" class="form-label">Selecione o tipo de veículo para a nova carga:</label>
+                        <select id="newVehicleTypeSelect" class="form-select bg-dark text-white border-secondary">
+                            <option value="van">Van</option>
+                            <option value="tresQuartos">3/4</option>
+                            <option value="fiorino">Fiorino</option>
+                            <option value="toco">Toco</option>
+                            <option value="especial">Manual / Especial</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-warning text-dark fw-bold" id="btnConfirmarDesmembramento">Desmembrar</button>
+                </div>
+            </div>
+        </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    const modalEl = document.getElementById('desmembrarTocoModal');
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+
+    document.getElementById('btnConfirmarDesmembramento').addEventListener('click', () => {
+        const newVehicleType = document.getElementById('newVehicleTypeSelect').value;
+        modal.hide();
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            modalEl.remove();
+        });
+
+        const originalToco = gruposToco[cf];
+        if (!originalToco) {
+            showToast("Carga Toco original não encontrada.", "error");
+            return;
+        }
+
+        const pedidosParaMover = originalToco.pedidos.filter(p => selectedPedidoIds.includes(String(p.Num_Pedido)));
+        const pedidosParaManter = originalToco.pedidos.filter(p => !selectedPedidoIds.includes(String(p.Num_Pedido)));
+
+        if (pedidosParaMover.length === 0) {
+            showToast("Nenhum pedido correspondente encontrado para mover.", "warning");
+            return;
+        }
+
+        // 1. Atualizar ou remover a carga Toco original
+        if (pedidosParaManter.length === 0) {
+            delete gruposToco[cf];
+            delete activeLoads[loadId];
+            showToast(`Carga Toco CF: ${cf} foi totalmente desmembrada e removida.`, "info");
+        } else {
+            originalToco.pedidos = pedidosParaManter;
+            originalToco.totalKg = pedidosParaManter.reduce((sum, p) => sum + p.Quilos_Saldo, 0);
+            originalToco.totalCubagem = pedidosParaManter.reduce((sum, p) => sum + p.Cubagem, 0);
+            activeLoads[loadId] = originalToco;
+            showToast(`Carga Toco CF: ${cf} atualizada (removidos ${pedidosParaMover.length} pedidos).`, "info");
+        }
+
+        // 2. Criar a nova carga
+        if (newVehicleType === 'toco') {
+            // Se o destino for Toco, cria um novo CF sufixado
+            let newCf = `${cf}-B`;
+            let suffixCharCode = 66; // CharCode de 'B'
+            while (gruposToco[newCf]) {
+                suffixCharCode++;
+                newCf = `${cf}-${String.fromCharCode(suffixCharCode)}`;
+            }
+
+            const newTocoLoad = {
+                pedidos: pedidosParaMover,
+                totalKg: pedidosParaMover.reduce((sum, p) => sum + p.Quilos_Saldo, 0),
+                totalCubagem: pedidosParaMover.reduce((sum, p) => sum + p.Cubagem, 0),
+                vehicleType: 'toco',
+                numero: newCf,
+                id: `toco-${newCf}`,
+                routesKey: originalToco.routesKey || ''
+            };
+            gruposToco[newCf] = newTocoLoad;
+            activeLoads[`toco-${newCf}`] = newTocoLoad;
+            showToast(`Nova carga Toco CF: ${newCf} criada com os pedidos desmembrados!`, "success");
+        } else {
+            // Caso contrário, cria uma carga padrão em activeLoads
+            const newLoadId = `${newVehicleType}-${Date.now()}`;
+            const newLoad = {
+                id: newLoadId,
+                pedidos: pedidosParaMover,
+                totalKg: pedidosParaMover.reduce((sum, p) => sum + p.Quilos_Saldo, 0),
+                totalCubagem: pedidosParaMover.reduce((sum, p) => sum + p.Cubagem, 0),
+                vehicleType: newVehicleType,
+                numero: `${newVehicleType.charAt(0).toUpperCase()}${Object.keys(activeLoads).length + 1}`,
+                usedHardLimit: false,
+                routesKey: originalToco.routesKey || ''
+            };
+            activeLoads[newLoadId] = newLoad;
+            
+            // Dispara cálculo de frete automático para a nova carga se a função existir
+            if (typeof refreshLoadFreight === 'function') {
+                refreshLoadFreight(newLoadId);
+            }
+            showToast(`Nova carga de ${newVehicleType.toUpperCase()} criada com os pedidos desmembrados!`, "success");
+        }
+
+        // 3. Atualizar a UI completa
+        renderAllUI();
+    });
+};
 
 function displayTruck(div, grupos, pedidosCarreta) {
     let todosOsGrupos = { ...grupos };
@@ -7279,9 +7458,10 @@ function displayTruck(div, grupos, pedidosCarreta) {
                         <h2 class="accordion-header" id="headingCargaCFMesa${index}">
                             <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
                                 <strong>${isNumeric(cf) ? "CF: " : ""}${cf}</strong> &nbsp;
-                                <span class="badge bg-secondary ms-2" title="Rotas">${rotas || 'N/A'}</span>
-                                <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span>
-                                <span class="badge bg-light text-dark ms-2"><i class="bi bi-rulers me-1"></i>${totalCubagemFormatado} mÂ³</span>
+                                <span class="badge bg-secondary ms-2" title="Rotas" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;">${rotas || 'N/A'}</span>
+                                <span class="badge bg-light text-dark ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span>
+                                <span class="badge bg-light text-dark ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-rulers me-1"></i>${totalCubagemFormatado} m³</span>
+                                <span class="badge bg-warning text-dark ms-2 selected-metrics-badge" id="selected-badge-${collapseId}" style="display: none; font-size: 0.8rem; padding: 3px 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.15);"></span>
                             </button>
                         </h2>
                         <div id="${collapseId}" class="accordion-collapse collapse" data-bs-parent="#accordionCargasPorCF">
@@ -8069,7 +8249,44 @@ function updateBulkActionsPanel(event) {
     } else {
         panel.style.display = 'none';
     }
+
+    updateAllAccordionSelectedMetrics();
 }
+
+window.updateAllAccordionSelectedMetrics = function() {
+    const badges = document.querySelectorAll('.selected-metrics-badge');
+    
+    badges.forEach(badgeEl => {
+        const collapseId = badgeEl.id.replace('selected-badge-', '');
+        const collapseEl = document.getElementById(collapseId);
+        if (!collapseEl) return;
+        
+        const checkedCheckboxes = collapseEl.querySelectorAll('.row-checkbox:checked');
+        
+        if (checkedCheckboxes.length > 0) {
+            let totalKg = 0;
+            let totalCubagem = 0;
+            
+            checkedCheckboxes.forEach(cb => {
+                const row = cb.closest('tr');
+                if (row) {
+                    const kg = parseFloat(row.getAttribute('data-kg') || 0);
+                    const cubagem = parseFloat(row.getAttribute('data-cubagem') || 0);
+                    totalKg += kg;
+                    totalCubagem += cubagem;
+                }
+            });
+            
+            const kgFormatted = totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const cubagemFormatted = totalCubagem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            
+            badgeEl.innerHTML = `<i class="bi bi-check2-square me-1"></i>Sel: ${checkedCheckboxes.length} | ${kgFormatted} kg | ${cubagemFormatted} m³`;
+            badgeEl.style.display = 'inline-block';
+        } else {
+            badgeEl.style.display = 'none';
+        }
+    });
+};
 
 function clearBulkSelection() {
     document.querySelectorAll('.row-checkbox:checked').forEach(cb => cb.checked = false);
