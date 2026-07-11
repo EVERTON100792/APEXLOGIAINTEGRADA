@@ -2307,24 +2307,31 @@ function renderActiveLoadCards() {
         especial: { name: 'Especial', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-clipboard-check-fill' }
     };
 
-    // Limpa os containers de resultado antes de redesenhar para evitar duplicatas.
-    document.getElementById('resultado-fiorino-geral').innerHTML = '';
-    document.getElementById('resultado-van-pr').innerHTML = '';
-    document.getElementById('resultado-van-sp').innerHTML = '';
-    // document.getElementById('resultado-34-geral').innerHTML = ''; // Removido pois a aba 3/4 foi excluída
-    const truckContainer = document.getElementById('resultado-truck');
-    if (truckContainer) truckContainer.innerHTML = '';
-    const especialContainer = document.getElementById('resultado-montagens-especiais');
-    if (especialContainer) especialContainer.innerHTML = '';
+    // Inicializa os containers de resultado
+    const containers = {
+        'resultado-fiorino-geral': '',
+        'resultado-van-pr': '',
+        'resultado-van-sp': '',
+        'resultado-van-ms': '',
+        'resultado-truck': '',
+        'resultado-montagens-especiais': ''
+    };
+
+    const activeRouteKey = window.currentActiveRouteKey;
 
     for (const loadId in activeLoads) {
         const load = activeLoads[loadId];
         // Ignora cargas 'Toco' e roteirizadas por lista
         if (load.vehicleType === 'toco' || load.id.startsWith('roteiro-')) continue;
 
+        // Se houver um filtro de rota ativa, e esta carga não pertencer a ela, ignoramos
+        if (activeRouteKey && load.routesKey !== activeRouteKey) continue;
+
         const vInfo = vehicleInfo[load.vehicleType];
         if (vInfo) {
             const cardHtml = renderLoadCard(load, load.vehicleType, vInfo);
+            let containerId = 'resultado-fiorino-geral';
+
             if (load.vehicleType === 'fiorino') {
                 containerId = 'resultado-fiorino-geral';
             } else if (load.vehicleType === 'van' || load.vehicleType === 'tresQuartos') {
@@ -2359,10 +2366,56 @@ function renderActiveLoadCards() {
                 containerId = 'resultado-montagens-especiais';
             }
 
-            const container = document.getElementById(containerId);
-            if (container) {
-                container.insertAdjacentHTML('beforeend', cardHtml);
+            if (containers[containerId] !== undefined) {
+                containers[containerId] += cardHtml;
             }
+        }
+    }
+
+    // Atualiza os containers na tela
+    for (const containerId in containers) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            let htmlContent = containers[containerId];
+            if (!htmlContent) {
+                if (activeRouteKey) {
+                    htmlContent = `<div class="alert alert-secondary small py-2 no-print"><i class="bi bi-info-circle me-2"></i>Nenhuma carga desta rota filtrada nesta aba.</div>`;
+                } else {
+                    // Estado padrão/vazio da aba
+                    const icons = {
+                        'resultado-fiorino-geral': 'bi-box-seam',
+                        'resultado-van-pr': 'bi-truck-front-fill',
+                        'resultado-van-sp': 'bi-truck-front-fill',
+                        'resultado-van-ms': 'bi-truck-front-fill',
+                        'resultado-truck': 'bi-truck',
+                        'resultado-montagens-especiais': 'bi-clipboard-check-fill'
+                    };
+                    const labels = {
+                        'resultado-fiorino-geral': 'Nenhuma rota de Fiorino disponível',
+                        'resultado-van-pr': 'Nenhuma rota de Van (PR) disponível',
+                        'resultado-van-sp': 'Nenhuma rota de Van (SP) disponível',
+                        'resultado-van-ms': 'Nenhuma rota de Van (MS) disponível',
+                        'resultado-truck': 'Nenhuma rota de Truck disponível',
+                        'resultado-montagens-especiais': 'Nenhuma montagem especial'
+                    };
+                    const subText = 'Processe uma rota ou crie cargas manuais.';
+                    htmlContent = `<div class="empty-state-premium">
+                        <i class="bi ${icons[containerId]} empty-state-icon"></i>
+                        <h5 class="text-light">${labels[containerId]}</h5>
+                        <p class="text-muted small">${subText}</p>
+                    </div>`;
+                }
+            } else if (activeRouteKey) {
+                // Se estiver exibindo rota filtrada, adiciona um badge informativo no topo do resultado
+                const routeTitle = processedRouteContexts[activeRouteKey]?.title || activeRouteKey;
+                const vType = containerId.includes('fiorino') ? 'fiorino' : 'van';
+                const targetKey = containerId.includes('fiorino') ? 'fiorino' : (containerId.includes('pr') ? 'vanPR' : (containerId.includes('ms') ? 'vanMS' : 'vanSP'));
+                htmlContent = `<div class="alert alert-info py-2 d-flex align-items-center justify-content-between mb-3 no-print" style="font-size: 0.85rem; background: rgba(14, 165, 233, 0.1); border: 1px solid rgba(14, 165, 233, 0.2);">
+                    <span><i class="bi bi-funnel-fill me-2 text-info"></i>Mostrando apenas a rota: <strong>${routeTitle}</strong></span>
+                    <button class="btn btn-sm btn-link text-info p-0 text-decoration-none fw-bold" onclick="exibirTodasCargasAba('${containerId}', '${vType}', '${targetKey}')">Ver Todas Cargas</button>
+                </div>` + htmlContent;
+            }
+            container.innerHTML = htmlContent;
         }
     }
 }
@@ -2446,32 +2499,63 @@ function updateTabCounts() {
         return 'SP';
     };
 
-    // Calcula os totais para cada aba
+    // Agrupa as cargas por aba
+    const fiorinoLoads = Object.values(activeLoads).filter(l => l.vehicleType === 'fiorino' && !l.id.startsWith('roteiro-'));
+    
     const allVanAnd34 = Object.values(activeLoads).filter(l => (l.vehicleType === 'van' || l.vehicleType === 'tresQuartos') && !l.id.startsWith('roteiro-'));
-    const vanPRCount = allVanAnd34.filter(l => getLoadRegion(l) === 'PR').length;
-    const vanSPCount = allVanAnd34.filter(l => getLoadRegion(l) === 'SP').length;
-    const vanMSCount = allVanAnd34.filter(l => getLoadRegion(l) === 'MS').length;
+    const vanPRLoads = allVanAnd34.filter(l => getLoadRegion(l) === 'PR');
+    const vanSPLoads = allVanAnd34.filter(l => getLoadRegion(l) === 'SP');
+    const vanMSLoads = allVanAnd34.filter(l => getLoadRegion(l) === 'MS');
 
-    const counts = {
-        fiorino: Object.values(activeLoads).filter(l => l.vehicleType === 'fiorino' && !l.id.startsWith('roteiro-')).length,
-        vanPR: vanPRCount,
-        vanSP: vanSPCount,
-        vanMS: vanMSCount,
-        // Mantemos tresQuartos zerado ou somado onde fizer sentido, mas a UI agora foca em Van PR/SP
-        tresQuartos: 0,
-        toco: Object.keys(gruposToco).length,
-        truck: Object.values(activeLoads).filter(l => l.vehicleType === 'truck' && !l.id.startsWith('roteiro-')).length,
-        pr: new Set(cargasFechadasPR.map(p => {
-            const col5 = String(p.Coluna5 || '').toUpperCase();
-            return (col5.includes('CONDOR') ? 'CONDOR' : p.CF);
-        })).size,
-        br: Object.keys(gruposPorCFGlobais).length,
-        roteirizados: Object.values(activeLoads).filter(l => l.id.startsWith('roteiro-')).length,
-        outros: pedidosMoinho.length + pedidosFuncionarios.length + pedidosTransferencias.length + pedidosExportacao.length + pedidosMarcaPropria.length
+    const truckLoads = Object.values(activeLoads).filter(l => l.vehicleType === 'truck' && !l.id.startsWith('roteiro-'));
+    const especialLoads = Object.values(activeLoads).filter(l => l.vehicleType === 'especial' && !l.id.startsWith('roteiro-'));
+    const roteirizadosLoads = Object.values(activeLoads).filter(l => l.id.startsWith('roteiro-'));
+
+    // Toco, PR Fechado, BR Fechado, Outros continuam com contagens simples
+    const tocoCount = Object.keys(gruposToco).length;
+    const prCount = new Set(cargasFechadasPR.map(p => {
+        const col5 = String(p.Coluna5 || '').toUpperCase();
+        return (col5.includes('CONDOR') ? 'CONDOR' : p.CF);
+    })).size;
+    const brCount = Object.keys(gruposPorCFGlobais).length;
+    const outrosCount = pedidosMoinho.length + pedidosFuncionarios.length + pedidosTransferencias.length + pedidosExportacao.length + pedidosMarcaPropria.length;
+
+    // Helper para formatar o texto do badge
+    const getBadgeData = (loadsList) => {
+        const total = loadsList.length;
+        if (total === 0) return { text: "0", show: false };
+
+        const comp = {};
+        loadsList.forEach(l => {
+            const type = l.vehicleType;
+            comp[type] = (comp[type] || 0) + 1;
+        });
+
+        const parts = [];
+        if (comp.fiorino) parts.push(`${comp.fiorino} Fio`);
+        if (comp.van) parts.push(`${comp.van} Van`);
+        if (comp.tresQuartos) parts.push(`${comp.tresQuartos} 3/4`);
+        if (comp.toco) parts.push(`${comp.toco} Toco`);
+        if (comp.truck) parts.push(`${comp.truck} Truck`);
+        if (comp.especial) parts.push(`${comp.especial} Esp`);
+
+        if (parts.length <= 1) {
+            return { text: `${total}`, show: true };
+        } else {
+            return { text: `${total} (${parts.join(' | ')})`, show: true };
+        }
     };
 
-    // Atualiza os badges na interface
-    const updateBadge = (id, count) => {
+    const updateBadgeDetails = (id, badgeData) => {
+        const badge = document.getElementById(id);
+        if (badge) {
+            badge.textContent = badgeData.text;
+            if (badgeData.show) badge.classList.remove('d-none');
+            else badge.classList.add('d-none');
+        }
+    };
+
+    const updateBadgeSimple = (id, count) => {
         const badge = document.getElementById(id);
         if (badge) {
             badge.textContent = count;
@@ -2480,17 +2564,18 @@ function updateTabCounts() {
         }
     };
 
-    updateBadge('badge-fiorino', counts.fiorino);
-    updateBadge('badge-van-pr', counts.vanPR);
-    updateBadge('badge-van-sp', counts.vanSP);
-    updateBadge('badge-van-ms', counts.vanMS);
-    updateBadge('badge-tres-quartos', counts.tresQuartos);
-    updateBadge('badge-toco', counts.toco);
-    updateBadge('badge-truck', counts.truck);
-    updateBadge('badge-pr', counts.pr);
-    updateBadge('badge-br', counts.br);
-    updateBadge('badge-roteirizados', counts.roteirizados);
-    updateBadge('badge-outros', counts.outros);
+    updateBadgeDetails('badge-fiorino', getBadgeData(fiorinoLoads));
+    updateBadgeDetails('badge-van-pr', getBadgeData(vanPRLoads));
+    updateBadgeDetails('badge-van-sp', getBadgeData(vanSPLoads));
+    updateBadgeDetails('badge-van-ms', getBadgeData(vanMSLoads));
+    updateBadgeDetails('badge-truck', getBadgeData(truckLoads));
+    updateBadgeDetails('badge-montagens-especiais', getBadgeData(especialLoads));
+    updateBadgeDetails('badge-roteirizados', getBadgeData(roteirizadosLoads));
+
+    updateBadgeSimple('badge-toco', tocoCount);
+    updateBadgeSimple('badge-pr', prCount);
+    updateBadgeSimple('badge-br', brCount);
+    updateBadgeSimple('badge-outros', outrosCount);
 }
 
 function navigateToSection(viewId, tabId, elementId) {
@@ -2851,14 +2936,14 @@ function displayGerais(div, grupos) {
     // Usa a funá§á£o centralizada para garantir a mesma ordem da busca
     const rotasOrdenadas = getSortedVarejoRoutes(Array.from(todasRotas));
 
-    const botoes = { fiorino: '', vanPR: '', vanSP: '', tresQuartos: '' };
+    const botoes = { fiorino: '', vanPR: '', vanSP: '', vanMS: '', tresQuartos: '' };
     const addedButtons = new Set();
 
     rotasOrdenadas.forEach(rota => {
         let config = rotaVeiculoMap[rota];
-        // Lá³gica para tratar rotas ná£o mapeadas como rotas de Sá£o Paulo (Van/3/4)
+        // Lógica para tratar rotas não mapeadas como rotas de São Paulo (Van/3/4)
         if (!config) {
-            config = { type: 'van', title: `Van / 3/4 Sá£o Paulo - Rota ${rota}` };
+            config = { type: 'van', title: `Van / 3/4 São Paulo - Rota ${rota}` };
         }
 
         if (config && !addedButtons.has(rota)) {
@@ -2870,7 +2955,7 @@ function displayGerais(div, grupos) {
                 combinedRoutes.forEach(r => addedButtons.add(r));
             }
 
-            // Define o tá­tulo do botá£o dinamicamente (respeita overrides do Admin)
+            // Define o título do botão dinamicamente (respeita overrides do Admin)
             const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
             const isPR = config.title.startsWith('Rota 1') || String(rota).startsWith('1');
 
@@ -2881,10 +2966,13 @@ function displayGerais(div, grupos) {
                 targetKey = 'fiorino';
                 divId = 'resultado-fiorino-geral';
             } else if (vehicleType === 'van' || vehicleType === 'tresQuartos') {
-                // Redireciona 3/4 para a lógica de Van (PR/SP) também
+                const isMS = String(rota).startsWith('3');
                 if (isPR) {
                     targetKey = 'vanPR';
                     divId = 'resultado-van-pr';
+                } else if (isMS) {
+                    targetKey = 'vanMS';
+                    divId = 'resultado-van-ms';
                 } else {
                     targetKey = 'vanSP';
                     divId = 'resultado-van-sp';
@@ -2892,9 +2980,9 @@ function displayGerais(div, grupos) {
             }
 
             const btnId = `btn-${vehicleType}-${rota}`;
-            const routesKeyString = rotaValue.replace(/\[|\]|'|\s/g, ''); // Transforma ['1', '2'] em 1,2 (sem espaá§os)
+            const routesKeyString = rotaValue.replace(/\[|\]|'|\s/g, ''); // Transforma ['1', '2'] em 1,2 (sem espaços)
 
-            // Verifica se a rota já¡ foi processada para renderizar o botá£o no estado correto
+            // Verifica se a rota já foi processada para renderizar o botão no estado correto
             // UX Tática: Botoes menores e mais tecnicos
             let btnHtml = '';
             if (processedRoutes.has(routesKeyString)) {
@@ -2913,9 +3001,16 @@ function displayGerais(div, grupos) {
             botoes[targetKey] += btnHtml;
         }
     });
-    document.getElementById('botoes-fiorino').innerHTML = botoes.fiorino || '<div class="empty-state-premium"><i class="bi bi-box-seam empty-state-icon"></i><h5 class="text-light">Nenhuma rota de Fiorino encontrada</h5><p class="text-muted small">Não há rotas para este veículo na carga atual.</p></div>';
-    document.getElementById('botoes-van-pr').innerHTML = botoes.vanPR || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (PR) encontrada</h5><p class="text-muted small">Não há rotas do Paraná na carga atual.</p></div>';
-    document.getElementById('botoes-van-sp').innerHTML = botoes.vanSP || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (SP) encontrada</h5><p class="text-muted small">Não há rotas de SP na carga atual.</p></div>';
+
+    const btnVerTodasFio = `<button class="btn btn-tactical success mt-2 me-2" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.35); color: #10b981;" onclick="exibirTodasCargasAba('resultado-fiorino-geral', 'fiorino', 'fiorino')"><i class="bi bi-grid-fill me-1"></i>Ver Todas Cargas</button>`;
+    const btnVerTodasVanPR = `<button class="btn btn-tactical primary mt-2 me-2" style="background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.35); color: #0ea5e9;" onclick="exibirTodasCargasAba('resultado-van-pr', 'van', 'vanPR')"><i class="bi bi-grid-fill me-1"></i>Ver Todas Cargas</button>`;
+    const btnVerTodasVanSP = `<button class="btn btn-tactical primary mt-2 me-2" style="background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.35); color: #0ea5e9;" onclick="exibirTodasCargasAba('resultado-van-sp', 'van', 'vanSP')"><i class="bi bi-grid-fill me-1"></i>Ver Todas Cargas</button>`;
+    const btnVerTodasVanMS = `<button class="btn btn-tactical primary mt-2 me-2" style="background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.35); color: #0ea5e9;" onclick="exibirTodasCargasAba('resultado-van-ms', 'van', 'vanMS')"><i class="bi bi-grid-fill me-1"></i>Ver Todas Cargas</button>`;
+
+    document.getElementById('botoes-fiorino').innerHTML = (botoes.fiorino ? btnVerTodasFio + botoes.fiorino : '') || '<div class="empty-state-premium"><i class="bi bi-box-seam empty-state-icon"></i><h5 class="text-light">Nenhuma rota de Fiorino encontrada</h5><p class="text-muted small">Não há rotas para este veículo na carga atual.</p></div>';
+    document.getElementById('botoes-van-pr').innerHTML = (botoes.vanPR ? btnVerTodasVanPR + botoes.vanPR : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (PR) encontrada</h5><p class="text-muted small">Não há rotas do Paraná na carga atual.</p></div>';
+    document.getElementById('botoes-van-sp').innerHTML = (botoes.vanSP ? btnVerTodasVanSP + botoes.vanSP : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (SP) encontrada</h5><p class="text-muted small">Não há rotas de SP na carga atual.</p></div>';
+    document.getElementById('botoes-van-ms').innerHTML = (botoes.vanMS ? btnVerTodasVanMS + botoes.vanMS : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (MS) encontrada</h5><p class="text-muted small">Não há rotas do MS na carga atual.</p></div>';
     // document.getElementById('botoes-34').innerHTML = botoes.tresQuartos || ''; // Removido pois a aba 3/4 foi excluída
     let accordionHtml = '<div class="accordion accordion-flush" id="accordionGeral">';
     let hasPendingItems = false;
@@ -9816,16 +9911,9 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
         showToast("Auto Montagem concluída com sucesso para as rotas selecionadas!", "success");
     }
 
-    // NOVO: Exibe as cargas da última rota selecionada e montada de forma automática
-    if (selectedRoutes.length > 0) {
-        const ultimaRota = selectedRoutes[selectedRoutes.length - 1];
-        let config = window.rotaVeiculoMap?.[ultimaRota];
-        let routesKey = ultimaRota;
-        if (config && config.combined) {
-            routesKey = [ultimaRota, ...config.combined].sort().join(',');
-        }
-        exibirCargasDaRota(routesKey);
-    }
+    // Limpa filtro de rotas para exibir todas as cargas montadas nas abas em sequência
+    window.currentActiveRouteKey = null;
+    renderAllUI();
 }
 
 /**
@@ -9874,19 +9962,10 @@ async function montarTodasAsRotas() {
         await new Promise(r => setTimeout(r, 300));
     }
 
+    window.currentActiveRouteKey = null;
     renderAllUI();
-    showToast("Montagem automá¡tica de todas as rotas concluá­da!", "success");
+    showToast("Montagem automática de todas as rotas concluída!", "success");
 
-    // NOVO: Exibe as cargas da última rota montada de forma automática
-    if (rotasOrdenadas.length > 0) {
-        const ultimaRota = rotasOrdenadas[rotasOrdenadas.length - 1];
-        let config = window.rotaVeiculoMap?.[ultimaRota];
-        let routesKey = ultimaRota;
-        if (config && config.combined) {
-            routesKey = [ultimaRota, ...config.combined].sort().join(',');
-        }
-        exibirCargasDaRota(routesKey);
-    }
 }
 
 async function processarRoteirizacaoLista(somenteSelecionadas = false) {
@@ -10290,6 +10369,7 @@ async function processarRoteirizacaoLista(somenteSelecionadas = false) {
                 progressBar.style.width = '100%';
                 updateAndRenderKPIs();
                 updateAndRenderChart();
+                updateTabCounts();
                 saveStateToLocalStorage();
 
                 modal.hide();
@@ -10583,6 +10663,9 @@ async function loadStateFromLocalStorage() {
         }
 
         reRenderActiveLoads(processedRouteContexts);
+        renderActiveLoadCards();
+        renderRoteiroLoads();
+        updateTabCounts();
         if (Object.keys(kpiData).length > 0) updateAndRenderKPIs();
         updateAndRenderChart();
         recalcAllFreights();
@@ -14188,4 +14271,29 @@ function toggleSelectAllRotasRoteirizar(select) {
         chk.checked = select;
     });
     atualizarResumoRotasRoteirizar();
+}
+
+function exibirTodasCargasAba(divId, vehicleType, targetKey) {
+    // 1. Limpa a rota ativa atual da tela
+    window.currentActiveRouteKey = null;
+
+    // 2. Remove as classes ativas de seleção dos botões de rotas daquela div de botões específica
+    let botoesDivId = '';
+    if (targetKey === 'fiorino') botoesDivId = 'botoes-fiorino';
+    else if (targetKey === 'vanPR') botoesDivId = 'botoes-van-pr';
+    else if (targetKey === 'vanSP') botoesDivId = 'botoes-van-sp';
+    else if (targetKey === 'vanMS') botoesDivId = 'botoes-van-ms';
+
+    if (botoesDivId) {
+        const botoesDiv = document.getElementById(botoesDivId);
+        if (botoesDiv) {
+            botoesDiv.querySelectorAll('.btn-tactical').forEach(btn => btn.classList.remove('route-active-highlight'));
+            botoesDiv.querySelectorAll('.btn-tactical-group-active').forEach(el => el.classList.remove('btn-tactical-group-active'));
+        }
+    }
+
+    // 3. Atualiza os cards ativos chamando renderActiveLoadCards()
+    renderActiveLoadCards();
+    
+    showToast("Exibindo todas as cargas montadas desta aba.", "info");
 }

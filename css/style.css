@@ -2444,7 +2444,12 @@
             transition: all 0.3s ease;
         }
 
-        /* Animação de pulso no badge ao passar o mouse na aba */
+        /* Animação de pulso suave e contínua no badge ativo */
+        .nav-tabs-modern .nav-link .badge:not(.d-none) {
+            animation: badge-pulse 2s infinite ease-in-out;
+        }
+
+        /* Acelera a animação de pulso do badge ao passar o mouse na aba */
         .nav-tabs-modern .nav-link:hover .badge:not(.d-none) {
             animation: badge-pulse 0.6s ease-in-out infinite;
         }
