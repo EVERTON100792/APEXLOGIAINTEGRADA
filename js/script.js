@@ -9889,12 +9889,28 @@ async function montarTodasAsRotas() {
     }
 }
 
-async function processarRoteirizacaoLista() {
-    const input = document.getElementById('roteiroPedidosInput');
+async function processarRoteirizacaoLista(somenteSelecionadas = false) {
     const useGeo = document.getElementById('roteiroGeoCheck').checked;
 
-    const orderNumbers = input.value.split(/[\n,\s]+/).map(s => s.trim()).filter(Boolean);
-    if (orderNumbers.length === 0) { showToast("Insira os náºmeros dos pedidos.", "warning"); return; }
+    // 1. Coleta quais rotas foram selecionadas
+    let rotasSelecionadas = [];
+    if (somenteSelecionadas) {
+        const checkboxes = document.querySelectorAll('#roteirizar-routes-list .roteiro-route-checkbox:checked');
+        rotasSelecionadas = Array.from(checkboxes).map(cb => String(cb.value).trim()).filter(Boolean);
+    } else {
+        const checkboxes = document.querySelectorAll('#roteirizar-routes-list .roteiro-route-checkbox');
+        rotasSelecionadas = Array.from(checkboxes).map(cb => String(cb.value).trim()).filter(Boolean);
+    }
+
+    if (rotasSelecionadas.length === 0) { 
+        showToast("Nenhuma rota selecionada para roteirização.", "warning"); 
+        return; 
+    }
+
+    // 2. Oculta o modal de seleção antes de iniciar para não sobrepor!
+    const modalEl = document.getElementById('roteirizacaoModal');
+    const inputModal = bootstrap.Modal.getInstance(modalEl);
+    if (inputModal) inputModal.hide();
 
     // Show processing modal
     const modalElement = document.getElementById('processing-modal');
@@ -9913,37 +9929,27 @@ async function processarRoteirizacaoLista() {
 
     try {
         // Allow UI to render modal
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 50));
 
+        // 3. Filtrar os pedidos gerais e sobras que pertencem a essas rotas selecionadas
         const pedidosEncontrados = [];
-        const pedidosNaoEncontrados = [];
-
-        const availableMap = new Map(pedidosGeraisAtuais.map(p => [String(p.Num_Pedido), p]));
-
-        orderNumbers.forEach(num => {
-            if (availableMap.has(num)) {
-                pedidosEncontrados.push(availableMap.get(num));
-            } else {
-                const leftover = currentLeftoversForPrinting.find(p => String(p.Num_Pedido) === num);
-                if (leftover) pedidosEncontrados.push(leftover);
-                else pedidosNaoEncontrados.push(num);
+        const pedidosAlvos = window.pedidosRoteirizarDisponiveis || [];
+        pedidosAlvos.forEach(p => {
+            if (rotasSelecionadas.includes(String(p.Cod_Rota))) {
+                pedidosEncontrados.push(p);
             }
         });
 
         if (pedidosEncontrados.length === 0) {
             modal.hide(); stopThinkingText();
-            showToast("Nenhum pedido encontrado na lista de disponá­veis/sobras.", "error");
+            showToast("Nenhum pedido pendente encontrado para as rotas selecionadas.", "error");
             return;
-        }
-
-        if (pedidosNaoEncontrados.length > 0) {
-            showToast(`${pedidosNaoEncontrados.length} pedidos ná£o encontrados ou já¡ alocados.`, "warning");
         }
 
         progressBar.style.width = '10%';
         thinkingText.textContent = "Mapeando cidades...";
 
-        // 2. Map cities and get coordinates
+        // 4. Mapear cidades e obter coordenadas
         const uniqueCitiesMap = {};
         pedidosEncontrados.forEach(p => {
             const key = `${(p.Cidade || 'N/A').trim().toUpperCase()} - ${(p.UF || '').trim().toUpperCase()}`;
@@ -9951,32 +9957,32 @@ async function processarRoteirizacaoLista() {
             uniqueCitiesMap[key].pedidos.push(p);
         });
 
-        // Prá©-carrega coordenadas para todas as cidades encontradas
+        // Pré-carrega coordenadas para todas as cidades encontradas
         if (useGeo) {
             const apiKey = document.getElementById('graphhopperApiKey').value;
             if (apiKey) {
-                thinkingText.textContent = "Buscando coordenadas geográ¡ficas...";
+                thinkingText.textContent = "Buscando coordenadas geográficas...";
                 const cityKeys = Object.keys(uniqueCitiesMap);
                 for (let i = 0; i < cityKeys.length; i++) {
                     const cityKey = cityKeys[i];
                     const [cidade, uf] = cityKey.split(' - ');
                     const coords = await getCityCoordinates(cidade, uf);
                     if (coords) uniqueCitiesMap[cityKey].coords = coords;
-                    progressBar.style.width = `${10 + (i / cityKeys.length) * 20}%`; // Progress 10% -> 30%
+                    progressBar.style.width = `${10 + (i / cityKeys.length) * 20}%`; // Progresso 10% -> 30%
                 }
             } else {
-                showToast("API Key ná£o configurada. Agrupamento geográ¡fico desativado.", "warning");
+                showToast("API Key não configurada. Agrupamento geográfico desativado.", "warning");
             }
         }
 
-        // --- CLASSIFICAá‡áƒO DOS PEDIDOS POR VEáCULO (Baseado na Rota) ---
-        thinkingText.textContent = "Classificando pedidos por veá­culo...";
+        // --- CLASSIFICAÇÃO DOS PEDIDOS POR VEÍCULO (Baseado na Rota) ---
+        thinkingText.textContent = "Classificando pedidos por veículo...";
         const buckets = { fiorino: [], van: [], tresQuartos: [], toco: [] };
         const normalizeCity = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
         pedidosEncontrados.forEach(p => {
             const rota = String(p.Cod_Rota);
-            let type = 'van'; // Padrá£o
+            let type = 'van'; // Padrão
 
             // Verifica regras especiais de Fiorino (cidades permitidas)
             const currentSpecialFiorinoMap = window.rotasEspeciaisFiorino || rotasEspeciaisFiorino;
@@ -9985,7 +9991,7 @@ async function processarRoteirizacaoLista() {
                 if (new Set(currentSpecialFiorinoMap[rota]).has(cidadePedido)) {
                     type = 'fiorino';
                 } else {
-                    type = 'van'; // Se a cidade ná£o pode Fiorino, vai pra Van
+                    type = 'van';
                 }
             } else if (rotaVeiculoMap[rota]) {
                 type = rotaVeiculoMap[rota].type;
@@ -9995,11 +10001,11 @@ async function processarRoteirizacaoLista() {
             else buckets.van.push(p);
         });
 
-        // --- FUNá‡áƒO AUXILIAR DE OTIMIZAá‡áƒO POR ESTáGIO ---
+        // --- FUNÇÃO AUXILIAR DE OTIMIZAÇÃO POR ESTÁGIO (PARALELIZADA) ---
         const optimizeStage = async (orders, type) => {
             if (orders.length === 0) return { loads: [], leftovers: [] };
 
-            // 1. Agrupar cidades prá³ximas (Clusterizaá§á£o)
+            // 1. Agrupar cidades próximas (Clusterização)
             const stageCitiesMap = {};
             orders.forEach(p => {
                 const key = `${(p.Cidade || 'N/A').trim().toUpperCase()} - ${(p.UF || '').trim().toUpperCase()}`;
@@ -10045,8 +10051,7 @@ async function processarRoteirizacaoLista() {
             const stageLoads = [];
             const stageLeftovers = [];
 
-            // Configuraá§áµes atuais
-            // MODIFICADO: Usa getVehicleConfigSafe para respeitar overrides do Admin
+            // Configurações atuais
             const getCfg = (type) => getVehicleConfigSafe(type);
             const vehicleConfigs = {
                 fiorinoMinCapacity: getCfg('fiorino').minKg,
@@ -10074,7 +10079,8 @@ async function processarRoteirizacaoLista() {
                 tocoHardCubage: getCfg('toco').hardMaxCubage
             };
 
-            for (const cluster of clusters) {
+            // Criar promessas para rodar os clusters em paralelo
+            const promises = clusters.map(cluster => {
                 const packableGroups = Object.values(cluster.pedidos.reduce((acc, p) => {
                     const cId = normalizeClientId(p.Cliente);
                     if (!acc[cId]) acc[cId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) };
@@ -10082,7 +10088,7 @@ async function processarRoteirizacaoLista() {
                     return acc;
                 }, {}));
 
-                // Calcula a data mais antiga para priorizaá§á£o correta (Igual á  montagem normal)
+                // Calcula a data mais antiga para priorização correta
                 packableGroups.forEach(group => {
                     group.oldestDate = group.pedidos.reduce((oldest, p) => {
                         let pDate = p.Dat_Ped;
@@ -10110,20 +10116,33 @@ async function processarRoteirizacaoLista() {
                     pedidosRecall: pedidosRecall
                 });
 
-                const result = await new Promise((resolve, reject) => {
+                return new Promise((resolve, reject) => {
                     processingWorker.onmessage = (e) => {
-                        if (e.data.status === 'complete') resolve(e.data.result);
-                        else if (e.data.status === 'error') reject(new Error(e.data.message));
+                        if (e.data.status === 'complete') {
+                            processingWorker.terminate();
+                            resolve({ cluster, result: e.data.result });
+                        }
+                        else if (e.data.status === 'error') {
+                            processingWorker.terminate();
+                            reject(new Error(e.data.message));
+                        }
                     };
-                    processingWorker.onerror = (e) => reject(new Error(e.message));
+                    processingWorker.onerror = (e) => {
+                        processingWorker.terminate();
+                        reject(new Error(e.message));
+                    };
                 });
-                processingWorker.terminate();
+            });
 
-                // --- MELHORIA: Refinamento e Atribuiá§á£o de Tipo ---
+            // Aguarda a otimização paralela de todos os clusters
+            const results = await Promise.all(promises);
+
+            // Processar resultados
+            for (const { cluster, result } of results) {
                 result.loads.forEach(l => l.vehicleType = type);
                 const { refinedLoads, remainingLeftovers } = refineLoadsWithSimpleFit(result.loads, result.leftovers);
 
-                // 3. Verificaá§á£o de Distá¢ncia
+                // 3. Verificação de Distância
                 if ((type === 'fiorino' || type === 'van') && useGeo) {
                     const distanceLimit = type === 'fiorino' ? 500 : 1400;
                     const depot = { lat: -23.31461, lng: -51.36963 };
@@ -10132,9 +10151,8 @@ async function processarRoteirizacaoLista() {
                         const citiesInLoad = [...new Set(load.pedidos.map(p => `${(p.Cidade || '').trim().toUpperCase()} - ${(p.UF || '').trim().toUpperCase()}`))];
                         let totalDistKm = 0;
                         let currentPos = depot;
-                        let validDist = true;
 
-                        // Cá¡lculo aproximado da rota
+                        // Cálculo aproximado da rota
                         for (const cityKey of citiesInLoad) {
                             const coords = uniqueCitiesMap[cityKey]?.coords;
                             if (coords) {
@@ -10146,7 +10164,7 @@ async function processarRoteirizacaoLista() {
                         const estimatedRoadDist = totalDistKm * 1.3;
 
                         if (estimatedRoadDist > distanceLimit) {
-                            // Se exceder a distá¢ncia, desmonta a carga e joga para sobras (para tentar upgrade)
+                            // Se exceder a distância, desmonta a carga e joga para sobras
                             const groups = Object.values(load.pedidos.reduce((acc, p) => {
                                 const cId = normalizeClientId(p.Cliente);
                                 const pDate = p.Dat_Ped ? new Date(p.Dat_Ped) : null;
@@ -10181,10 +10199,11 @@ async function processarRoteirizacaoLista() {
                 }
                 stageLeftovers.push(...remainingLeftovers);
             }
+
             return { loads: stageLoads, leftovers: stageLeftovers };
         };
 
-        // --- EXECUá‡áƒO DO PIPELINE (CASCATA) ---
+        // --- EXECUÇÃO DO PIPELINE (CASCATA) ---
         const allCreatedLoads = [];
 
         // 1. FIORINO
@@ -13884,4 +13903,289 @@ function handleTbodyClickForShift(e) {
         lastCheckedCheckbox = checkbox;
         atualizarResumoSelecaoPrioritarios();
     }
+}
+
+// ================================================================================================
+//  NOVO: LÓGICA DE SELEÇÃO E FILTRAGEM DE ROTAS PARA ROTEIRIZAÇÃO EM LOTE (COMBINAÇÃO DE ROTAS)
+// ================================================================================================
+
+function abrirModalRoteirizacaoLista() {
+    // 1. Coleta os pedidos disponíveis gerais
+    let disponiveis = [...pedidosGeraisAtuais];
+    
+    // 2. Inclui também as sobras, conforme decisão do usuário
+    if (Array.isArray(window.currentLeftoversForPrinting)) {
+        const idsDisponiveis = new Set(disponiveis.map(p => String(p.Num_Pedido)));
+        window.currentLeftoversForPrinting.forEach(p => {
+            if (!idsDisponiveis.has(String(p.Num_Pedido))) {
+                disponiveis.push(p);
+            }
+        });
+    }
+
+    if (disponiveis.length === 0) {
+        showToast("Não há pedidos pendentes (disponíveis ou sobras) para montar.", "info");
+        return;
+    }
+
+    // 3. Salva em memória global para processamento
+    window.pedidosRoteirizarDisponiveis = disponiveis;
+
+    // 4. Agrupa os pedidos por Rota
+    const routeGroups = disponiveis.reduce((acc, p) => {
+        const rota = String(p.Cod_Rota || 'Sem Rota');
+        if (!acc[rota]) {
+            acc[rota] = {
+                rota: rota,
+                pedidos: [],
+                totalKg: 0,
+                contemPrioritario: false
+            };
+        }
+        acc[rota].pedidos.push(p);
+        acc[rota].totalKg += p.Quilos_Saldo || 0;
+        
+        const isPri = (window.pedidosPrioritarios && window.pedidosPrioritarios.includes(String(p.Num_Pedido))) || 
+                      (window.pedidosRecall && window.pedidosRecall.includes(String(p.Num_Pedido)));
+        if (isPri) {
+            acc[rota].contemPrioritario = true;
+        }
+        return acc;
+    }, {});
+
+    const uniqueRoutes = Object.keys(routeGroups);
+    if (uniqueRoutes.length === 0) {
+        showToast("Não há rotas com pedidos pendentes.", "info");
+        return;
+    }
+
+    // 5. Ordena as rotas
+    const rotasOrdenadas = getSortedVarejoRoutes(uniqueRoutes);
+
+    // 6. Salva as rotas e grupos em memória
+    window.roteiroRoutesDisponiveis = rotasOrdenadas;
+    window.roteiroGroupsMap = routeGroups;
+
+    // 7. Limpar o campo de busca
+    const buscaInput = document.getElementById('busca-rotas-roteirizar');
+    if (buscaInput) buscaInput.value = '';
+
+    // 8. Renderizar no modal
+    renderizarListaRotasRoteirizar(rotasOrdenadas);
+
+    // 9. Abre o modal
+    const modalRoteirizacaoEl = document.getElementById('roteirizacaoModal');
+    const modalRoteirizacao = bootstrap.Modal.getOrCreateInstance(modalRoteirizacaoEl);
+    modalRoteirizacao.show();
+}
+
+function renderizarListaRotasRoteirizar(rotas) {
+    const listContainer = document.getElementById('roteirizar-routes-list');
+    if (!listContainer) return;
+    listContainer.innerHTML = '';
+
+    if (rotas.length === 0) {
+        listContainer.innerHTML = '<div class="text-center text-muted p-4 bg-dark bg-opacity-20 border border-secondary border-opacity-10 rounded">Nenhuma rota correspondente encontrada.</div>';
+        atualizarResumoRotasRoteirizar();
+        return;
+    }
+
+    let htmlContent = '';
+    rotas.forEach(rota => {
+        const group = window.roteiroGroupsMap[rota];
+        if (!group) return;
+
+        let config = window.rotaVeiculoMap?.[rota];
+        if (!config) {
+            config = { type: 'van', title: `Van / 3/4 São Paulo - Rota ${rota}` };
+        }
+
+        const vehicleType = config.type || 'van';
+        const routeTitle = getRouteDisplayTitle(rota, vehicleType).replace('Rota: ', '');
+        
+        const vehicleNames = { fiorino: 'Fiorino', van: 'Van', tresQuartos: '3/4', toco: 'Toco', truck: 'Truck' };
+        const vehicleName = vehicleNames[vehicleType] || 'Outro';
+        
+        const badgeVehicleClasses = {
+            fiorino: 'bg-success text-white',
+            van: 'bg-primary text-white',
+            tresQuartos: 'bg-warning text-dark',
+            toco: 'bg-secondary text-white',
+            truck: 'bg-danger text-white'
+        };
+        const badgeVehicleClass = badgeVehicleClasses[vehicleType] || 'bg-secondary text-light';
+
+        let badgePriority = '';
+        let badgeHighVolume = '';
+        let attentionLight = '';
+        let hasPriority = group.contemPrioritario;
+
+        const vehicleConfig = getVehicleConfig(vehicleType);
+        const softMax = vehicleConfig ? vehicleConfig.softMaxKg : 1560;
+        const isHighVolume = group.totalKg >= (softMax * 0.8);
+
+        if (hasPriority) {
+            badgePriority = `<span class="badge-neon-danger ms-1" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;"><i class="bi bi-lightning-charge-fill me-1"></i>Prioritário</span>`;
+            attentionLight = `<div class="pulsing-dot-red" title="Atenção Máxima: Rota com pedidos prioritários" style="width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; box-shadow: 0 0 10px #ef4444;"></div>`;
+        } else if (isHighVolume) {
+            badgeHighVolume = `<span class="badge-neon-priority ms-1" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i>Volume Alto</span>`;
+            attentionLight = `<div class="pulsing-dot-yellow" title="Atenção Média: Alto volume acumulado" style="width: 10px; height: 10px; border-radius: 50%; background-color: #f59e0b; box-shadow: 0 0 10px #f59e0b;"></div>`;
+        } else {
+            attentionLight = `<div style="width: 10px; height: 10px; border-radius: 50%; background-color: #475569;" title="Volume normal"></div>`;
+        }
+
+        const weightFormatted = group.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kg';
+
+        htmlContent += `
+            <div class="roteiro-route-select-item p-3 rounded-3 border border-secondary border-opacity-15 d-flex align-items-center justify-content-between transition-all mb-2" 
+                 style="background: rgba(30, 41, 59, 0.2); cursor: pointer;" 
+                 onclick="toggleRoteiroRouteRowCheckbox(this, event)">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="form-check m-0">
+                        <input class="form-check-input roteiro-route-checkbox" type="checkbox" value="${rota}" id="chk-roteiro-route-${rota}" 
+                               onclick="event.stopPropagation(); atualizarResumoRotasRoteirizar();">
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="text-light fw-bold" style="font-size: 0.9rem;">${routeTitle}</span>
+                            <span class="badge ${badgeVehicleClass}" style="font-size: 0.7rem;">${vehicleName}</span>
+                            ${badgePriority}
+                            ${badgeHighVolume}
+                        </div>
+                        <div class="text-secondary small mt-1 font-monospace" style="font-size: 0.75rem;">
+                            Código Rota: ${rota} | Pedidos Disponíveis: ${group.pedidos.length}
+                        </div>
+                    </div>
+                </div>
+                <div class="text-end d-flex align-items-center gap-3">
+                    <div>
+                        <span class="text-light fw-semibold font-monospace" style="font-size: 0.95rem;">${weightFormatted}</span>
+                        <div class="text-secondary small" style="font-size: 0.65rem;">Peso Acumulado</div>
+                    </div>
+                    ${attentionLight}
+                </div>
+            </div>
+        `;
+    });
+
+    listContainer.innerHTML = htmlContent;
+    atualizarResumoRotasRoteirizar();
+}
+
+function filtrarRotasRoteirizar() {
+    const normalizeStr = (str) => String(str || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const query = normalizeStr(document.getElementById('busca-rotas-roteirizar').value);
+
+    if (!query) {
+        renderizarListaRotasRoteirizar(window.roteiroRoutesDisponiveis || []);
+        return;
+    }
+
+    const filtradas = (window.roteiroRoutesDisponiveis || []).filter(rota => {
+        const codRota = String(rota).toLowerCase();
+        
+        // Verifica se o código da rota bate com a busca
+        if (codRota.includes(query)) return true;
+
+        // Caso contrário, verifica se alguma cidade contida nos pedidos da rota bate com a busca
+        const group = window.roteiroGroupsMap[rota];
+        if (group && group.pedidos) {
+            const contemCidade = group.pedidos.some(p => {
+                const cidade = normalizeStr(p.Cidade);
+                return cidade.includes(query);
+            });
+            if (contemCidade) return true;
+        }
+
+        return false;
+    });
+
+    renderizarListaRotasRoteirizar(filtradas);
+}
+
+function atualizarResumoRotasRoteirizar() {
+    const checkboxes = document.querySelectorAll('#roteirizar-routes-list .roteiro-route-checkbox');
+    const checkboxesMarcados = document.querySelectorAll('#roteirizar-routes-list .roteiro-route-checkbox:checked');
+    
+    let totalRotas = (window.roteiroRoutesDisponiveis || []).length;
+    let totalPeso = 0;
+    
+    (window.roteiroRoutesDisponiveis || []).forEach(rota => {
+        const group = window.roteiroGroupsMap[rota];
+        if (group) totalPeso += group.totalKg;
+    });
+
+    let selRotas = 0;
+    let selPeso = 0;
+
+    checkboxesMarcados.forEach(cb => {
+        const rota = cb.value;
+        const group = window.roteiroGroupsMap[rota];
+        if (group) {
+            selRotas++;
+            selPeso += group.totalKg;
+        }
+    });
+
+    // Atualiza contadores na UI
+    const txtTotalRotas = document.getElementById('roteiro-total-rotas');
+    const txtTotalPeso = document.getElementById('roteiro-total-peso');
+    const txtSelRotas = document.getElementById('roteiro-sel-rotas');
+    const txtSelPeso = document.getElementById('roteiro-sel-peso');
+    const badgeContador = document.getElementById('roteiro-selected-routes-count');
+
+    if (txtTotalRotas) txtTotalRotas.textContent = totalRotas;
+    if (txtTotalPeso) txtTotalPeso.textContent = totalPeso.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    if (txtSelRotas) txtSelRotas.textContent = selRotas;
+    if (txtSelPeso) txtSelPeso.textContent = selPeso.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    if (badgeContador) {
+        badgeContador.textContent = `${selRotas} rotas selecionadas`;
+        if (selRotas > 0) {
+            badgeContador.classList.remove('bg-secondary');
+            badgeContador.classList.add('bg-warning', 'text-dark');
+        } else {
+            badgeContador.classList.remove('bg-warning', 'text-dark');
+            badgeContador.classList.add('bg-secondary');
+        }
+    }
+
+    // Habilita/Desabilita o botão "Montar Rotas Selecionadas"
+    const btnSelecionados = document.getElementById('btn-start-roteirizar-selecionados');
+    if (btnSelecionados) {
+        btnSelecionados.disabled = selRotas === 0;
+    }
+
+    // Habilita/Desabilita o botão "Montar Todas as Rotas" se não houver rotas na lista
+    const btnTudo = document.getElementById('btn-start-roteirizar-tudo');
+    if (btnTudo) {
+        btnTudo.disabled = totalRotas === 0;
+    }
+
+    // Adiciona classe visual de selecionado para linhas ativas
+    checkboxes.forEach(chk => {
+        const row = chk.closest('.roteiro-route-select-item');
+        if (row) {
+            if (chk.checked) row.classList.add('selected');
+            else row.classList.remove('selected');
+        }
+    });
+}
+
+function toggleRoteiroRouteRowCheckbox(rowElement, event) {
+    const checkbox = rowElement.querySelector('.roteiro-route-checkbox');
+    if (!checkbox) return;
+
+    if (event.target === checkbox) return;
+
+    checkbox.checked = !checkbox.checked;
+    atualizarResumoRotasRoteirizar();
+}
+
+function toggleSelectAllRotasRoteirizar(select) {
+    const checkboxes = document.querySelectorAll('#roteirizar-routes-list .roteiro-route-checkbox');
+    checkboxes.forEach(chk => {
+        chk.checked = select;
+    });
+    atualizarResumoRotasRoteirizar();
 }

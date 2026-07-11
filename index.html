@@ -1694,11 +1694,14 @@
                                         placeholder="Buscar pedido, cliente, cidade..." onkeyup="liveSearch()">
                                 </div>
                                 <div id="search-result" class="mt-3"></div>
-                                <div class="d-grid gap-2 mt-2">
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                                        data-bs-target="#roteirizacaoModal"
-                                        title="Roteirizar e montar cargas a partir de uma lista de pedidos"><i
-                                            class="bi bi-map-fill me-1"></i>Roteirizar Lista</button>
+                                <div class="d-flex justify-content-center mt-2 w-100">
+                                    <button class="btn btn-magic w-100 py-2.5 d-flex align-items-center justify-content-center gap-2 shadow" 
+                                            onclick="abrirModalRoteirizacaoLista()" 
+                                            title="Roteirizar e montar cargas (incluindo sobras) a partir de rotas combinadas"
+                                            style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.35); box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
+                                        <i class="bi bi-stars text-warning fs-5"></i>
+                                        <span>ROTEIRIZAR E MONTAR SOBRAS</span>
+                                    </button>
                                 </div>
                             </div>
                             <ul class="nav nav-tabs-modern" id="pedidosDisponiveisTabs" role="tablist">
@@ -2979,29 +2982,81 @@
     </div>
 
     <!-- Modal de Roteirização e Montagem por Lista -->
-    <div class="modal fade" id="roteirizacaoModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-map-fill me-2"></i>Roteirizar e Montar (Lista)</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal fade" id="roteirizacaoModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content" style="background: rgba(20, 25, 40, 0.98); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3">
+                    <h5 class="modal-title text-light fw-bold d-flex align-items-center">
+                        <i class="bi bi-map-fill text-primary me-2 fs-4"></i>
+                        Roteirizar e Montar (Combinação de Rotas)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
-                    <p class="text-muted small">Cole os números dos pedidos. O sistema irá¡ roteirizar as cidades e
-                        montar as cargas sequencialmente respeitando a capacidade do veículo.</p>
-                    <div class="mb-3">
-                        <label for="roteiroPedidosInput" class="form-label">Pedidos:</label>
-                        <textarea class="form-control" id="roteiroPedidosInput" rows="5"
-                            placeholder="Cole os números aqui..."></textarea>
+                <div class="modal-body p-4">
+                    <div class="row align-items-center mb-3 g-2">
+                        <div class="col-md-6">
+                            <p class="text-secondary small mb-0">
+                                Selecione as rotas que deseja combinar na mesma montagem de cargas. O sistema consolidará os pedidos por geolocalização.
+                            </p>
+                        </div>
+                        <div class="col-md-6 d-flex justify-content-end gap-2">
+                            <div class="input-group input-group-sm w-75">
+                                <span class="input-group-text bg-dark bg-opacity-30 border-secondary border-opacity-20 text-secondary"><i class="bi bi-search"></i></span>
+                                <input type="text" id="busca-rotas-roteirizar" class="form-control bg-dark bg-opacity-30 border-secondary border-opacity-20 text-light" placeholder="Buscar rota ou cidade..." oninput="filtrarRotasRoteirizar()">
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox"
-                            id="roteiroGeoCheck" checked><label class="form-check-label" for="roteiroGeoCheck">Usar
-                            Geolocalização (Agrupar cidades próximas)</label></div>
+
+                    <!-- Barra de Ações Rápidas de Seleção -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 py-2 px-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10">
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllRotasRoteirizar(true)">
+                                <i class="bi bi-check-all me-1"></i>Selecionar Todas
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllRotasRoteirizar(false)">
+                                <i class="bi bi-x-circle me-1"></i>Limpar Seleção
+                            </button>
+                        </div>
+                        <span id="roteiro-selected-routes-count" class="badge bg-secondary px-2 py-1 text-light font-monospace" style="font-size: 0.75rem;">
+                            0 rotas selecionadas
+                        </span>
+                    </div>
+
+                    <!-- Painel de Resumo de Seleção e Pesos -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10 gap-3">
+                        <div class="d-flex align-items-center gap-4 text-light small">
+                            <div>
+                                <i class="bi bi-collection-fill text-secondary me-1.5"></i>
+                                Total Disponível: <strong id="roteiro-total-rotas" class="text-info font-monospace">0</strong> rotas 
+                                (<strong id="roteiro-total-peso" class="text-info font-monospace">0,00</strong> kg)
+                            </div>
+                            <div class="border-start border-secondary border-opacity-20 ps-4">
+                                <i class="bi bi-check-circle-fill text-success me-1.5"></i>
+                                Selecionado: <strong id="roteiro-sel-rotas" class="text-warning font-monospace">0</strong> rotas 
+                                (<strong id="roteiro-sel-peso" class="text-warning font-monospace">0,00</strong> kg)
+                            </div>
+                        </div>
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" id="roteiroGeoCheck" checked>
+                            <label class="form-check-label text-light small fw-bold" for="roteiroGeoCheck">Usar Geolocalização (Agrupar cidades próximas)</label>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Rotas para Combinar -->
+                    <div id="roteirizar-routes-list" class="d-flex flex-column gap-2" style="max-height: 45vh; overflow-y: auto;">
+                        <!-- Gerado dinamicamente via JS (cards de rotas) -->
+                    </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary"
-                        onclick="processarRoteirizacaoLista()">Processar</button>
+                <div class="modal-footer border-top border-secondary border-opacity-10 d-flex justify-content-between p-3">
+                    <button type="button" class="btn btn-outline-secondary px-4 text-light" data-bs-dismiss="modal">Cancelar</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" id="btn-start-roteirizar-tudo" class="btn btn-outline-info px-4 py-2" onclick="processarRoteirizacaoLista(false)">
+                            <i class="bi bi-box-seam-fill me-2 fs-6"></i>Montar Todas as Rotas
+                        </button>
+                        <button type="button" id="btn-start-roteirizar-selecionados" class="btn btn-primary px-4 py-2" onclick="processarRoteirizacaoLista(true)">
+                            <i class="bi bi-play-circle-fill me-2 fs-6"></i>Montar Rotas Selecionadas
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
