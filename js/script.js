@@ -2298,6 +2298,64 @@ function processar() {
  * NOVO: Renderiza os cards para todas as cargas ativas (Fiorino, Van, 3/4, Manuais).
  * Esta funá§á£o á© crucial para manter a UI sincronizada apá³s operaá§áµes de arrastar e soltar.
  */
+function getLoadTabDestination(load) {
+    if (load.vehicleType === 'toco' || load.id.startsWith('roteiro-')) {
+        return { tabVehicleType: 'toco', region: 'SP', containerId: 'resultado-toco' };
+    }
+
+    let tabVehicleType = load.vehicleType;
+    let region = 'SP'; // Default para Van SP
+
+    if (load.routesKey) {
+        const firstRoute = load.routesKey.split(',')[0];
+        const routeConfig = rotaVeiculoMap[firstRoute];
+        if (routeConfig) {
+            tabVehicleType = routeConfig.type;
+            
+            if (tabVehicleType === 'van' || tabVehicleType === 'tresQuartos') {
+                const isPR = routeConfig.title.startsWith('Rota 1') || firstRoute.startsWith('1');
+                const isMS = firstRoute.startsWith('3');
+                if (isPR) region = 'PR';
+                else if (isMS) region = 'MS';
+                else region = 'SP';
+            }
+        }
+    }
+
+    // Se for Van/3.4 e não tem routesKey ou a rota não definiu região (ex: cargas manuais)
+    if ((tabVehicleType === 'van' || tabVehicleType === 'tresQuartos')) {
+        const firstPedido = load.pedidos && load.pedidos.length > 0 ? load.pedidos[0] : null;
+        if (firstPedido) {
+            const uf = String(firstPedido.UF || '').trim().toUpperCase();
+            if (uf === 'PR') region = 'PR';
+            else if (uf === 'MS') region = 'MS';
+            else {
+                const firstRoute = String(firstPedido.Cod_Rota || '');
+                if (firstRoute.startsWith('1') || (rotaVeiculoMap[firstRoute] && rotaVeiculoMap[firstRoute].title.startsWith('Rota 1'))) {
+                    region = 'PR';
+                } else if (firstRoute.startsWith('3')) {
+                    region = 'MS';
+                }
+            }
+        }
+    }
+
+    let containerId = 'resultado-fiorino-geral';
+    if (tabVehicleType === 'fiorino') {
+        containerId = 'resultado-fiorino-geral';
+    } else if (tabVehicleType === 'van' || tabVehicleType === 'tresQuartos') {
+        if (region === 'PR') containerId = 'resultado-van-pr';
+        else if (region === 'MS') containerId = 'resultado-van-ms';
+        else containerId = 'resultado-van-sp';
+    } else if (tabVehicleType === 'truck') {
+        containerId = 'resultado-truck';
+    } else if (tabVehicleType === 'especial') {
+        containerId = 'resultado-montagens-especiais';
+    }
+
+    return { tabVehicleType, region, containerId };
+}
+
 function renderActiveLoadCards() {
     const vehicleInfo = {
         fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
@@ -2330,41 +2388,7 @@ function renderActiveLoadCards() {
         const vInfo = vehicleInfo[load.vehicleType];
         if (vInfo) {
             const cardHtml = renderLoadCard(load, load.vehicleType, vInfo);
-            let containerId = 'resultado-fiorino-geral';
-
-            if (load.vehicleType === 'fiorino') {
-                containerId = 'resultado-fiorino-geral';
-            } else if (load.vehicleType === 'van' || load.vehicleType === 'tresQuartos') {
-                // Lógica para separar PR, SP e MS
-                const firstPedido = load.pedidos && load.pedidos.length > 0 ? load.pedidos[0] : null;
-                let region = 'SP'; // Default
-
-                if (firstPedido) {
-                    const uf = String(firstPedido.UF || '').trim().toUpperCase();
-                    if (uf === 'PR') region = 'PR';
-                    else if (uf === 'MS') region = 'MS';
-                    else {
-                        const firstRoute = String(firstPedido.Cod_Rota || '');
-                        if (firstRoute.startsWith('1') || (rotaVeiculoMap[firstRoute] && rotaVeiculoMap[firstRoute].title.startsWith('Rota 1'))) {
-                            region = 'PR';
-                        } else if (firstRoute.startsWith('3')) {
-                            region = 'MS';
-                        }
-                    }
-                }
-
-                if (region === 'PR') {
-                    containerId = 'resultado-van-pr';
-                } else if (region === 'MS') {
-                    containerId = 'resultado-van-ms';
-                } else {
-                    containerId = 'resultado-van-sp';
-                }
-            } else if (load.vehicleType === 'truck') {
-                containerId = 'resultado-truck';
-            } else if (load.vehicleType === 'especial') {
-                containerId = 'resultado-montagens-especiais';
-            }
+            const { containerId } = getLoadTabDestination(load);
 
             if (containers[containerId] !== undefined) {
                 containers[containerId] += cardHtml;
@@ -2483,33 +2507,26 @@ function renderAllUI() {
 }
 
 function updateTabCounts() {
-    // Helper to check if load belongs to a specific region
-    const getLoadRegion = (load) => {
-        const firstPedido = load.pedidos && load.pedidos.length > 0 ? load.pedidos[0] : null;
-        if (!firstPedido) return 'SP'; // Default
-
-        const uf = String(firstPedido.UF || '').trim().toUpperCase();
-        if (uf === 'PR') return 'PR';
-        if (uf === 'MS') return 'MS';
-
-        // Fallback to route prefix
-        const firstRoute = String(firstPedido.Cod_Rota || '');
-        if (firstRoute.startsWith('1')) return 'PR';
-        if (firstRoute.startsWith('3')) return 'MS'; // Assumed prefix for MS
-        return 'SP';
-    };
-
-    // Agrupa as cargas por aba
-    const fiorinoLoads = Object.values(activeLoads).filter(l => l.vehicleType === 'fiorino' && !l.id.startsWith('roteiro-'));
-    
-    const allVanAnd34 = Object.values(activeLoads).filter(l => (l.vehicleType === 'van' || l.vehicleType === 'tresQuartos') && !l.id.startsWith('roteiro-'));
-    const vanPRLoads = allVanAnd34.filter(l => getLoadRegion(l) === 'PR');
-    const vanSPLoads = allVanAnd34.filter(l => getLoadRegion(l) === 'SP');
-    const vanMSLoads = allVanAnd34.filter(l => getLoadRegion(l) === 'MS');
-
-    const truckLoads = Object.values(activeLoads).filter(l => l.vehicleType === 'truck' && !l.id.startsWith('roteiro-'));
-    const especialLoads = Object.values(activeLoads).filter(l => l.vehicleType === 'especial' && !l.id.startsWith('roteiro-'));
+    // Agrupa as cargas por aba usando a lógica de destinação centralizada
+    const fiorinoLoads = [];
+    const vanPRLoads = [];
+    const vanSPLoads = [];
+    const vanMSLoads = [];
+    const truckLoads = [];
+    const especialLoads = [];
     const roteirizadosLoads = Object.values(activeLoads).filter(l => l.id.startsWith('roteiro-'));
+
+    Object.values(activeLoads).forEach(l => {
+        if (l.vehicleType === 'toco' || l.id.startsWith('roteiro-')) return;
+        
+        const { containerId } = getLoadTabDestination(l);
+        if (containerId === 'resultado-fiorino-geral') fiorinoLoads.push(l);
+        else if (containerId === 'resultado-van-pr') vanPRLoads.push(l);
+        else if (containerId === 'resultado-van-sp') vanSPLoads.push(l);
+        else if (containerId === 'resultado-van-ms') vanMSLoads.push(l);
+        else if (containerId === 'resultado-truck') truckLoads.push(l);
+        else if (containerId === 'resultado-montagens-especiais') especialLoads.push(l);
+    });
 
     // Toco, PR Fechado, BR Fechado, Outros continuam com contagens simples
     const tocoCount = Object.keys(gruposToco).length;
