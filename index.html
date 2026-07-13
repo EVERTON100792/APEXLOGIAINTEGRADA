@@ -1140,6 +1140,14 @@
                 <span>Relatório Varejo SP/PR</span>
             </a>
 
+            <!-- LINK AGENDAMENTOS TRIZE (PLANILHA) -->
+            <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#trizeAgendamentosModal">
+                <i class="bi bi-calendar-event text-warning" style="color: #f59e0b !important;"></i>
+                <span>Agendamentos Trize</span>
+                <span class="badge bg-success ms-auto"
+                    style="font-size: 0.55rem; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); padding: 2px 4px;">PLANILHA</span>
+            </a>
+
             <!-- Dropdown Logic for Sidebar (Basic Collapse) -->
             <div class="sidebar-link-group">
                 <a href="#" class="sidebar-link" data-bs-toggle="collapse" data-bs-target="#analises-collapse">
@@ -3760,6 +3768,161 @@
 
 
 
+    <!-- ======================================================================================= -->
+    <!-- MODAL: AGENDAMENTOS TRIZE (PREMIUM GLASSMORPHIC) -->
+    <!-- ======================================================================================= -->
+    <div class="modal fade" id="trizeAgendamentosModal" tabindex="-1" aria-labelledby="trizeAgendamentosModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="background: rgba(15, 23, 42, 0.93) !important; backdrop-filter: blur(20px) saturate(180%) !important; -webkit-backdrop-filter: blur(20px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 40px rgba(245, 158, 11, 0.15) !important;">
+                
+                <!-- Cabeçalho -->
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3" style="background: rgba(255, 255, 255, 0.01);">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-calendar-check text-warning fs-4" style="filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));"></i>
+                        <div>
+                            <h5 class="modal-title text-light fw-bold mb-0" id="trizeAgendamentosModalLabel" style="letter-spacing: -0.02em;">Agendamentos Trize</h5>
+                            <span class="text-muted" style="font-size: 0.7rem;">Base de dados de motoristas para cadastro externo</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white opacity-75 hover-opacity-100" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <!-- Corpo do Modal -->
+                <div class="modal-body p-3">
+                    
+                    <!-- Linha de Busca e Informações Básicas -->
+                    <div class="row g-3 mb-3 align-items-center">
+                        <!-- Busca Rápida -->
+                        <div class="col-md-7">
+                            <div class="input-group input-group-sm rounded bg-dark bg-opacity-40 border border-secondary border-opacity-25 p-1 transition-all" style="border-radius: 8px !important;" id="trizeSearchContainer">
+                                <span class="input-group-text bg-transparent border-0 text-muted ps-2"><i class="bi bi-search"></i></span>
+                                <input type="text" id="trizeSearch" class="form-control bg-transparent border-0 text-light py-1 ps-1 shadow-none" placeholder="Buscar por Nome, CPF, Placa ou Cidade..." style="font-size: 0.85rem;">
+                            </div>
+                        </div>
+                        <!-- Contador de resultados -->
+                        <div class="col-md-5 d-flex align-items-center justify-content-md-end">
+                            <span id="trizeResultsCounter" class="badge bg-dark border border-secondary border-opacity-25 text-muted py-2 px-3 rounded-pill" style="font-size: 0.75rem; font-weight: normal;">0 motorista(s) encontrado(s)</span>
+                        </div>
+                    </div>
+
+                    <!-- Filtros por Tipo de Veículo (Abas Estilizadas) -->
+                    <div class="mb-3">
+                        <div class="nav nav-pills gap-1 p-1 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-10" role="tablist">
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-muted fw-bold trize-filter-btn active" data-veiculo="TODOS" style="font-size: 0.75rem; transition: all 0.2s;">TODOS</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-success fw-bold trize-filter-btn" data-veiculo="FIORINO" style="font-size: 0.75rem; transition: all 0.2s;">FIORINO</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-primary fw-bold trize-filter-btn" data-veiculo="VAN" style="font-size: 0.75rem; transition: all 0.2s;">VAN</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-danger fw-bold trize-filter-btn" data-veiculo="3/4" style="font-size: 0.75rem; transition: all 0.2s;">3/4</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-warning fw-bold trize-filter-btn" data-veiculo="TOCO" style="font-size: 0.75rem; transition: all 0.2s;">TOCO</button>
+                        </div>
+                    </div>
+
+                    <!-- Listagem de Motoristas -->
+                    <div id="trizeList" class="pe-1" style="max-height: 50vh; overflow-y: auto; scrollbar-width: thin;">
+                        <!-- Injetado por JS -->
+                    </div>
+
+                </div>
+
+                <!-- Rodapé -->
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5" style="background: rgba(255, 255, 255, 0.01);">
+                    <div class="w-100 d-flex align-items-center justify-content-between">
+                        <span class="text-muted" style="font-size: 0.65rem;"><i class="bi bi-info-circle me-1"></i>Clique no motorista para abrir os detalhes de cadastro.</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal" style="border-radius: 6px; font-size: 0.8rem;">Fechar</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Estilos do Modal Trize */
+        .trize-filter-btn {
+            background: transparent;
+            border: none;
+        }
+        .trize-filter-btn.active {
+            background: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .trize-filter-btn[data-veiculo="TODOS"].active { color: #f8fafc !important; }
+        .trize-filter-btn[data-veiculo="FIORINO"].active { background: rgba(16, 185, 129, 0.1) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.2); }
+        .trize-filter-btn[data-veiculo="VAN"].active { background: rgba(59, 130, 246, 0.1) !important; color: #3b82f6 !important; border: 1px solid rgba(59, 130, 246, 0.2); }
+        .trize-filter-btn[data-veiculo="3/4"].active { background: rgba(239, 68, 68, 0.1) !important; color: #ef4444 !important; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .trize-filter-btn[data-veiculo="TOCO"].active { background: rgba(245, 158, 11, 0.1) !important; color: #f59e0b !important; border: 1px solid rgba(245, 158, 11, 0.2); }
+
+        #trizeList::-webkit-scrollbar {
+            width: 5px;
+        }
+        #trizeList::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        #trizeList::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+        }
+        #trizeList::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-trize-copy {
+            background: rgba(255, 193, 7, 0.04);
+            border-radius: 0 4px 4px 0 !important;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-trize-copy:hover {
+            background: rgba(245, 158, 11, 0.15) !important;
+            color: #ffffff !important;
+        }
+        
+        .btn-copied-pulse {
+            animation: copy-pulse 0.4s ease-out;
+            border-color: #10b981 !important;
+        }
+
+        @keyframes copy-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { transform: scale(1.18); box-shadow: 0 0 10px 2px rgba(16, 185, 129, 0.2); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes fade-in-slide {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .trize-item {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .trize-item:hover {
+            border-color: rgba(245, 158, 11, 0.25) !important;
+            background: rgba(255, 255, 255, 0.02) !important;
+        }
+        .trize-header-row {
+            transition: background-color 0.2s;
+        }
+        .trize-header-row:hover {
+            background-color: rgba(255, 255, 255, 0.01);
+        }
+        .btn-trize-toggle i {
+            transition: transform 0.2s ease-in-out;
+        }
+        #trizeSearchContainer:focus-within {
+            border-color: rgba(245, 158, 11, 0.4) !important;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.15) !important;
+        }
+    </style>
+
     <!-- APEX_ADMIN_START -->
 
     <!-- APEX COMMAND CENTER: PIN MODAL -->
@@ -4228,6 +4391,7 @@
     </div>
     <script src="js/admin.js"></script>
     <!-- APEX_ADMIN_END -->
+    <script src="js/trize-agendamentos.js"></script>
 </body>
 <script>
     // Script bridge if needed for the admin panel to talk to main UI
