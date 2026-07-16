@@ -10403,19 +10403,6 @@ function imprimirResumoAutoMontar() {
                 </tbody>
             </table>
             
-            <table class="signature-table">
-                <tr>
-                    <td class="signature-cell">
-                        <div class="signature-line"></div>
-                        <div class="signature-text">Expedição / Logística</div>
-                    </td>
-                    <td class="signature-cell">
-                        <div class="signature-line"></div>
-                        <div class="signature-text">Responsável APEX LOG</div>
-                    </td>
-                </tr>
-            </table>
-            
             <script>
                 window.onload = function() {
                     window.print();
