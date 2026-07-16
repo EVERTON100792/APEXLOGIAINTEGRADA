@@ -10214,6 +10214,221 @@ function triggerTabRipple(tabEl) {
 }
 
 /**
+ * Função para imprimir o relatório resumido de auto montagem em formato profissional
+ */
+function imprimirResumoAutoMontar() {
+    const totalLoadsText = document.getElementById('summary-total-loads').textContent;
+    const breakdownContainer = document.getElementById('summary-loads-breakdown');
+    
+    if (!breakdownContainer) return;
+    
+    // Extrai as linhas do resumo visual do modal
+    const rows = Array.from(breakdownContainer.children);
+    let tableRowsHtml = '';
+    
+    rows.forEach(row => {
+        const spans = row.querySelectorAll('span');
+        if (spans.length >= 2) {
+            const vehicleName = spans[0].textContent.trim();
+            const vehicleCount = spans[1].textContent.trim();
+            tableRowsHtml += `
+                <tr>
+                    <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: left; color: #334155;">${vehicleName}</td>
+                    <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: right; font-weight: bold; color: #0f172a;">${vehicleCount}</td>
+                </tr>
+            `;
+        }
+    });
+    
+    if (tableRowsHtml === '') {
+        tableRowsHtml = `
+            <tr>
+                <td colspan="2" style="padding: 20px; text-align: center; color: #64748b; font-style: italic;">Nenhuma carga nova foi gerada nesta montagem.</td>
+            </tr>
+        `;
+    }
+    
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('pt-BR');
+    const formattedTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    printWindow.document.open();
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório de Auto Montagem - APEX LOG</title>
+            <style>
+                body {
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    color: #1e293b;
+                    margin: 40px;
+                    background-color: #fff;
+                    line-height: 1.5;
+                }
+                .header-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                .logo-title {
+                    font-size: 24px;
+                    font-weight: 800;
+                    letter-spacing: -0.5px;
+                    color: #0f172a;
+                }
+                .report-date {
+                    font-size: 12px;
+                    color: #64748b;
+                    text-align: right;
+                    line-height: 1.4;
+                }
+                .divider {
+                    border-top: 2px solid #cbd5e1;
+                    margin: 20px 0 30px 0;
+                }
+                .title-section {
+                    text-align: center;
+                    margin-bottom: 30px;
+                }
+                .title-section h1 {
+                    font-size: 22px;
+                    font-weight: 800;
+                    margin: 0 0 8px 0;
+                    color: #0f172a;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .title-section p {
+                    font-size: 14px;
+                    color: #475569;
+                    margin: 0;
+                }
+                .summary-box {
+                    background-color: #f8fafc;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    padding: 24px;
+                    margin-bottom: 35px;
+                    text-align: center;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+                }
+                .summary-box .total {
+                    font-size: 32px;
+                    font-weight: 800;
+                    color: #059669;
+                }
+                .summary-box .label {
+                    font-size: 12px;
+                    color: #475569;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    margin-top: 6px;
+                    font-weight: 600;
+                }
+                .details-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 60px;
+                }
+                .details-table th {
+                    background-color: #f1f5f9;
+                    color: #334155;
+                    font-weight: 700;
+                    font-size: 12px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    padding: 14px 10px;
+                    border-bottom: 2px solid #cbd5e1;
+                }
+                .signature-table {
+                    width: 100%;
+                    margin-top: 80px;
+                    border-collapse: collapse;
+                }
+                .signature-cell {
+                    width: 50%;
+                    text-align: center;
+                }
+                .signature-line {
+                    border-top: 1px solid #94a3b8;
+                    width: 240px;
+                    margin: 0 auto 8px auto;
+                }
+                .signature-text {
+                    font-size: 12px;
+                    color: #475569;
+                    font-weight: 500;
+                }
+                @media print {
+                    body {
+                        margin: 20px;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <table class="header-table">
+                <tr>
+                    <td class="logo-title">APEX LOG <span style="font-size: 14px; font-weight: 600; color: #0284c7; background: #e0f2fe; padding: 2px 8px; border-radius: 4px; margin-left: 5px;">v3.0</span></td>
+                    <td class="report-date">
+                        Relatório Emitido em:<br>
+                        <strong>${formattedDate}</strong> às <strong>${formattedTime}</strong>
+                    </td>
+                </tr>
+            </table>
+            
+            <div class="divider"></div>
+            
+            <div class="title-section">
+                <h1>Resumo de Auto Montagem de Rotas</h1>
+                <p>Detalhamento de veículos consolidados e processados em lote</p>
+            </div>
+            
+            <div class="summary-box">
+                <div class="total">${totalLoadsText}</div>
+                <div class="label">Total Geral de Cargas Geradas</div>
+            </div>
+            
+            <table class="details-table">
+                <thead>
+                    <tr>
+                        <th style="text-align: left;">Categoria de Veículo / Região</th>
+                        <th style="text-align: right;">Quantidade de Cargas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRowsHtml}
+                </tbody>
+            </table>
+            
+            <table class="signature-table">
+                <tr>
+                    <td class="signature-cell">
+                        <div class="signature-line"></div>
+                        <div class="signature-text">Expedição / Logística</div>
+                    </td>
+                    <td class="signature-cell">
+                        <div class="signature-line"></div>
+                        <div class="signature-text">Responsável APEX LOG</div>
+                    </td>
+                </tr>
+            </table>
+            
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function() { window.close(); }, 800);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+
+/**
  * NOVO: Função para montar todas as rotas disponíveis sequencialmente.
  * Simula o clique manual em cada botão de rota.
  */

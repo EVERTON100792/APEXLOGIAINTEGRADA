@@ -2860,8 +2860,11 @@
                         <!-- Inserido dinamicamente via JS -->
                     </div>
                 </div>
-                <div class="modal-footer border-top border-secondary border-opacity-10">
-                    <button type="button" class="btn btn-magic w-100 py-2.5 fw-bold" data-bs-dismiss="modal">Excelente, continuar!</button>
+                <div class="modal-footer border-top border-secondary border-opacity-10 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary py-2.5 fw-bold text-light flex-grow-1" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-magic py-2.5 fw-bold flex-grow-1" onclick="imprimirResumoAutoMontar()">
+                        <i class="bi bi-printer-fill me-2"></i>Imprimir Resumo
+                    </button>
                 </div>
             </div>
         </div>
