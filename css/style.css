@@ -2643,6 +2643,26 @@
             text-transform: uppercase;
         }
 
+        /* FIFO-PREDAT: Badge de urgência por atraso no Predat */
+        .badge-neon-urgente {
+            background: rgba(251, 146, 60, 0.15);
+            color: #fb923c;
+            border: 1px solid rgba(251, 146, 60, 0.4);
+            text-shadow: 0 0 8px rgba(251, 146, 60, 0.6);
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            animation: urgente-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes urgente-pulse {
+            0%, 100% { box-shadow: 0 0 4px rgba(251, 146, 60, 0.3); }
+            50%       { box-shadow: 0 0 10px rgba(251, 146, 60, 0.7); }
+        }
+
         .badge-neon-info {
             background: rgba(59, 130, 246, 0.15);
             color: #60a5fa;
@@ -5613,3 +5633,80 @@ tr.search-highlight > td, tr.search-highlight > th {
 .pulsing-dot-yellow {
     animation: pulse-yellow-dot 1.8s infinite;
 }
+
+/* --- AUTO MONTAR STYLISH TRANSITIONS (NEON TABS & CHAMELEON PROGRESS BAR) --- */
+.tab-processing-pulse {
+    animation: tab-pulse-glow 1.2s ease-in-out infinite alternate !important;
+    transform: translateY(-2px) !important;
+    z-index: 10;
+}
+
+.tab-processing-pulse.tab-fiorino {
+    box-shadow: 0 0 20px rgba(40, 167, 69, 0.6) !important;
+    border-color: #28a745 !important;
+}
+.tab-processing-pulse.tab-van {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.6) !important;
+    border-color: #3b82f6 !important;
+}
+.tab-processing-pulse.tab-toco {
+    box-shadow: 0 0 20px rgba(108, 117, 125, 0.6) !important;
+    border-color: #6c757d !important;
+}
+.tab-processing-pulse.tab-truck {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.6) !important;
+    border-color: #ef4444 !important;
+}
+
+@keyframes tab-pulse-glow {
+    0% {
+        transform: scale(1) translateY(-1px);
+        filter: brightness(0.95);
+    }
+    100% {
+        transform: scale(1.03) translateY(-3px);
+        filter: brightness(1.2);
+    }
+}
+
+/* Chameleon progress bar colors */
+#processing-modal #processing-progress-bar.bar-fiorino {
+    background: linear-gradient(90deg, #10b981 0%, #059669 100%) !important;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.6), 0 0 20px rgba(5, 150, 105, 0.4) !important;
+}
+#processing-modal #processing-progress-bar.bar-van {
+    background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%) !important;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.6), 0 0 20px rgba(29, 78, 216, 0.4) !important;
+}
+#processing-modal #processing-progress-bar.bar-toco {
+    background: linear-gradient(90deg, #6c757d 0%, #495057 100%) !important;
+    box-shadow: 0 0 12px rgba(108, 117, 125, 0.6), 0 0 20px rgba(73, 80, 87, 0.4) !important;
+}
+#processing-modal #processing-progress-bar.bar-truck {
+    background: linear-gradient(90deg, #ef4444 0%, #b91c1c 100%) !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6), 0 0 20px rgba(185, 28, 28, 0.4) !important;
+}
+
+/* Onda de Choque de Conclusão (Ripple Effect) */
+.tab-ripple-wave {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 12px;
+    border: 2px solid var(--ripple-color, #fb923c);
+    box-shadow: 0 0 15px var(--ripple-color, #fb923c);
+    animation: ripple-wave-animation 0.8s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+    z-index: 9999;
+}
+
+@keyframes ripple-wave-animation {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+

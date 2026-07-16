@@ -4338,6 +4338,52 @@ function calculateOldestDate(pedidos) {
     }, null);
 }
 
+/**
+ * FIFO-PREDAT: Retorna a data de entrada real do pedido para ordenação FIFO.
+ * Usa Dat_Ped como critério primário, com fallback para Predat se Dat_Ped ausente.
+ * Evita que Predat re-datado (data futura) distorça a fila.
+ * @param {object} p - Objeto do pedido
+ * @returns {Date|null}
+ */
+function getOrderEntryDate(p) {
+    const raw = p.Dat_Ped || p.Predat;
+    if (!raw) return null;
+    const d = parseDateBR ? parseDateBR(raw) : new Date(raw);
+    if (!d || isNaN(d.getTime())) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/**
+ * FIFO-PREDAT: Verifica se um pedido é urgente pela data de Predat.
+ * Um pedido é urgente se seu Predat está atrasado >= thresholdDays dias.
+ * @param {object} p - Objeto do pedido
+ * @param {number} thresholdDays - Limiar em dias (padrão: 3)
+ * @returns {boolean}
+ */
+function isUrgentByPredat(p, thresholdDays = 3) {
+    if (!p || !p.Predat) return false;
+    const predat = parseDateBR ? parseDateBR(p.Predat) : new Date(p.Predat);
+    if (!predat || isNaN(predat.getTime())) return false;
+    const predatDay = new Date(predat.getFullYear(), predat.getMonth(), predat.getDate());
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((today - predatDay) / (1000 * 60 * 60 * 24));
+    return diffDays >= thresholdDays;
+}
+
+/**
+ * FIFO-PREDAT: Retorna quantos dias o Predat do pedido está em atraso.
+ * @param {object} p - Objeto do pedido
+ * @returns {number} Dias de atraso (0 se não atrasado ou sem Predat)
+ */
+function getDaysSincePredat(p) {
+    if (!p || !p.Predat) return 0;
+    const predat = parseDateBR ? parseDateBR(p.Predat) : new Date(p.Predat);
+    if (!predat || isNaN(predat.getTime())) return 0;
+    const predatDay = new Date(predat.getFullYear(), predat.getMonth(), predat.getDate());
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.floor((today - predatDay) / (1000 * 60 * 60 * 24)));
+}
+
 function safeDateCompare(aOldest, bOldest) {
     const timeA = aOldest ? new Date(aOldest).getTime() : Infinity;
     const timeB = bOldest ? new Date(bOldest).getTime() : Infinity;
@@ -4459,33 +4505,25 @@ window.reaplicarRegrasPainelInterno = function() {
     }, {});
     let packableGroups = Object.values(clientGroupsMap);
 
-    // NOVO: Calcula a data de pedido mais antiga para cada grupo de cliente.
-    // (Movido para antes da lógica da rota 11711 para garantir que os grupos excluídos também tenham a data calculada para a cascata)
+    // FIFO-PREDAT Melhoria 1: Calcula oldestDate usando Dat_Ped como primário (FIFO puro).
+    // Predat é usado apenas como fallback se Dat_Ped estiver ausente.
+    // Isso evita que re-datações (Predat futuro) distorçam a fila de antiguidade.
     packableGroups.forEach(group => {
         group.oldestDate = group.pedidos.reduce((oldest, p) => {
-            // Prioridade: Predat (Data do Pré-Cadastro) para FIFO. Fallback para Dat_Ped se Predat estiver vazio.
-            let pDate = p.Predat;
-            if (!pDate || (pDate instanceof Date && isNaN(pDate.getTime()))) {
-                pDate = p.Dat_Ped;
-            }
-
-            if (pDate) {
-                let dateObj = pDate;
-                if (!(dateObj instanceof Date)) {
-                    const parsedBr = parseDateBR(pDate);
-                    if (parsedBr && !isNaN(parsedBr.getTime())) {
-                        dateObj = parsedBr;
-                    } else {
-                        dateObj = new Date(pDate);
-                    }
-                }
-                if (!isNaN(dateObj.getTime())) {
-                    if (!oldest || dateObj < oldest) return dateObj;
-                }
-            }
+            // FIFO: Dat_Ped é a data de entrada real. Predat = prazo de entrega.
+            const entryDate = getOrderEntryDate(p);
+            if (entryDate && (!oldest || entryDate < oldest)) return entryDate;
             return oldest;
         }, null);
+
+        // Marca urgência e calcula atraso máximo do Predat no grupo
+        group.hasUrgentPredat = group.pedidos.some(p => isUrgentByPredat(p));
+        group.maxPredatAge = group.pedidos.reduce((maxAge, p) => {
+            const age = getDaysSincePredat(p);
+            return age > maxAge ? age : maxAge;
+        }, 0);
     });
+
 
     // --- Lá“GICA ESPECIAL PARA PRIORIZAR FIORINO EM ROTAS MISTAS ---
     let groupsExcludedFromFiorino = [];
@@ -4628,9 +4666,7 @@ window.reaplicarRegrasPainelInterno = function() {
                 }
             }
         }
-    }
-
-    const optimizationLevel = document.getElementById('optimizationLevelSelect').value;
+    }    const optimizationLevel = document.getElementById('optimizationLevelSelect').value;
     let optimizationResult;
 
     // --- Lá“GICA DE PROCESSAMENTO COM WEB WORKER ---
@@ -4726,7 +4762,10 @@ window.reaplicarRegrasPainelInterno = function() {
     // ========================================================================
     // INÍCIO DA NOVA LÓGICA DE CASCATA (Fiorino -> Van -> 3/4 -> Toco)
     // ========================================================================
-    let primaryLoads = [...initialRefinedLoads.map(l => ({ ...l, vehicleType: l.vehicleType || vehicleType })), ...upgradeLoads];
+    let primaryLoads = [
+        ...initialRefinedLoads.map(l => ({ ...l, vehicleType: l.vehicleType || vehicleType })),
+        ...upgradeLoads
+    ];
     let leftoverGroups = initialLeftovers;
     let secondaryLoads = [];
     let tertiaryLoads = [];
@@ -4815,7 +4854,8 @@ window.reaplicarRegrasPainelInterno = function() {
     let finalLeftoverGroups = [...leftoverGroups];
 
     allPotentialLoads.forEach(load => {
-        const config = getVehicleConfig(load.vehicleType);
+        // FIFO-PREDAT: usa getVehicleConfigSafe para respeitar Admin overrides (igual ao processo de montagem)
+        const config = getVehicleConfigSafe(load.vehicleType);
         if (!config) { // Adiciona uma verificação para o caso de um tipo de veículo inválido
             console.warn(`Configuração não encontrada para o tipo de veículo: ${load.vehicleType}. Descartando carga.`);
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
@@ -5557,6 +5597,15 @@ function renderLoadCard(load, vehicleType, vInfo) {
 
     const priorityBadge = isPriorityLoad ? '<span class="badge-neon-priority"><i class="bi bi-star-fill"></i> Prioridade</span>' : '';
     const hardLimitBadge = load.usedHardLimit ? '<span class="badge-neon-danger"><i class="bi bi-exclamation-triangle-fill"></i> Excesso</span>' : '';
+
+    // FIFO-PREDAT: Badge de urgência para cargas com Predat atrasado
+    const maxPredatAgeInLoad = load.isUrgentLoad ? (load.pedidos.reduce((max, p) => {
+        const age = getDaysSincePredat(p);
+        return age > max ? age : max;
+    }, 0)) : 0;
+    const urgentLoadBadge = load.isUrgentLoad && maxPredatAgeInLoad >= 3
+        ? `<span class="badge-neon-urgente" title="Carga urgente: pedidos com Predat atrasado ${maxPredatAgeInLoad} dia(s)"><i class="bi bi-clock-history me-1"></i>Urgente ${maxPredatAgeInLoad}d</span>`
+        : '';
     const isSaoPauloRoute = load.pedidos.some(p => 
         ['2555', '2560', '2561', '2565', '2566', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)) ||
         String(p.UF || '').trim().toUpperCase() === 'SP'
@@ -5840,7 +5889,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                     </div>
                     <div class="load-main-title">
                         ${vInfo.name}${spDescription}
-                        <div class="badge-group">${priorityBadge}${hardLimitBadge}${specialRouteBadge}</div>
+                        <div class="badge-group">${urgentLoadBadge}${priorityBadge}${hardLimitBadge}${specialRouteBadge}</div>
                     </div>
                 </div>
                 
@@ -9600,7 +9649,7 @@ function abrirModalAutoMontar() {
     if (!listContainer) return;
     listContainer.innerHTML = '';
 
-    // 1. Agrupar pedidos disponíveis por rota
+    // 1. Agrupar pedidos disponíveis por rota com cálculo de Predat mais antigo
     const routeGroups = pedidosGeraisAtuais.reduce((acc, p) => {
         const rota = String(p.Cod_Rota || 'Sem Rota');
         if (!acc[rota]) {
@@ -9608,17 +9657,30 @@ function abrirModalAutoMontar() {
                 rota: rota,
                 pedidos: [],
                 totalKg: 0,
-                contemPrioritario: false
+                contemPrioritario: false,
+                oldestPredatDate: null,   // FIFO-PREDAT Melhoria 3
+                maxPredatAgeInRoute: 0    // FIFO-PREDAT Melhoria 3
             };
         }
         acc[rota].pedidos.push(p);
         acc[rota].totalKg += p.Quilos_Saldo || 0;
-        
-        // Verificar se é prioritário ou recall
-        const isPri = (window.pedidosPrioritarios && window.pedidosPrioritarios.includes(String(p.Num_Pedido))) || 
+
+        // Verifica prioritário ou recall
+        const isPri = (window.pedidosPrioritarios && window.pedidosPrioritarios.includes(String(p.Num_Pedido))) ||
                       (window.pedidosRecall && window.pedidosRecall.includes(String(p.Num_Pedido)));
-        if (isPri) {
-            acc[rota].contemPrioritario = true;
+        if (isPri) acc[rota].contemPrioritario = true;
+
+        // FIFO-PREDAT: Rastreia o Predat mais antigo e o maior atraso da rota
+        if (p.Predat) {
+            const predatD = parseDateBR(p.Predat);
+            if (predatD && !isNaN(predatD.getTime())) {
+                const predatDay = new Date(predatD.getFullYear(), predatD.getMonth(), predatD.getDate());
+                if (!acc[rota].oldestPredatDate || predatDay < acc[rota].oldestPredatDate) {
+                    acc[rota].oldestPredatDate = predatDay;
+                }
+            }
+            const age = getDaysSincePredat(p);
+            if (age > acc[rota].maxPredatAgeInRoute) acc[rota].maxPredatAgeInRoute = age;
         }
         return acc;
     }, {});
@@ -9629,8 +9691,22 @@ function abrirModalAutoMontar() {
         return;
     }
 
-    // Ordena as rotas usando o critério padrão do Varejo
-    const rotasOrdenadas = getSortedVarejoRoutes(uniqueRoutes);
+    // FIFO-PREDAT Melhoria 3: Ordena rotas por urgência primeiro (Predat mais antigo),
+    // depois pelo critério padrão do Varejo
+    const routesSortedByUrgency = uniqueRoutes.sort((a, b) => {
+        const groupA = routeGroups[a];
+        const groupB = routeGroups[b];
+        // Urgentes primeiro (Predat atrasado >= 3 dias)
+        const aUrgent = groupA.maxPredatAgeInRoute >= 3;
+        const bUrgent = groupB.maxPredatAgeInRoute >= 3;
+        if (aUrgent && !bUrgent) return -1;
+        if (!aUrgent && bUrgent) return 1;
+        // Entre urgentes: mais antigo primeiro
+        if (aUrgent && bUrgent) return groupB.maxPredatAgeInRoute - groupA.maxPredatAgeInRoute;
+        // Não urgentes: ordem padrão do Varejo
+        return 0;
+    });
+    const rotasOrdenadas = getSortedVarejoRoutes(routesSortedByUrgency);
 
     // 2. Renderizar cada rota com seu respectivo veículo e estado
     let htmlContent = '';
@@ -9681,9 +9757,25 @@ function abrirModalAutoMontar() {
 
         const weightFormatted = group.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kg';
 
+        // FIFO-PREDAT Melhoria 3: Badge e destaque visual para rotas urgentes
+        const routeMaxAge = group.maxPredatAgeInRoute || 0;
+        const routeOldestPredatStr = group.oldestPredatDate
+            ? group.oldestPredatDate.toLocaleDateString('pt-BR')
+            : null;
+        const isRouteUrgent = routeMaxAge >= 3;
+        const badgeUrgente = isRouteUrgent
+            ? `<span class="badge-neon-urgente ms-1" style="font-size: 0.7rem; padding: 0.15rem 0.4rem;" title="Pedido com Predat mais antigo: ${routeOldestPredatStr} (${routeMaxAge} dias atrasado)"><i class="bi bi-clock-history me-1"></i>Urgente ${routeMaxAge}d</span>`
+            : '';
+        const rowBgStyle = isRouteUrgent
+            ? 'background: rgba(251, 146, 60, 0.08); border-color: rgba(251, 146, 60, 0.35) !important;'
+            : 'background: rgba(30, 41, 59, 0.2);';
+        const predatSubtext = isRouteUrgent && routeOldestPredatStr
+            ? ` | <span style="color: #fb923c; font-weight: 600;">Predat mais antigo: ${routeOldestPredatStr}</span>`
+            : '';
+
         htmlContent += `
             <div class="route-select-item p-3 rounded-3 border border-secondary border-opacity-15 d-flex align-items-center justify-content-between transition-all mb-2" 
-                 style="background: rgba(30, 41, 59, 0.2); cursor: pointer;" 
+                 style="${rowBgStyle} cursor: pointer;" 
                  onclick="toggleRouteRowCheckbox(this, event)">
                 <div class="d-flex align-items-center gap-3">
                     <div class="form-check m-0">
@@ -9694,11 +9786,12 @@ function abrirModalAutoMontar() {
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="text-light fw-bold" style="font-size: 0.9rem;">${routeTitle}</span>
                             <span class="badge ${badgeVehicleClass}" style="font-size: 0.7rem;">${vehicleName}</span>
+                            ${badgeUrgente}
                             ${badgePriority}
                             ${badgeHighVolume}
                         </div>
                         <div class="text-secondary small mt-1 font-monospace" style="font-size: 0.75rem;">
-                            Código Rota: ${rota} | Pedidos Disponíveis: ${group.pedidos.length}
+                            Código Rota: ${rota} | Pedidos Disponíveis: ${group.pedidos.length}${predatSubtext}
                         </div>
                     </div>
                 </div>
@@ -9834,6 +9927,9 @@ function processarSemPriorizar() {
  * Processa a montagem sequencial em lote das rotas selecionadas
  */
 async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = false) {
+    // 1. Rastrear cargas atuais antes do processamento para contar o resumo no final
+    const activeLoadsBefore = Object.keys(activeLoads);
+
     // 2. Mostrar o modal global de processamento/carregamento
     const modalElement = document.getElementById('processing-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
@@ -9852,71 +9948,223 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
     // 3. Limpar mensagens de sucesso anteriores
     document.querySelectorAll('.route-success-message').forEach(el => el.remove());
 
+    // 4. Classificar rotas por categoria/aba de veículo para execução sequencial
+    const categoriesConfig = [
+        {
+            id: 'fiorino',
+            name: 'Fiorinos',
+            paneId: 'fiorino-tab-pane',
+            divId: 'resultado-fiorino-geral',
+            filter: (config, rota) => config.type === 'fiorino'
+        },
+        {
+            id: 'vanPR',
+            name: 'Vans Paraná (PR)',
+            paneId: 'van-pr-tab-pane',
+            divId: 'resultado-van-pr',
+            filter: (config, rota) => (config.type === 'van' || config.type === 'tresQuartos') && (config.title.startsWith('Rota 1') || String(rota).startsWith('1'))
+        },
+        {
+            id: 'vanSP',
+            name: 'Vans São Paulo (SP)',
+            paneId: 'van-sp-tab-pane',
+            divId: 'resultado-van-sp',
+            filter: (config, rota) => (config.type === 'van' || config.type === 'tresQuartos') && !config.title.startsWith('Rota 1') && !String(rota).startsWith('1') && !String(rota).startsWith('3')
+        },
+        {
+            id: 'vanMS',
+            name: 'Vans Mato Grosso do Sul (MS)',
+            paneId: 'van-ms-tab-pane',
+            divId: 'resultado-van-ms',
+            filter: (config, rota) => (config.type === 'van' || config.type === 'tresQuartos') && String(rota).startsWith('3')
+        },
+        {
+            id: 'toco',
+            name: 'Tocos',
+            paneId: 'toco-tab-pane',
+            divId: 'resultado-toco',
+            filter: (config, rota) => config.type === 'toco'
+        },
+        {
+            id: 'truck',
+            name: 'Trucks',
+            paneId: 'truck-tab-pane',
+            divId: 'resultado-truck',
+            filter: (config, rota) => config.type === 'truck'
+        }
+    ];
+
     const processedInThisBatch = new Set();
-    const rotasOrdenadas = getSortedVarejoRoutes(selectedRoutes);
-
-    let idx = 0;
+    const uniqueRoutes = [...new Set(selectedRoutes)];
     
-    // 4. Executar sequencialmente a montagem rota por rota com as regras nativas
-    for (const rota of rotasOrdenadas) {
-        if (processedInThisBatch.has(rota)) continue;
+    // Filtra e agrupa rotas ordenadas pelas categorias correspondentes
+    const groupedCategories = categoriesConfig.map(cat => {
+        const catRoutes = uniqueRoutes.filter(rota => {
+            let config = window.rotaVeiculoMap?.[rota];
+            if (!config) config = { type: 'van', title: `Rota ${rota} (Automática)` };
+            return cat.filter(config, rota);
+        });
+        return {
+            ...cat,
+            routes: getSortedVarejoRoutes(catRoutes)
+        };
+    }).filter(cat => cat.routes.length > 0);
 
-        idx++;
-        const percent = Math.round((idx / rotasOrdenadas.length) * 100);
-        progressBar.style.width = `${percent}%`;
-        thinkingText.textContent = `Processando rota ${rota}...`;
-        detailsText.textContent = `Montando ${idx} de ${rotasOrdenadas.length} rotas selecionadas.`;
+    const totalRoutesToProcess = groupedCategories.reduce((sum, cat) => sum + cat.routes.length, 0);
+    let processedCount = 0;
 
-        let config = window.rotaVeiculoMap?.[rota];
-        if (!config) config = { type: 'van', title: `Rota ${rota} (Automática)` };
+    try {
+        // 5. Processamento sequencial por categoria de veículo
+        for (let cIdx = 0; cIdx < groupedCategories.length; cIdx++) {
+            const category = groupedCategories[cIdx];
+            
+            // Mudar visualmente para a aba correspondente
+            const tabEl = document.querySelector(`button[data-bs-target="#${category.paneId}"]`);
+            if (tabEl) {
+                const tab = bootstrap.Tab.getOrCreateInstance(tabEl);
+                tab.show();
 
-        let rotasParaProcessar = rota;
-        if (config.combined) {
-            const combinedRoutes = [rota, ...config.combined];
-            rotasParaProcessar = combinedRoutes;
-            combinedRoutes.forEach(r => processedInThisBatch.add(r));
-        } else {
-            processedInThisBatch.add(rota);
-        }
-
-        // Determina div de destino baseada no veículo e localização geográfica
-        let divId;
-        if (config.type === 'fiorino') {
-            divId = 'resultado-fiorino-geral';
-        } else if (config.type === 'van' || config.type === 'tresQuartos') {
-            const rotaStr = String(rota);
-            const isPR = config.title.startsWith('Rota 1') || rotaStr.startsWith('1');
-            const isMS = rotaStr.startsWith('3');
-
-            if (isPR) {
-                divId = 'resultado-van-pr';
-            } else if (isMS) {
-                divId = 'resultado-van-ms';
-            } else {
-                divId = 'resultado-van-sp';
+                // EFEITO NEON NAS ABAS: Remove efeito de pulso das outras abas e adiciona na aba atual
+                document.querySelectorAll('#vehicleTabs .nav-link').forEach(btn => {
+                    btn.classList.remove('tab-processing-pulse', 'tab-fiorino', 'tab-van', 'tab-toco', 'tab-truck');
+                });
+                tabEl.classList.add('tab-processing-pulse');
+                if (category.id === 'fiorino') tabEl.classList.add('tab-fiorino');
+                else if (category.id.startsWith('van')) tabEl.classList.add('tab-van');
+                else if (category.id === 'toco') tabEl.classList.add('tab-toco');
+                else if (category.id === 'truck') tabEl.classList.add('tab-truck');
             }
-        } else {
-            divId = 'resultado-fiorino-geral';
+
+            // BARRA DE PROGRESSO CAMALEÃO: Altera dinamicamente a cor da barra de progresso
+            if (progressBar) {
+                progressBar.classList.remove('bar-fiorino', 'bar-van', 'bar-toco', 'bar-truck');
+                if (category.id === 'fiorino') progressBar.classList.add('bar-fiorino');
+                else if (category.id.startsWith('van')) progressBar.classList.add('bar-van');
+                else if (category.id === 'toco') progressBar.classList.add('bar-toco');
+                else if (category.id === 'truck') progressBar.classList.add('bar-truck');
+            }
+
+            // Exibe status estilizado de transição de aba
+            statusText.textContent = `🚚 Montando ${category.name}...`;
+            thinkingText.textContent = `Aba ativa: ${category.name}`;
+            detailsText.textContent = `Montando rotas de ${category.name}.`;
+            
+            // Pequena pausa para o usuário notar a transição de abas e efeitos
+            await new Promise(r => setTimeout(r, 800));
+
+            // Processa cada rota da categoria
+            for (const rota of category.routes) {
+                if (processedInThisBatch.has(rota)) continue;
+
+                processedCount++;
+                const percent = Math.round((processedCount / totalRoutesToProcess) * 100);
+                progressBar.style.width = `${percent}%`;
+                thinkingText.textContent = `Processando rota ${rota}...`;
+                detailsText.textContent = `Montando ${processedCount} de ${totalRoutesToProcess} rotas selecionadas.`;
+
+                let config = window.rotaVeiculoMap?.[rota];
+                if (!config) config = { type: 'van', title: `Rota ${rota} (Automática)` };
+
+                let rotasParaProcessar = rota;
+                if (config.combined) {
+                    const combinedRoutes = [rota, ...config.combined];
+                    rotasParaProcessar = combinedRoutes;
+                    combinedRoutes.forEach(r => processedInThisBatch.add(r));
+                } else {
+                    processedInThisBatch.add(rota);
+                }
+
+                const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
+
+                // Chama a função nativa de separação de cargas
+                await separarCargasGeneric(rotasParaProcessar, category.divId, buttonTitle, config.type, null, true, onlyPriority);
+                
+                // Delay para visual e respiro do Web Worker
+                await new Promise(r => setTimeout(r, 400));
+            }
+
+            // Animação de categoria concluída e efeito Ripple (Onda de Choque)
+            statusText.textContent = `🎉 ${category.name} concluídas!`;
+            thinkingText.textContent = `Mudando de aba...`;
+            if (tabEl) triggerTabRipple(tabEl);
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    } catch (err) {
+        console.error("Erro na auto montagem sequencial:", err);
+        showToast("Ocorreu um erro inesperado durante a auto montagem em lote.", "danger");
+    } finally {
+        // Limpar efeitos de processamento e neon das abas
+        document.querySelectorAll('#vehicleTabs .nav-link').forEach(btn => {
+            btn.classList.remove('tab-processing-pulse', 'tab-fiorino', 'tab-van', 'tab-toco', 'tab-truck');
+        });
+        if (progressBar) {
+            progressBar.classList.remove('bar-fiorino', 'bar-van', 'bar-toco', 'bar-truck');
         }
 
-        const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
+        // 6. Finalizar processamento
+        progressBar.style.width = '100%';
+        stopThinkingText();
+        modal.hide();
 
-        // Chama a função nativa de separação de cargas com as mesmas regras
-        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, config.type, null, true, onlyPriority);
-        
-        // Delay para animação visual e respiro do Web Worker
-        await new Promise(r => setTimeout(r, 400));
+        // Atualizar UI e LocalStorage
+        renderAllUI();
     }
 
-    // 5. Finalizar processamento
-    progressBar.style.width = '100%';
-    stopThinkingText();
-    modal.hide();
+    // 7. Calcular o resumo de cargas geradas
+    const activeLoadsAfter = Object.keys(activeLoads);
+    const newLoadsIds = activeLoadsAfter.filter(id => !activeLoadsBefore.includes(id));
+    const newLoads = newLoadsIds.map(id => activeLoads[id]);
 
-    // Atualizar UI e LocalStorage
-    renderAllUI();
+    let countFiorino = 0;
+    let countVanPR = 0;
+    let countVanSP = 0;
+    let countVanMS = 0;
+    let count34PR = 0;
+    let count34SP = 0;
+    let count34MS = 0;
+    let countToco = 0;
+    let countTruck = 0;
+    let countEspecial = 0;
 
-    // NOVO: Verifica se restou algum prioritário pendente na lista de disponíveis que pertencia às rotas selecionadas
+    newLoads.forEach(load => {
+        const type = load.vehicleType;
+        const isPR = load.pedidos.some(p => String(p.Cod_Rota).startsWith('1') || (window.rotaVeiculoMap?.[p.Cod_Rota] && window.rotaVeiculoMap[p.Cod_Rota].title.startsWith('Rota 1')));
+        const isMS = load.pedidos.some(p => String(p.Cod_Rota).startsWith('3'));
+
+        if (type === 'fiorino') countFiorino++;
+        else if (type === 'van') {
+            if (isPR) countVanPR++;
+            else if (isMS) countVanMS++;
+            else countVanSP++;
+        } else if (type === 'tresQuartos') {
+            if (isPR) count34PR++;
+            else if (isMS) count34MS++;
+            else count34SP++;
+        } else if (type === 'toco') countToco++;
+        else if (type === 'truck') countTruck++;
+        else countEspecial++;
+    });
+
+    let breakdownHtml = '';
+    if (countFiorino > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981;"><span class="text-light"><i class="bi bi-box-seam me-2"></i>Fiorinos</span><span class="text-success fw-bold">${countFiorino}</span></div>`;
+    if (countVanPR > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6;"><span class="text-light"><i class="bi bi-truck me-2"></i>Vans Paraná (PR)</span><span class="text-primary fw-bold">${countVanPR}</span></div>`;
+    if (countVanSP > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6;"><span class="text-light"><i class="bi bi-truck me-2"></i>Vans São Paulo (SP)</span><span class="text-primary fw-bold">${countVanSP}</span></div>`;
+    if (countVanMS > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(59, 130, 246, 0.1); border-left: 4px solid #3b82f6;"><span class="text-light"><i class="bi bi-truck me-2"></i>Vans Mato Grosso do Sul (MS)</span><span class="text-primary fw-bold">${countVanMS}</span></div>`;
+    if (count34PR > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b;"><span class="text-light"><i class="bi bi-truck me-2"></i>3/4 Paraná (PR)</span><span class="text-warning fw-bold">${count34PR}</span></div>`;
+    if (count34SP > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b;"><span class="text-light"><i class="bi bi-truck me-2"></i>3/4 São Paulo (SP)</span><span class="text-warning fw-bold">${count34SP}</span></div>`;
+    if (count34MS > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b;"><span class="text-light"><i class="bi bi-truck me-2"></i>3/4 Mato Grosso do Sul (MS)</span><span class="text-warning fw-bold">${count34MS}</span></div>`;
+    if (countToco > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(108, 117, 125, 0.1); border-left: 4px solid #6c757d;"><span class="text-light"><i class="bi bi-boxes me-2"></i>Tocos</span><span class="text-secondary fw-bold">${countToco}</span></div>`;
+    if (countTruck > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444;"><span class="text-light"><i class="bi bi-truck-flatbed me-2"></i>Trucks</span><span class="text-danger fw-bold">${countTruck}</span></div>`;
+    if (countEspecial > 0) breakdownHtml += `<div class="d-flex justify-content-between p-2 rounded mb-1" style="background: rgba(13, 202, 240, 0.1); border-left: 4px solid #0dcaf0;"><span class="text-light"><i class="bi bi-tools me-2"></i>Manual/Especial</span><span class="text-info fw-bold">${countEspecial}</span></div>`;
+
+    document.getElementById('summary-total-loads').textContent = `${newLoads.length} Cargas Montadas`;
+    document.getElementById('summary-loads-breakdown').innerHTML = breakdownHtml || '<div class="text-center text-muted py-3">Nenhuma carga nova foi gerada nesta montagem.</div>';
+
+    // 8. Abrir o modal de resumo final estiloso
+    const summaryModal = new bootstrap.Modal(document.getElementById('autoMontarSummaryModal'));
+    summaryModal.show();
+
+    // NOVO: Verifica se restou algum prioritário pendente na lista de disponíveis
     const prioritariosRestantes = pedidosGeraisAtuais.filter(p =>
         selectedRoutes.includes(String(p.Cod_Rota)) &&
         (pedidosPrioritarios.includes(String(p.Num_Pedido)) || pedidosRecall.includes(String(p.Num_Pedido)))
@@ -9924,13 +10172,45 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
 
     if (prioritariosRestantes.length > 0) {
         showToast(`Auto Montagem concluída! Atenção: ${prioritariosRestantes.length} pedido(s) prioritário(s) selecionado(s) não pôde(ram) ser montado(s) e está(ão) em destaque vermelho nos disponíveis.`, "warning");
-    } else {
-        showToast("Auto Montagem concluída com sucesso para as rotas selecionadas!", "success");
     }
 
     // Limpa filtro de rotas para exibir todas as cargas montadas nas abas em sequência
     window.currentActiveRouteKey = null;
     renderAllUI();
+}
+
+/**
+ * Função para gerar o efeito visual de onda de choque de conclusão em uma aba
+ */
+function triggerTabRipple(tabEl) {
+    if (!tabEl) return;
+    const rect = tabEl.getBoundingClientRect();
+    const ripple = document.createElement('div');
+    ripple.className = 'tab-ripple-wave';
+    ripple.style.left = `${rect.left + window.scrollX}px`;
+    ripple.style.top = `${rect.top + window.scrollY}px`;
+    ripple.style.width = `${rect.width}px`;
+    ripple.style.height = `${rect.height}px`;
+    
+    // Configura a cor da onda de choque baseada no veículo
+    if (tabEl.classList.contains('tab-fiorino')) {
+        ripple.style.setProperty('--ripple-color', '#10b981');
+    } else if (tabEl.classList.contains('tab-van')) {
+        ripple.style.setProperty('--ripple-color', '#3b82f6');
+    } else if (tabEl.classList.contains('tab-toco')) {
+        ripple.style.setProperty('--ripple-color', '#6b7280');
+    } else if (tabEl.classList.contains('tab-truck')) {
+        ripple.style.setProperty('--ripple-color', '#ef4444');
+    } else {
+        ripple.style.setProperty('--ripple-color', '#fb923c');
+    }
+    
+    document.body.appendChild(ripple);
+    
+    // Remove o elemento após a animação terminar
+    setTimeout(() => {
+        ripple.remove();
+    }, 800);
 }
 
 /**

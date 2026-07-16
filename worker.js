@@ -109,6 +109,27 @@ function safeDateCompare(aOldest, bOldest) {
     return timeA - timeB;
 }
 
+// FIFO-PREDAT Worker: verifica urgência pelo Predat atrasado
+function isUrgentByPredatWorker(p, thresholdDays = 3) {
+    if (!p || !p.Predat) return false;
+    const predat = parseDateBR(p.Predat);
+    if (!predat || isNaN(predat.getTime())) return false;
+    const predatDay = new Date(predat.getFullYear(), predat.getMonth(), predat.getDate());
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((today - predatDay) / (1000 * 60 * 60 * 24));
+    return diffDays >= thresholdDays;
+}
+
+// FIFO-PREDAT Worker: retorna dias de atraso do Predat
+function getDaysSincePredatWorker(p) {
+    if (!p || !p.Predat) return 0;
+    const predat = parseDateBR(p.Predat);
+    if (!predat || isNaN(predat.getTime())) return 0;
+    const predatDay = new Date(predat.getFullYear(), predat.getMonth(), predat.getDate());
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.floor((today - predatDay) / (1000 * 60 * 60 * 24)));
+}
+
 async function getCityCoordinates(cidade, uf, apiKey) {
     const key = `${cidade.trim().toUpperCase()}-${uf.trim().toUpperCase()}`;
     if (cityCoordsCache[key]) return cityCoordsCache[key];
@@ -421,12 +442,20 @@ function getSolutionEnergy(solution, vehicleType, configs, pedidosPrioritarios, 
             if (!isNaN(date.getTime())) {
                 const ageInMillis = Math.max(0, now - date.getTime());
                 const ageInDays = ageInMillis / oneDay;
-                // AUMENTO DRÁSTICO DA PENALIDADE:
-                // Antes: 1 + (dias * 0.1) -> 10 dias = 2x peso
-                // Agora: 10 + (dias * 100) -> 10 dias = 1010x peso
-                // Isso torna IMPOSSÍVEL matematika o algoritmo preferir deixar um antigo de fora
+                // Penalidade exponencial por idade de entrada (Dat_Ped)
                 weightMultiplier = 10 + (ageInDays * 100);
             }
+        }
+
+        // FIFO-PREDAT: Penalidade extra por atraso no Predat (urgência de prazo)
+        // Quanto mais dias o Predat está atrasado, mais o algoritmo é penalizado por deixar essa sobra
+        const maxPredatDaysInGroup = group.pedidos.reduce((max, p) => {
+            const d = getDaysSincePredatWorker(p);
+            return d > max ? d : max;
+        }, 0);
+        if (maxPredatDaysInGroup >= 3) {
+            // Penalidade adicional: 200 pontos por dia de atraso no Predat (além dos 3 dias base)
+            weightMultiplier += (maxPredatDaysInGroup - 2) * 200;
         }
 
         // Se tiver prioridade, aplica penalidade massiva para forçar o empacotamento

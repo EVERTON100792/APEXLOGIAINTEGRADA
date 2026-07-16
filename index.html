@@ -2836,6 +2836,37 @@
         </div>
     </div>
 
+    <!-- Modal de Resumo da Auto Montagem (Estiloso) -->
+    <div class="modal fade" id="autoMontarSummaryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border border-warning border-opacity-20" style="background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px); border-radius: 20px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3">
+                    <h5 class="modal-title text-light fw-bold d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill text-success me-2 fs-4"></i>
+                        Resumo da Auto Montagem
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-4">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success rounded-circle mb-3" style="width: 64px; height: 64px; border: 1px solid rgba(25, 135, 84, 0.3);">
+                            <i class="bi bi-truck fs-1"></i>
+                        </div>
+                        <h4 class="text-light fw-bold m-0" id="summary-total-loads">0 Cargas Montadas</h4>
+                        <p class="text-secondary small mt-1">Todas as cargas foram organizadas e separadas com sucesso!</p>
+                    </div>
+
+                    <div class="d-flex flex-column gap-2" id="summary-loads-breakdown">
+                        <!-- Inserido dinamicamente via JS -->
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10">
+                    <button type="button" class="btn btn-magic w-100 py-2.5 fw-bold" data-bs-dismiss="modal">Excelente, continuar!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Confirmação de Priorização antes da Auto-Montagem -->
     <div class="modal fade" id="modalConfirmarPrioridade" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
