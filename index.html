@@ -1376,13 +1376,19 @@
                             </div>
                         </div>
                         <div class="card-body p-0">
-                            <!-- Botão Auto Montar Centralizado no Card -->
-                            <div class="d-flex justify-content-center p-3 border-bottom border-secondary border-opacity-10" style="background: rgba(255, 255, 255, 0.01);">
-                                <button class="btn btn-magic px-5 py-2.5 d-flex align-items-center gap-2 shadow" 
+                            <!-- Botões de Ações Centralizados no Card -->
+                            <div class="d-flex justify-content-center gap-3 p-3 border-bottom border-secondary border-opacity-10" style="background: rgba(255, 255, 255, 0.01);">
+                                <button class="btn btn-magic px-4 py-2.5 d-flex align-items-center gap-2 shadow" 
                                         onclick="abrirModalAutoMontar()" 
                                         style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.35); box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
                                     <i class="bi bi-stars text-warning fs-5"></i>
                                     <span>AUTO MONTAR ROTAS</span>
+                                </button>
+                                <button class="btn btn-outline-warning px-4 py-2.5 d-flex align-items-center gap-2 shadow" 
+                                        onclick="executarImpressaoResumoAutoMontarEstilosa()" 
+                                        style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.25);">
+                                    <i class="bi bi-printer-fill text-warning fs-5"></i>
+                                    <span>IMPRIMIR PREVISÃO</span>
                                 </button>
                             </div>
                             <ul class="nav nav-tabs-modern" id="vehicleTabs" role="tablist">
@@ -2859,6 +2865,14 @@
                     <div class="d-flex flex-column gap-2" id="summary-loads-breakdown">
                         <!-- Inserido dinamicamente via JS -->
                     </div>
+                    
+                    <div id="summary-weight-balance" class="mt-4">
+                        <!-- Balanço de peso (Disponível, Montado, Sobra) via JS -->
+                    </div>
+
+                    <div id="summary-sobras-justificativas">
+                        <!-- Justificativas de sobras por rota via JS -->
+                    </div>
                 </div>
                 <div class="modal-footer border-top border-secondary border-opacity-10 d-flex gap-2">
                     <button type="button" class="btn btn-outline-secondary py-2.5 fw-bold text-light flex-grow-1" data-bs-dismiss="modal">Fechar</button>
@@ -3291,7 +3305,6 @@
             </div>
         </div>
     </div>
-
 
     <script src="js/script.js?v=3.0.8"></script>
     <script src="js/freight_logic.js?v=3.0.8"></script>

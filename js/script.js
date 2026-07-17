@@ -2076,39 +2076,53 @@ function processar() {
                 return acc;
             }, {});
 
+            // Carrega os limites de capacidade de Toco definidos no Super Usuário (Admin)
+            const tocoConfig = getVehicleConfigSafe('toco');
+            const tocoMin = tocoConfig.minKg || 5000;
+            const tocoMax = tocoConfig.softMaxKg || 8500;
+            const tocoMaxCubage = tocoConfig.softMaxCubage || 30.0;
+
             gruposToco = {};
             tocoPedidoIds = new Set();
 
             Object.entries(gruposDeClientesVarejo).forEach(([clienteId, grupo]) => {
-                // CONDIá‡áƒO ATUALIZADA: Verifica se o grupo de cliente tem o peso necessá¡rio E se NENHUM de seus pedidos
-                // contá©m as palavras-chave de exclusá£o na Coluna5.
                 const deveSerExcluido = grupo.pedidos.some(p => {
                     const coluna5Upper = String(p.Coluna5 || '').toUpperCase();
                     return coluna5Upper.includes('TBL ESP CARRETA') || coluna5Upper.includes('TRUCK') || coluna5Upper.includes('CARRETA');
                 });
 
-                if (grupo.totalKg >= 4500 && !deveSerExcluido) {
+                // Valida o limite mínimo e máximo do Toco do Super Usuário para este cliente de varejo
+                if (grupo.totalKg >= tocoMin && grupo.totalKg <= tocoMax && grupo.totalCubagem <= tocoMaxCubage && !deveSerExcluido) {
                     const cf = grupo.pedidos[0]?.CF || `CLI-${clienteId}`; // Usa CF ou um ID de cliente
                     gruposToco[cf] = grupo;
                     grupo.pedidos.forEach(p => tocoPedidoIds.add(p.Num_Pedido));
                 }
             });
 
-            // Remonta a lista de processamento geral com os pedidos que ná£o viraram Toco por peso.
+            // Remonta a lista de processamento geral com os pedidos que não viraram Toco por peso.
             pedidosParaProcessamentoGeral = [...outrosPedidos, ...pedidosDeVarejo.filter(p => !tocoPedidoIds.has(p.Num_Pedido))];
 
             // Adiciona os grupos toco antigos (baseados em flag) se existirem
             const pedidosTocoPorFlag = pedidosParaProcessamentoGeral.filter(p => (p.Coluna4 && String(p.Coluna4).toUpperCase().includes('TOCO')) || (p.Coluna5 && String(p.Coluna5).toUpperCase().includes('TOCO')));
-            const pedidosTocoPorFlagIds = new Set(pedidosTocoPorFlag.map(p => String(p.Num_Pedido)));
-
-            gruposToco = pedidosTocoPorFlag.reduce((acc, p) => {
+            
+            // Agrupa pedidos com flag para validar capacidade
+            const gruposFlagToco = pedidosTocoPorFlag.reduce((acc, p) => {
                 const cf = p.CF || `FLAG-${p.Num_Pedido}`;
                 if (!acc[cf]) { acc[cf] = { pedidos: [], totalKg: 0, totalCubagem: 0 }; }
                 acc[cf].pedidos.push(p);
                 acc[cf].totalKg += p.Quilos_Saldo;
                 acc[cf].totalCubagem += p.Cubagem;
                 return acc;
-            }, gruposToco); // Inicia o reduce com os gruposToco já¡ existentes (do peso >= 4500kg)
+            }, {});
+
+            const pedidosTocoPorFlagIds = new Set();
+            Object.entries(gruposFlagToco).forEach(([cf, grupo]) => {
+                // Valida limites do Toco do Super Usuário
+                if (grupo.totalKg >= tocoMin && grupo.totalKg <= tocoMax && grupo.totalCubagem <= tocoMaxCubage) {
+                    gruposToco[cf] = grupo;
+                    grupo.pedidos.forEach(p => pedidosTocoPorFlagIds.add(String(p.Num_Pedido)));
+                }
+            });
 
             pedidosParaProcessamentoGeral = pedidosParaProcessamentoGeral.filter(p => !pedidosTocoPorFlagIds.has(String(p.Num_Pedido)));
             displayToco(resultadoTocoDiv, gruposToco);
@@ -9930,6 +9944,12 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
     // 1. Rastrear cargas atuais antes do processamento para contar o resumo no final
     const activeLoadsBefore = Object.keys(activeLoads);
 
+    // Calcular toneladas disponíveis antes de rodar a montagem automática
+    const rotasSelecionadasStr = selectedRoutes.map(r => String(r));
+    const pedidosDasRotasSelecionadas = pedidosGeraisAtuais.filter(p => rotasSelecionadasStr.includes(String(p.Cod_Rota)));
+    const pesoDisponivelInicialKg = pedidosDasRotasSelecionadas.reduce((sum, p) => sum + (p.Quilos_Saldo || 0), 0);
+    const pesoDisponivelInicialTons = pesoDisponivelInicialKg / 1000;
+
     // 2. Mostrar o modal global de processamento/carregamento
     const modalElement = document.getElementById('processing-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
@@ -10160,9 +10180,125 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
     document.getElementById('summary-total-loads').textContent = `${newLoads.length} Cargas Montadas`;
     document.getElementById('summary-loads-breakdown').innerHTML = breakdownHtml || '<div class="text-center text-muted py-3">Nenhuma carga nova foi gerada nesta montagem.</div>';
 
-    // 8. Abrir o modal de resumo final estiloso
-    const summaryModal = new bootstrap.Modal(document.getElementById('autoMontarSummaryModal'));
-    summaryModal.show();
+    // Injeta o balanço de toneladas e justificativas inteligentes de sobra
+    const pesoMontadoKg = newLoads.reduce((sum, load) => sum + (load.totalKg || 0), 0);
+    const pesoMontadoTons = pesoMontadoKg / 1000;
+    const pesoSobraTons = Math.max(0, pesoDisponivelInicialTons - pesoMontadoTons);
+
+    const txtResumoPeso = document.getElementById('summary-weight-balance');
+    if (txtResumoPeso) {
+        txtResumoPeso.innerHTML = `
+            <div class="row g-2 text-center text-light mb-3">
+                <div class="col-4">
+                    <div class="p-2 rounded bg-dark bg-opacity-30 border border-secondary border-opacity-10">
+                        <span class="d-block text-secondary small fw-bold" style="font-size:0.75rem;">Disponível</span>
+                        <strong class="fs-5 text-warning font-monospace">${pesoDisponivelInicialTons.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}t</strong>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="p-2 rounded bg-dark bg-opacity-30 border border-secondary border-opacity-10">
+                        <span class="d-block text-secondary small fw-bold" style="font-size:0.75rem;">Montado</span>
+                        <strong class="fs-5 text-success font-monospace">${pesoMontadoTons.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}t</strong>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="p-2 rounded bg-dark bg-opacity-30 border border-secondary border-opacity-10">
+                        <span class="d-block text-secondary small fw-bold" style="font-size:0.75rem;">Sobra</span>
+                        <strong class="fs-5 text-danger font-monospace">${pesoSobraTons.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}t</strong>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Calcular justificativas de sobras
+    const sobrasPorRota = {};
+    pedidosGeraisAtuais.forEach(p => {
+        if (selectedRoutes.includes(String(p.Cod_Rota))) {
+            const r = String(p.Cod_Rota);
+            if (!sobrasPorRota[r]) sobrasPorRota[r] = { pesoKg: 0, pedidosCount: 0 };
+            sobrasPorRota[r].pesoKg += (p.Quilos_Saldo || 0);
+            sobrasPorRota[r].pedidosCount++;
+        }
+    });
+
+    let justificativasHtml = '';
+    const rotasComSobra = Object.keys(sobrasPorRota).filter(r => sobrasPorRota[r].pesoKg > 0);
+    if (rotasComSobra.length > 0) {
+        justificativasHtml += `
+        <h6 class="text-secondary small fw-bold text-uppercase mt-4 mb-2"><i class="bi bi-exclamation-circle text-warning me-1.5"></i>Sobras por Rota:</h6>
+        <div class="accordion accordion-flush rounded border border-secondary border-opacity-10" id="accordionSobras" style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.15);">`;
+        
+        rotasComSobra.forEach((r, idx) => {
+            const dadosSobra = sobrasPorRota[r];
+            const sobraTons = dadosSobra.pesoKg / 1000;
+            let config = window.rotaVeiculoMap?.[r];
+            let vehicleType = config?.type || 'van';
+            let vConfig = getVehicleConfigSafe(vehicleType);
+            let minCapacityKg = vConfig.minKg || 600;
+
+            let justificativaText = '';
+            if (dadosSobra.pesoKg < minCapacityKg) {
+                justificativaText = `Saldo restante menor que a capacidade mínima do veículo (${minCapacityKg.toLocaleString('pt-BR')} kg).`;
+            } else {
+                justificativaText = `Falta de veículo do tipo ${vConfig.name || vehicleType.toUpperCase()} na frota ativa.`;
+            }
+
+            justificativasHtml += `
+                <div class="accordion-item bg-transparent border-bottom border-secondary border-opacity-10">
+                    <h2 class="accordion-header" id="headingSobra-${r}">
+                        <button class="accordion-button collapsed bg-transparent text-light py-2.5 px-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSobra-${r}" aria-expanded="false" style="box-shadow: none; font-size: 0.82rem;">
+                            <div class="d-flex justify-content-between w-100 align-items-center pe-3">
+                                <span><i class="bi bi-geo-alt-fill text-secondary me-1.5"></i>Rota <strong>${r}</strong></span> 
+                                <span class="badge bg-danger bg-opacity-10 text-danger font-monospace">+${sobraTons.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}t</span>
+                            </div>
+                        </button>
+                    </h2>
+                    <div id="collapseSobra-${r}" class="accordion-collapse collapse" data-bs-parent="#accordionSobras">
+                        <div class="accordion-body px-3 py-2 text-secondary-emphasis" style="font-size: 0.75rem; line-height: 1.4; background: rgba(0,0,0,0.15);">
+                            <strong>Pedidos Não Montados:</strong> ${dadosSobra.pedidosCount} pedido(s)<br>
+                            <strong>Motivo:</strong> ${justificativaText}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        justificativasHtml += `</div>`;
+    } else {
+        justificativasHtml = `<div class="text-center text-muted small py-2"><i class="bi bi-check-circle text-success me-1"></i>Nenhuma sobra restante nas rotas selecionadas!</div>`;
+    }
+
+    const panelJustificativas = document.getElementById('summary-sobras-justificativas');
+    if (panelJustificativas) {
+        panelJustificativas.innerHTML = justificativasHtml;
+    }
+
+    // Guardar dados para o relatório impresso
+    const totalPedidosAlocados = newLoads.reduce((sum, l) => sum + (l.pedidos ? l.pedidos.length : 0), 0);
+    const pedIdsAlocados = new Set();
+    newLoads.forEach(l => {
+        if (l.pedidos) {
+            l.pedidos.forEach(p => pedIdsAlocados.add(String(p.Num_Pedido)));
+        }
+    });
+
+    const pedidosNasRotas = pedidosGeraisAtuais.filter(p => rotasSelecionadasStr.includes(String(p.Cod_Rota)));
+    const pedidosNaoAlocados = pedidosNasRotas.filter(p => !pedIdsAlocados.has(String(p.Num_Pedido)));
+    const totalPedidosSobra = pedidosNaoAlocados.length;
+
+    window.ultimaAutoMontagem = {
+        totalVeiculos: newLoads.length,
+        pesoTotalAlocado: pesoMontadoKg,
+        totalPedidosAlocados: totalPedidosAlocados,
+        totalPedidosSobra: totalPedidosSobra,
+        pesoTotalDisponivel: pesoDisponivelInicialTons * 1000,
+        pesoTotalSobra: pesoSobraTons * 1000,
+        newLoads: newLoads
+    };
+
+    // 8. Abrir diretamente o relatório de impressão de previsão
+    executarImpressaoResumoAutoMontarEstilosa();
 
     // NOVO: Verifica se restou algum prioritário pendente na lista de disponíveis
     const prioritariosRestantes = pedidosGeraisAtuais.filter(p =>
@@ -10217,202 +10353,7 @@ function triggerTabRipple(tabEl) {
  * Função para imprimir o relatório resumido de auto montagem em formato profissional
  */
 function imprimirResumoAutoMontar() {
-    const totalLoadsText = document.getElementById('summary-total-loads').textContent;
-    const breakdownContainer = document.getElementById('summary-loads-breakdown');
-    
-    if (!breakdownContainer) return;
-    
-    // Extrai as linhas do resumo visual do modal
-    const rows = Array.from(breakdownContainer.children);
-    let tableRowsHtml = '';
-    
-    rows.forEach(row => {
-        const spans = row.querySelectorAll('span');
-        if (spans.length >= 2) {
-            const vehicleName = spans[0].textContent.trim();
-            const vehicleCount = spans[1].textContent.trim();
-            tableRowsHtml += `
-                <tr>
-                    <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: left; color: #334155;">${vehicleName}</td>
-                    <td style="padding: 12px 10px; border-bottom: 1px solid #e2e8f0; font-size: 14px; text-align: right; font-weight: bold; color: #0f172a;">${vehicleCount}</td>
-                </tr>
-            `;
-        }
-    });
-    
-    if (tableRowsHtml === '') {
-        tableRowsHtml = `
-            <tr>
-                <td colspan="2" style="padding: 20px; text-align: center; color: #64748b; font-style: italic;">Nenhuma carga nova foi gerada nesta montagem.</td>
-            </tr>
-        `;
-    }
-    
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('pt-BR');
-    const formattedTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    printWindow.document.open();
-    printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Relatório de Auto Montagem - APEX LOG</title>
-            <style>
-                body {
-                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                    color: #1e293b;
-                    margin: 40px;
-                    background-color: #fff;
-                    line-height: 1.5;
-                }
-                .header-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 20px;
-                }
-                .logo-title {
-                    font-size: 24px;
-                    font-weight: 800;
-                    letter-spacing: -0.5px;
-                    color: #0f172a;
-                }
-                .report-date {
-                    font-size: 12px;
-                    color: #64748b;
-                    text-align: right;
-                    line-height: 1.4;
-                }
-                .divider {
-                    border-top: 2px solid #cbd5e1;
-                    margin: 20px 0 30px 0;
-                }
-                .title-section {
-                    text-align: center;
-                    margin-bottom: 30px;
-                }
-                .title-section h1 {
-                    font-size: 22px;
-                    font-weight: 800;
-                    margin: 0 0 8px 0;
-                    color: #0f172a;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-                .title-section p {
-                    font-size: 14px;
-                    color: #475569;
-                    margin: 0;
-                }
-                .summary-box {
-                    background-color: #f8fafc;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 12px;
-                    padding: 24px;
-                    margin-bottom: 35px;
-                    text-align: center;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-                }
-                .summary-box .total {
-                    font-size: 32px;
-                    font-weight: 800;
-                    color: #059669;
-                }
-                .summary-box .label {
-                    font-size: 12px;
-                    color: #475569;
-                    text-transform: uppercase;
-                    letter-spacing: 1px;
-                    margin-top: 6px;
-                    font-weight: 600;
-                }
-                .details-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-bottom: 60px;
-                }
-                .details-table th {
-                    background-color: #f1f5f9;
-                    color: #334155;
-                    font-weight: 700;
-                    font-size: 12px;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    padding: 14px 10px;
-                    border-bottom: 2px solid #cbd5e1;
-                }
-                .signature-table {
-                    width: 100%;
-                    margin-top: 80px;
-                    border-collapse: collapse;
-                }
-                .signature-cell {
-                    width: 50%;
-                    text-align: center;
-                }
-                .signature-line {
-                    border-top: 1px solid #94a3b8;
-                    width: 240px;
-                    margin: 0 auto 8px auto;
-                }
-                .signature-text {
-                    font-size: 12px;
-                    color: #475569;
-                    font-weight: 500;
-                }
-                @media print {
-                    body {
-                        margin: 20px;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <table class="header-table">
-                <tr>
-                    <td class="logo-title">APEX LOG <span style="font-size: 14px; font-weight: 600; color: #0284c7; background: #e0f2fe; padding: 2px 8px; border-radius: 4px; margin-left: 5px;">v3.0</span></td>
-                    <td class="report-date">
-                        Relatório Emitido em:<br>
-                        <strong>${formattedDate}</strong> às <strong>${formattedTime}</strong>
-                    </td>
-                </tr>
-            </table>
-            
-            <div class="divider"></div>
-            
-            <div class="title-section">
-                <h1>Resumo de Auto Montagem de Rotas</h1>
-                <p>Detalhamento de veículos consolidados e processados em lote</p>
-            </div>
-            
-            <div class="summary-box">
-                <div class="total">${totalLoadsText}</div>
-                <div class="label">Total Geral de Cargas Geradas</div>
-            </div>
-            
-            <table class="details-table">
-                <thead>
-                    <tr>
-                        <th style="text-align: left;">Categoria de Veículo / Região</th>
-                        <th style="text-align: right;">Quantidade de Cargas</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${tableRowsHtml}
-                </tbody>
-            </table>
-            
-            <script>
-                window.onload = function() {
-                    window.print();
-                    setTimeout(function() { window.close(); }, 800);
-                };
-            </script>
-        </body>
-        </html>
-    `);
-    printWindow.document.close();
+    executarImpressaoResumoAutoMontarEstilosa();
 }
 
 /**
@@ -14795,4 +14736,407 @@ function exibirTodasCargasAba(divId, vehicleType, targetKey) {
     renderActiveLoadCards();
     
     showToast("Exibindo todas as cargas montadas desta aba.", "info");
+}
+
+// --- SISTEMA DE IMPRESSÃO ESTILOSA E RELATÓRIOS ---
+
+function executarImpressaoResumoAutoMontarEstilosa() {
+    // Calcular em tempo real a previsão com base no estado atual da Mesa de Trabalho
+    const currentLoads = Object.values(activeLoads);
+    
+    let totalPedidosAlocados = 0;
+    currentLoads.forEach(l => {
+        if (l.pedidos) totalPedidosAlocados += l.pedidos.length;
+    });
+
+    const totalPedidosSobra = pedidosGeraisAtuais ? pedidosGeraisAtuais.length : 0;
+    const pesoTotalAlocado = currentLoads.reduce((sum, l) => sum + (l.totalKg || 0), 0);
+    const pesoTotalSobra = pedidosGeraisAtuais ? pedidosGeraisAtuais.reduce((sum, p) => sum + (p.Quilos_Saldo || 0), 0) : 0;
+    const pesoTotalDisponivel = pesoTotalAlocado + pesoTotalSobra;
+
+    const data = {
+        totalVeiculos: currentLoads.length,
+        pesoTotalAlocado: pesoTotalAlocado,
+        totalPedidosAlocados: totalPedidosAlocados,
+        totalPedidosSobra: totalPedidosSobra,
+        pesoTotalDisponivel: pesoTotalDisponivel,
+        pesoTotalSobra: pesoTotalSobra,
+        newLoads: currentLoads
+    };
+
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('pt-BR');
+
+    // Agrupar por tipo de veículo e região (PR, SP, MS)
+    const agrupado = {};
+    data.newLoads.forEach(load => {
+        const type = load.vehicleType || 'Outro';
+        let typeKey = type;
+        
+        // Se for van ou tresQuartos, especificar a região baseando-se nas rotas
+        if (type === 'van' || type === 'tresQuartos') {
+            let regiao = 'SP'; // SP como default
+            if (load.pedidos && load.pedidos.length > 0) {
+                const rota = String(load.pedidos[0].Cod_Rota || '');
+                if (rota.startsWith('1')) {
+                    regiao = 'PR';
+                } else if (rota.startsWith('3')) {
+                    regiao = 'MS';
+                }
+            }
+            if (type === 'van') {
+                typeKey = `Van ${regiao}`;
+            } else {
+                typeKey = `3/4 ${regiao}`;
+            }
+        } else {
+            typeKey = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+            if (typeKey === 'Tresquartos' || typeKey === 'Tres_quartos') {
+                typeKey = '3/4 SP'; // Fallback
+            }
+        }
+
+        if (!agrupado[typeKey]) {
+            agrupado[typeKey] = {
+                qtdVeiculos: 0,
+                pesoTotal: 0,
+                qtdPedidos: 0
+            };
+        }
+        agrupado[typeKey].qtdVeiculos++;
+        agrupado[typeKey].pesoTotal += (load.totalKg || 0);
+        agrupado[typeKey].qtdPedidos += (load.pedidos ? load.pedidos.length : 0);
+    });
+
+    // Ordem específica de veículos: Toco, Fiorino, Van PR, Van SP, Van MS, 3/4 PR, 3/4 SP, 3/4 MS, Truck
+    const vehicleOrder = [
+        "Toco", 
+        "Fiorino", 
+        "Van PR", "Van SP", "Van MS", 
+        "3/4 PR", "3/4 SP", "3/4 MS", 
+        "Truck"
+    ];
+    const orderedTypes = Object.keys(agrupado).sort((a, b) => {
+        const indexA = vehicleOrder.indexOf(a);
+        const indexB = vehicleOrder.indexOf(b);
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return a.localeCompare(b);
+    });
+
+    let detailsRowsHtml = '';
+    orderedTypes.forEach(type => {
+        const item = agrupado[type];
+        const pesoTotalFmt = item.pesoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+        const pesoMedio = item.qtdVeiculos > 0 ? (item.pesoTotal / item.qtdVeiculos) : 0;
+        const pesoMedioFmt = pesoMedio.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+        
+        detailsRowsHtml += `
+            <tr>
+                <td><strong>${type}</strong></td>
+                <td style="text-align: center;">${item.qtdVeiculos}</td>
+                <td style="text-align: right; font-family: monospace;">${pesoTotalFmt}</td>
+                <td style="text-align: right; font-family: monospace;">${pesoMedioFmt}</td>
+                <td style="text-align: center;">${item.qtdPedidos}</td>
+            </tr>
+        `;
+    });
+
+    // Formatar pesos do resumo geral
+    const pesoDisponivelFmt = (data.pesoTotalDisponivel || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+    const pesoAlocadoFmt = (data.pesoTotalAlocado || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+    const pesoDiferencaFmt = (data.pesoTotalSobra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+
+    const printWindow = window.open('', '_blank', 'width=850,height=750');
+    printWindow.document.open();
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Relatório de Previsão de Expedição - APEX LOG</title>
+            <style>
+                * {
+                    box-sizing: border-box;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                body {
+                    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+                    color: #1e293b;
+                    margin: 40px;
+                    background-color: #fff;
+                    line-height: 1.5;
+                }
+                .header-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 5px;
+                }
+                .logo-title {
+                    font-size: 28px;
+                    color: #0f172a;
+                    font-weight: normal;
+                }
+                .logo-title strong {
+                    color: #00a88f;
+                    font-weight: 800;
+                    letter-spacing: -0.5px;
+                }
+                .logo-title span {
+                    font-size: 24px;
+                    margin-left: 15px;
+                    color: #475569;
+                    font-weight: 300;
+                    border-left: 2px solid #cbd5e1;
+                    padding-left: 15px;
+                }
+                .report-date {
+                    font-size: 13px;
+                    color: #64748b;
+                    text-align: right;
+                    vertical-align: bottom;
+                    padding-bottom: 5px;
+                }
+                .divider {
+                    border-top: 3px solid #00a88f;
+                    margin: 8px 0 25px 0;
+                }
+                
+                h2 {
+                    font-size: 18px;
+                    font-weight: 700;
+                    color: #0f172a;
+                    margin-top: 30px;
+                    margin-bottom: 15px;
+                    border-left: 4px solid #00a88f;
+                    padding-left: 10px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+
+                /* Tabela Resumo Geral */
+                .resumo-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 30px;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    overflow: hidden;
+                }
+                .resumo-table td {
+                    padding: 12px 18px;
+                    font-size: 14.5px;
+                    border-bottom: 1px solid #e2e8f0;
+                }
+                .resumo-table tr:last-child td {
+                    border-bottom: none;
+                }
+                .resumo-table tr:nth-child(even) td {
+                    background-color: #f8fafc;
+                }
+                .resumo-table td:first-child {
+                    font-weight: 600;
+                    color: #334155;
+                    width: 60%;
+                }
+                .resumo-table td:last-child {
+                    text-align: right;
+                    font-weight: 700;
+                    color: #0f172a;
+                }
+                .resumo-table .destaque-sobra td:last-child {
+                    color: #ef4444;
+                }
+                .resumo-table .destaque-montado td:last-child {
+                    color: #10b981;
+                }
+
+                /* Tabela Detalhada */
+                .details-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 15px;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    overflow: hidden;
+                }
+                .details-table th {
+                    background-color: #00a88f !important;
+                    color: white !important;
+                    font-weight: 700;
+                    font-size: 13.5px;
+                    padding: 12px 18px;
+                    text-align: left;
+                    border: none;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                }
+                .details-table th:nth-child(2), .details-table th:nth-child(5) {
+                    text-align: center;
+                }
+                .details-table th:nth-child(3), .details-table th:nth-child(4) {
+                    text-align: right;
+                }
+                .details-table td {
+                    padding: 14px 18px;
+                    font-size: 14px;
+                    border-bottom: 1px solid #e2e8f0;
+                    color: #334155;
+                }
+                .details-table tr:last-child td {
+                    border-bottom: none;
+                }
+                .details-table tr:nth-child(even) td {
+                    background-color: #f8fafc;
+                }
+                
+                @media print {
+                    body { margin: 20px; }
+                }
+            </style>
+        </head>
+        <body>
+            <table class="header-table">
+                <tr>
+                    <td class="logo-title"><strong>ApexLog</strong><span>Relatório de Previsão de Expedição</span></td>
+                    <td class="report-date">
+                        Data de Geração: <strong>${formattedDate}</strong>
+                    </td>
+                </tr>
+            </table>
+            
+            <div class="divider"></div>
+            
+            <h2>Resumo Geral da Previsão</h2>
+            <table class="resumo-table">
+                <tr>
+                    <td>Total de Veículos Previstos:</td>
+                    <td>${data.totalVeiculos}</td>
+                </tr>
+                <tr>
+                    <td>Total de Pedidos Alocados:</td>
+                    <td>${data.totalPedidosAlocados}</td>
+                </tr>
+                <tr>
+                    <td>Pedidos em Sobra (Não alocados):</td>
+                    <td>${data.totalPedidosSobra}</td>
+                </tr>
+                <tr>
+                    <td>Peso Total Disponível (kg):</td>
+                    <td>${pesoDisponivelFmt}</td>
+                </tr>
+                <tr class="destaque-montado">
+                    <td>Peso Total Alocado (kg):</td>
+                    <td>${pesoAlocadoFmt}</td>
+                </tr>
+                <tr class="destaque-sobra">
+                    <td>Diferença / Sobra de Peso (kg):</td>
+                    <td>${pesoDiferencaFmt}</td>
+                </tr>
+            </table>
+            
+            <h2>Detalhamento de Cargas (Varejo)</h2>
+            <table class="details-table">
+                <thead>
+                    <tr>
+                        <th>Tipo de Veículo</th>
+                        <th style="text-align: center;">Qtd. Veículos</th>
+                        <th style="text-align: right;">Peso Total (kg)</th>
+                        <th style="text-align: right;">Peso Médio/Veículo (kg)</th>
+                        <th style="text-align: center;">Qtd. Pedidos</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${detailsRowsHtml}
+                </tbody>
+            </table>
+            
+            <script>
+                window.onload = function() {
+                    window.print();
+                    setTimeout(function() { window.close(); }, 800);
+                };
+            </script>
+        </body>
+        </html>
+    `);
+    printWindow.document.close();
+}
+
+function parseWeightBalanceToPrint(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const cols = div.querySelectorAll('.col-4');
+    if (cols.length < 3) return '';
+
+    const labels = ["Disponível", "Montado", "Sobra"];
+    const classes = ["disponivel", "montado", "sobra"];
+    let output = '';
+
+    cols.forEach((col, idx) => {
+        const value = col.querySelector('strong')?.textContent || '0,00t';
+        output += `
+            <div class="weight-card ${classes[idx]}">
+                <div class="weight-title">${labels[idx]}</div>
+                <div class="weight-value">${value}</div>
+            </div>`;
+    });
+    return output;
+}
+
+function parseBreakdownToPrint(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const items = div.querySelectorAll('.d-flex');
+    let output = '';
+
+    items.forEach(item => {
+        const spans = item.querySelectorAll('span');
+        if (spans.length >= 2) {
+            const label = spans[0].textContent.trim();
+            const value = spans[1].textContent.trim();
+            output += `
+                <div class="breakdown-item">
+                    <span>${label}</span>
+                    <span>${value}</span>
+                </div>`;
+        }
+    });
+    return output;
+}
+
+function parseSobrasToPrint(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const items = div.querySelectorAll('.accordion-item');
+    if (items.length === 0) return '';
+
+    let output = '<h3 class="sobras-title">Sobras de Carga por Rota & Justificativas</h3>';
+    items.forEach(item => {
+        const button = item.querySelector('.accordion-button');
+        const body = item.querySelector('.accordion-body');
+        if (!button || !body) return;
+
+        const buttonText = button.textContent || '';
+        const bodyText = body.innerHTML || '';
+
+        const rotaMatch = buttonText.match(/Rota\s+(\d+)/);
+        const pesoMatch = buttonText.match(/\+(\d+,\d+t)/);
+
+        const rota = rotaMatch ? `Rota ${rotaMatch[1]}` : 'Rota';
+        const peso = pesoMatch ? pesoMatch[1] : '';
+
+        output += `
+            <div class="sobra-print-row">
+                <div class="sobra-header">
+                    <span>${rota}</span>
+                    <span style="color: #ef4444;">+${peso}</span>
+                </div>
+                <div style="color: #475569; margin-top: 4px;">
+                    ${bodyText}
+                </div>
+            </div>`;
+    });
+    return output;
 }
