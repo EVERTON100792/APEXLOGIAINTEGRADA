@@ -3648,7 +3648,7 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
             modal.show();
             
             try {
-                const aiData = await runAIOptimization(pedidosRota, vehicleConfigs, rotaVeiculoMap);
+                const aiData = await runAIOptimization(pedidosRota, vehicleConfigs, rotaVeiculoMap, vehicleType);
                 
                 // Converter JSON da IA para optimizationResult: { loads, leftovers }
                 const loads = [];

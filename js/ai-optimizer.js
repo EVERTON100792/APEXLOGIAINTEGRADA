@@ -69,9 +69,10 @@ document.addEventListener('DOMContentLoaded', initAiUi);
  * @param {Array} pedidos - Lista de pedidos brutos a serem roteirizados.
  * @param {Object} vehicleConfigs - Capacidades dos caminhões (min/max kg e cubagem).
  * @param {Object} rotasVeiculoMap - Mapeamento de rotas e tipos de veículos preferenciais.
+ * @param {String} baseVehicleType - Tipo de veículo padrão para a rota (fiorino, van, tresQuartos).
  * @returns {Promise<Object>} Resultado otimizado JSON gerado pela IA.
  */
-async function runAIOptimization(pedidos, vehicleConfigs, rotasVeiculoMap) {
+async function runAIOptimization(pedidos, vehicleConfigs, rotasVeiculoMap, baseVehicleType) {
     const settings = getAiSettings();
 
     if (!settings.enabled || !settings.apiKey) {
@@ -88,24 +89,38 @@ async function runAIOptimization(pedidos, vehicleConfigs, rotasVeiculoMap) {
     }));
 
     const systemPrompt = `
-Você é um algoritmo especialista em logística (Bin Packing 3D e Roteirização).
-Sua missão é agrupar os pedidos fornecidos em cargas (veículos), respeitando as capacidades máximas de PESO (kg) e VOLUME (m³).
+Você é um Profissional de Logística Sênior com 20 anos de experiência (Especialista em Roteirização e Bin Packing 3D).
+Sua missão é agrupar os pedidos fornecidos em cargas (veículos), garantindo o máximo de aproveitamento de espaço (mínimo de sobras), mas respeitando RIGOROSAMENTE as Regras de Negócio e o Efeito Sanfona (Cascata).
 
-REGRA 1: Sempre agrupe pedidos do MESMO CLIENTE (mesmo "cli") no mesmo veículo.
-REGRA 2: Respeite os limites dos veículos:
+DADOS DO CENÁRIO ATUAL:
+- Tipo de Veículo Alvo Principal desta Rota: "${baseVehicleType}"
+- Limites Rigorosos (hardMaxKg e hardMaxCubage) por veículo:
 ${JSON.stringify(vehicleConfigs, null, 2)}
-REGRA 3: Tente usar o menor número de veículos possível (otimização).
+
+REGRA 1 - AGRUPAMENTO OBRIGATÓRIO:
+Sempre agrupe pedidos do MESMO CLIENTE (mesmo "cli") no mesmo veículo. Não separe pedidos do mesmo cliente.
+
+REGRA 2 - EFEITO SANFONA (CASCATA):
+Você não deve simplesmente jogar tudo no maior caminhão! Você deve seguir a progressão natural:
+- Se o Alvo for "fiorino": Tente montar o MÁXIMO possível de cargas de 'fiorino' chegando o mais perto possível do limite máximo sem estourar. Se sobrar um pedido (ou um grupo de um cliente) que sozinho seja pesado/volumoso demais para a fiorino, ou se as sobras fizerem sentido juntas, escale SOMENTE ESSA carga para uma 'van'. Se for muito para 'van', escale para 'tresQuartos'.
+- Se o Alvo for "van": Monte o máximo de 'van'. Escale para 'tresQuartos' APENAS as cargas/pedidos que não couberem em 'van'.
+- Se o Alvo for "tresQuartos": Monte o máximo de 'tresQuartos'. Escale para 'toco' apenas o que não couber.
+
+REGRA 3 - LIMITES MATEMÁTICOS:
+Um veículo NUNCA pode carregar mais KG que o seu "hardMaxCapacity" ou "hardMaxKg", nem mais M³ que o seu "hardCubage". A matemática deve bater 100%.
+
+OBJETIVO DA IA: Faça montagens INTELIGENTES. Tente agrupar clientes menores de forma que o caminhão fique o mais "cheio" e rentável possível, reduzindo sobras espalhadas, mas mantendo a lógica de começar sempre pelos veículos menores exigidos pela Rota Alvo ("${baseVehicleType}").
 
 Você DEVE retornar APENAS um JSON estrito, sem Markdown, sem textos adicionais, neste formato exato:
 {
   "cargas": [
     {
-      "tipo_veiculo": "van", // ou fiorino, toco, tresQuartos
-      "rota_base": "1234", // rota predominante
-      "pedidos_ids": ["ID_1", "ID_2"] // IDs exatos dos pedidos alocados aqui
+      "tipo_veiculo": "van", // fiorino, van, tresQuartos ou toco (dependendo da cascata usada para aquela carga)
+      "rota_base": "1234", 
+      "pedidos_ids": ["ID_1", "ID_2"]
     }
   ],
-  "pedidos_nao_alocados": ["ID_3"] // Se faltar espaço
+  "pedidos_nao_alocados": ["ID_3"] // Apenas se for fisicamente impossível alocar
 }
     `.trim();
 
