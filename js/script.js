@@ -4726,7 +4726,6 @@ window.reaplicarRegrasPainelInterno = function() {
     // Coleta as configuraá§áµes atuais dos veá­culos
     // MODIFICADO: Usa getVehicleConfigSafe para respeitar overrides do Admin
     const getCfg = (type) => getVehicleConfigSafe(type);
->>>>>>> upstream/main
     const vehicleConfigs = {
         fiorinoMinCapacity: getCfg('fiorino').minKg,
         fiorinoMaxCapacity: getCfg('fiorino').softMaxKg,
