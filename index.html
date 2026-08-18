@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR" data-bs-theme="dark">
 
 <head>
@@ -1908,6 +1908,41 @@
                 </div>
                 <div class="modal-body">
                     <div class="row">
+                        <!-- MOTOR DE INTELIGÊNCIA ARTIFICIAL -->
+                        <div class="col-lg-12 mb-4">
+                            <div class="card border-primary h-100">
+                                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                    <h2 class="card-title h5 mb-0"><i class="bi bi-robot me-2"></i>Motor de Inteligência Artificial (OpenCode)</h2>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="aiEnabledToggle" onchange="toggleAiEngine()">
+                                        <label class="form-check-label text-white" for="aiEnabledToggle">Ativar IA</label>
+                                    </div>
+                                </div>
+                                <div class="card-body row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="aiApiKey" class="form-label">Chave da API (OpenCode):</label>
+                                        <input type="password" class="form-control" id="aiApiKey" placeholder="sk-...">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="aiModelSelect" class="form-label">Modelo de IA:</label>
+                                        <select class="form-select" id="aiModelSelect">
+                                            <option value="gpt-5.6-luna">GPT 5.6 Luna</option>
+                                            <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
+                                            <option value="grok-4.5">Grok 4.5</option>
+                                            <option value="kimi-k3">Kimi K3</option>
+                                            <option value="mimo-v2.5-pro">MiMo-V2.5-Pro</option>
+                                            <option value="qwen3.8-max">Qwen3.8 Max</option>
+                                            <option value="hy3">Hy3</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 mt-2">
+                                        <button class="btn btn-primary" onclick="saveAiUiSettings()"><i class="bi bi-save me-2"></i>Salvar Configurações de IA</button>
+                                        <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Ao ativar, a Inteligência Artificial substituirá o algoritmo local na montagem das cargas.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="col-lg-6 mb-4">
                             <div class="card h-100">
                                 <div class="card-header">
@@ -2897,6 +2932,7 @@
     </div>
 
 
+    <script src="js/ai-optimizer.js"></script>
     <script src="js/script.js"></script>
     <script src="js/freight_logic.js"></script>
     <script src="js/email-generator.js"></script>

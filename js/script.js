@@ -1,4 +1,4 @@
-﻿function toggleMobileSidebar() {
+function toggleMobileSidebar() {
     const sidebar = document.getElementById('sidebar-modern');
     const overlay = document.getElementById('sidebar-overlay');
     sidebar.classList.toggle('mobile-open');
@@ -3623,24 +3623,7 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
     const optimizationLevel = document.getElementById('optimizationLevelSelect').value;
     let optimizationResult;
 
-    // --- Lá“GICA DE PROCESSAMENTO COM WEB WORKER ---
-    const processingWorker = new Worker('worker.js');
-    const modalElement = document.getElementById('processing-modal');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-    const progressBar = document.getElementById('processing-progress-bar');
-    const statusText = document.getElementById('processing-status-text');
-
-    // Mostra o modal de processamento para otimizaá§áµes que demoram
-    if (optimizationLevel !== '1') {
-        progressBar.style.width = '0%';
-        statusText.textContent = `Otimizando ${title}...`;
-        startThinkingText();
-        modal.show();
-    } else {
-        resultadoDiv.insertAdjacentHTML('beforeend', '<div id="spinner-temp-container" class="d-flex align-items-center justify-content-center p-5"><div class="spinner-border text-primary" role="status"></div><span class="ms-3">Analisando estratá©gias e montando cargas...</span></div>');
-    }
-
-    // Coleta as configuraá§áµes atuais dos veá­culos
+    // Coleta as configurações atuais dos veículos
     const vehicleConfigs = {
         fiorinoMinCapacity: parseFloat(document.getElementById('fiorinoMinCapacity').value), fiorinoMaxCapacity: parseFloat(document.getElementById('fiorinoMaxCapacity').value), fiorinoCubage: parseFloat(document.getElementById('fiorinoCubage').value), fiorinoHardMaxCapacity: parseFloat(document.getElementById('fiorinoHardMaxCapacity').value), fiorinoHardCubage: parseFloat(document.getElementById('fiorinoHardCubage').value),
         vanMinCapacity: parseFloat(document.getElementById('vanMinCapacity').value), vanMaxCapacity: parseFloat(document.getElementById('vanMaxCapacity').value), vanCubage: parseFloat(document.getElementById('vanCubage').value), vanHardMaxCapacity: parseFloat(document.getElementById('vanHardMaxCapacity').value), vanHardCubage: parseFloat(document.getElementById('vanHardCubage').value),
@@ -3648,46 +3631,118 @@ async function separarCargasGeneric(routeOrRoutes, divId, title, vehicleType, bu
         tocoMinCapacity: parseFloat(document.getElementById('tocoMinCapacity').value), tocoMaxCapacity: parseFloat(document.getElementById('tocoMaxCapacity').value), tocoCubage: parseFloat(document.getElementById('tocoCubage').value)
     };
 
-    // Envia os dados para o worker
-    processingWorker.postMessage({
-        command: 'start-optimization',
-        packableGroups: packableGroups,
-        vehicleType: vehicleType,
-        optimizationLevel: optimizationLevel,
-        configs: vehicleConfigs,
-        pedidosPrioritarios: pedidosPrioritarios,
-        pedidosRecall: pedidosRecall
-    });
+    const modalElement = document.getElementById('processing-modal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    const progressBar = document.getElementById('processing-progress-bar');
+    const statusText = document.getElementById('processing-status-text');
 
-    // Aguarda a resposta do worker
-    optimizationResult = await new Promise((resolve, reject) => {
-        processingWorker.onmessage = function (e) {
-            const { status, result, message, stack, progress } = e.data;
-            if (status === 'complete') {
-                resolve(result);
-            } else if (status === 'progress') {
-                progressBar.style.width = `${progress}%`;
-            } else if (status === 'error') {
-                console.error("Erro recebido do Worker:", message, stack);
-                reject(new Error(message));
+    let aiUsed = false;
+    if (typeof getAiSettings === 'function' && typeof runAIOptimization === 'function') {
+        const aiSettings = getAiSettings();
+        if (aiSettings && aiSettings.enabled) {
+            progressBar.style.width = '75%';
+            statusText.textContent = `Inteligência Artificial (${aiSettings.model}) processando ${title}...`;
+            startThinkingText();
+            modal.show();
+            
+            try {
+                const aiData = await runAIOptimization(pedidosRota, vehicleConfigs, rotaVeiculoMap);
+                
+                // Converter JSON da IA para optimizationResult: { loads, leftovers }
+                const loads = [];
+                const leftovers = [];
+                const mappedOrders = new Set();
+                
+                // A IA retorna: { cargas: [{ tipo_veiculo, pedidos_ids }], pedidos_nao_alocados: [] }
+                if (aiData && aiData.cargas) {
+                    aiData.cargas.forEach(carga => {
+                        let totalKg = 0;
+                        let totalCubagem = 0;
+                        const cargaPedidos = [];
+                        
+                        // Para agruparmos como o sistema espera (clientes juntos), filtramos os packableGroups originais
+                        carga.pedidos_ids.forEach(pId => {
+                            // Find the group that contains this pedido
+                            const group = packableGroups.find(g => g.pedidos.some(p => p.Pedido == pId));
+                            if (group && !mappedOrders.has(group)) {
+                                mappedOrders.add(group);
+                                totalKg += group.totalKg;
+                                totalCubagem += group.totalCubagem;
+                                cargaPedidos.push(group);
+                            }
+                        });
+                        
+                        if (cargaPedidos.length > 0) {
+                            loads.push({
+                                groups: cargaPedidos,
+                                totalKg,
+                                totalCubagem,
+                                density: totalCubagem > 0 ? totalKg / totalCubagem : Infinity
+                            });
+                        }
+                    });
+                }
+                
+                // Os que não foram colocados nas cargas vão para leftovers
+                packableGroups.forEach(g => {
+                    if (!mappedOrders.has(g)) {
+                        leftovers.push(g);
+                    }
+                });
+
+                optimizationResult = { loads, leftovers };
+                aiUsed = true;
+            } catch (err) {
+                console.error("Erro na Otimização por IA:", err);
+                if (typeof showToast === 'function') showToast("Falha na IA. Voltando ao algoritmo padrão...", "warning");
             }
-        };
-        processingWorker.onerror = function (e) {
-            reject(new Error(`Erro no Worker: ${e.message}`));
-        };
-    });
+        }
+    }
 
-    // Limpeza apá³s o tá©rmino
+    if (!aiUsed) {
+        // --- LÓGICA DE PROCESSAMENTO COM WEB WORKER (Padrão) ---
+        const processingWorker = new Worker('worker.js');
+
+        if (optimizationLevel !== '1') {
+            progressBar.style.width = '0%';
+            statusText.textContent = `Otimizando ${title}...`;
+            startThinkingText();
+            modal.show();
+        } else {
+            resultadoDiv.insertAdjacentHTML('beforeend', '<div id="spinner-temp-container" class="d-flex align-items-center justify-content-center p-5"><div class="spinner-border text-primary" role="status"></div><span class="ms-3">Analisando estratégias e montando cargas...</span></div>');
+        }
+
+        processingWorker.postMessage({
+            command: 'start-optimization',
+            packableGroups: packableGroups,
+            vehicleType: vehicleType,
+            optimizationLevel: optimizationLevel,
+            configs: vehicleConfigs,
+            pedidosPrioritarios: pedidosPrioritarios,
+            pedidosRecall: pedidosRecall
+        });
+
+        optimizationResult = await new Promise((resolve, reject) => {
+            processingWorker.onmessage = function (e) {
+                const { status, result, message, stack, progress } = e.data;
+                if (status === 'complete') resolve(result);
+                else if (status === 'progress') progressBar.style.width = `${progress}%`;
+                else if (status === 'error') reject(new Error(message));
+            };
+            processingWorker.onerror = function (e) { reject(new Error(`Erro no Worker: ${e.message}`)); };
+        });
+        processingWorker.terminate();
+    }
+
+    // Limpeza após o término (tanto para IA quanto para Worker)
     allRouteButtons.forEach(btn => { if (!btn.classList.contains('active')) btn.disabled = false; });
-    if (optimizationLevel !== '1') {
+    if (aiUsed || optimizationLevel !== '1') {
         stopThinkingText();
         modal.hide();
     } else {
         const spinner = document.getElementById('spinner-temp-container');
         if (spinner) spinner.remove();
     }
-    processingWorker.terminate();
-    // --- FIM DA Lá“GICA DO WORKER ---
 
     // Tenta encaixar sobras em cargas existentes que ainda táªm espaá§á£o.
     const { refinedLoads: initialRefinedLoads, remainingLeftovers: initialLeftovers } = refineLoadsWithSimpleFit(optimizationResult.loads, optimizationResult.leftovers);
