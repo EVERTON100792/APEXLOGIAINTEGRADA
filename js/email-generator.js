@@ -4,8 +4,8 @@
  */
 
 // Supabase client setup
-const EMAIL_SUPABASE_URL = 'https://izpcrgnevzwparsslchd.supabase.co';
-const EMAIL_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml6cGNyZ25ldnp3cGFyc3NsY2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMjAxNTMsImV4cCI6MjA4NDY5NjE1M30.xYtk3mzOjSCYCNv3P5eq5aEmRUFSA_ERa58ABdL5Tpk';
+const EMAIL_SUPABASE_URL = 'https://qvcbutooceuahvcktfhe.supabase.co';
+const EMAIL_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2Y2J1dG9vY2V1YWh2Y2t0ZmhlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwODM0MjIsImV4cCI6MjEwMjY1OTQyMn0.JdjDSBJwfqSWmvjq7aDpBIosiZwkQUyM_7BUoQHLWVU';
 const _supabase = (typeof supabase !== 'undefined')
     ? supabase.createClient(EMAIL_SUPABASE_URL, EMAIL_SUPABASE_ANON_KEY)
     : null;
