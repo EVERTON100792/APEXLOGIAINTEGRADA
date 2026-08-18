@@ -111,26 +111,32 @@ Você DEVE retornar APENAS um JSON estrito, sem Markdown, sem textos adicionais,
 
     const userPrompt = `Aqui estão os pedidos a serem roteirizados:\n${JSON.stringify(dadosOtimizados)}`;
 
-    const response = await fetch(settings.endpoint, {
+    const payload = {
+        model: settings.model,
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.1, // Baixa temperatura para lógica rigorosa
+        response_format: { type: "json_object" }
+    };
+
+    // Chamando nosso Proxy Serverless na Vercel para evitar erro de CORS
+    const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${settings.apiKey}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            model: settings.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.1, // Baixa temperatura para lógica rigorosa
-            response_format: { type: "json_object" }
+            endpoint: settings.endpoint,
+            apiKey: settings.apiKey,
+            payload: payload
         })
     });
 
     if (!response.ok) {
         const err = await response.text();
-        throw new Error(`Erro na API OpenCode: ${err}`);
+        throw new Error(`Erro no Proxy da API: ${err}`);
     }
 
     const data = await response.json();

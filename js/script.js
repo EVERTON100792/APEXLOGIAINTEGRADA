@@ -604,7 +604,7 @@ async function loadConfigurations() { // prettier-ignore
                     .select('config_json')
                     .order('updated_at', { ascending: false })
                     .limit(1)
-                    .single();
+                    .maybeSingle();
 
                 if (data && data.config_json) {
                     configs = data.config_json;

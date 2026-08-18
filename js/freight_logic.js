@@ -1,4 +1,4 @@
-﻿
+
 // --- FREIGHT SYSTEM LOGIC ---
 
 // --- FREIGHT SYSTEM LOGIC ---
@@ -68,7 +68,7 @@ async function getFreightConfigFromSupabase() {
             .select('config_json')
             .order('updated_at', { ascending: false })
             .limit(1)
-            .single();
+            .maybeSingle();
 
         if (error) {
             // Se o erro for "zero rows", é normal na primeira vez
