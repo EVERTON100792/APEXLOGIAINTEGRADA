@@ -6,6 +6,8 @@ function toggleMobileSidebar() {
 }
 
 function activateView(viewId, linkElement) {
+    if (!viewId || viewId === '#' || viewId.trim() === '') return;
+    
     // Hide all views
     document.querySelectorAll('.main-view').forEach(el => {
         el.classList.remove('active-view');
@@ -895,7 +897,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (this.classList.contains('dropdown-toggle')) return;
 
             const targetViewId = this.getAttribute('href');
-            if (!targetViewId.startsWith('#')) return;
+            if (!targetViewId.startsWith('#') || targetViewId === '#') return;
 
             e.preventDefault();
 
@@ -8191,7 +8193,11 @@ async function loadStateFromLocalStorage() {
             // Remove # se existir para garantir compatibilidade
             const cleanViewId = lastView.replace('#', '');
 
-            const viewLink = document.querySelector(`a[href="#${cleanViewId}"]`) || document.querySelector(`.sidebar-link[href="#${cleanViewId}"]`);
+            let viewLink = null;
+            if (cleanViewId.length > 0) {
+                viewLink = document.querySelector(`a[href="#${cleanViewId}"]`) || document.querySelector(`.sidebar-link[href="#${cleanViewId}"]`);
+            }
+
             if (viewLink) {
                 console.log(`Restaurando View: ${cleanViewId}`);
                 viewLink.click(); // Simula clique para ativar view e sidebar
