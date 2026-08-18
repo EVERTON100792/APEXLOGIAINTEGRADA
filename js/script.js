@@ -4811,8 +4811,10 @@ window.reaplicarRegrasPainelInterno = function() {
 
                 optimizationResult = { loads, leftovers };
                 aiUsed = true;
+                console.log("SUCESSO IA. Cargas:", loads, "Sobras:", leftovers);
             } catch (err) {
-                console.error("Erro na Otimização por IA:", err);
+                console.error("Erro CRÍTICO na Otimização por IA:", err);
+                alert("Erro na IA: " + err.message + "\n\nAbrir o console (F12) para detalhes.");
                 if (typeof showToast === 'function') showToast("Falha na IA. Voltando ao algoritmo padrão...", "warning");
             }
         }

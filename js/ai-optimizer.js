@@ -141,8 +141,7 @@ Você DEVE retornar APENAS um JSON estrito neste formato exato (inclua o passo a
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
         ],
-        temperature: 0.2, // Um pouco maior para permitir o 'raciocinio'
-        response_format: { type: "json_object" }
+        temperature: 0.2 // Removido response_format pois algumas APIs da OpenCode podem não suportar
     };
 
     // Chamando nosso Proxy Serverless na Vercel para evitar erro de CORS
