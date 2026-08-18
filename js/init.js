@@ -1,4 +1,4 @@
-﻿import { requireAuth, logout } from './auth.js';
+import { requireAuth, logout } from './auth.js';
 import { logActivity, subscribeToActivities } from './realtime.js';
 import { saveSessionToCloud, getMySessions, getSharedWithMe, getAllSessions, loadSessionFromCloud, shareSession, deleteSession } from './sharing.js';
 import { supabase } from './supabase-client.js'; // FIX: Explicit import for initApp
@@ -122,42 +122,11 @@ async function initApp() {
     }
     await updateUserDisplay();
 
-    // 5. Check for Shared Sessions (Notifications)
-    try {
-        const sharedSessions = await getSharedWithMe();
-        if (sharedSessions && sharedSessions.length > 0) {
-            const count = sharedSessions.length;
-            // Use a FIXED ID so we can remove it later
-            const toastId = 'shared-sessions-alert-toast';
-
-            // Remove if already exists to avoid duplicates
-            const existing = document.getElementById(toastId);
-            if (existing) existing.remove();
-
-            const toastHtml = `
-                        <div id="${toastId}" class="toast align-items-center text-bg-warning border-0 show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-autohide="false">
-                            <div class="d-flex">
-                                <div class="toast-body">
-                                    <i class="bi bi-cloud-arrow-down-fill me-2"></i>
-                                    <strong>Você tem ${count} sessões compartilhadas!</strong><br>
-                                    Acesse o menu "Nuvem" para vê-las.
-                                </div>
-                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                            </div>
-                        </div>`;
-
-            const container = document.getElementById('realtime-toast-container');
-            if (container) container.insertAdjacentHTML('afterbegin', toastHtml);
-        }
-    } catch (err) {
-        console.error("Erro ao verificar compartilhamentos:", err);
-    }
-
     // 6. Audit Log: Config Changes
     const saveConfigBtn = document.getElementById('saveConfig');
     if (saveConfigBtn) {
         saveConfigBtn.addEventListener('click', () => {
-            logActivity('ALTERACAO_CONFIG', { detalhe: 'Capacidades de veículos atualizadas' });
+            logActivity('ALTERACAO_CONFIG', { detalhe: 'Configurações gerais atualizadas' });
         });
     }
 }

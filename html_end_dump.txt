@@ -1,0 +1,78 @@
+﻿ <div class="acc-grid-3">
+        <div class="acc-stat-card"><div class="acc-stat-icon">&#x1F4E6;</div><div class="acc-stat-value" id="acc-health-count">--</div><div class="acc-stat-label">Pedidos no banco</div></div>
+        <div class="acc-stat-card"><div class="acc-stat-icon">&#x1F4C5;</div><div class="acc-stat-value acc-stat-sm" id="acc-health-range">--</div><div class="acc-stat-label">Periodo coberto</div></div>
+        <div class="acc-stat-card"><div class="acc-stat-icon">&#x1F4BE;</div><div class="acc-stat-value" id="acc-health-ls">--</div><div class="acc-stat-label">LocalStorage</div></div>
+      </div>
+      <div class="acc-card acc-mt">
+        <h3 class="acc-card-title">Ultimo Processamento</h3>
+        <p id="acc-health-lastprocess" class="acc-mono">--</p>
+      </div>
+      <div class="acc-card acc-mt">
+        <h3 class="acc-card-title">Log de Erros Recentes</h3>
+        <div id="acc-health-errors" class="acc-error-log"></div>
+      </div>
+    </div>
+<!-- REGRAS DE NEGOCIO PANE -->
+        <div id="acc-pane-regras" class="acc-pane">
+
+          <!-- Cidades Fiorino -->
+          <div class="acc-card">
+            <div class="acc-card-header-row">
+              <h3 class="acc-card-title">Cidades Permitidas Fiorino por Rota</h3>
+              <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accSalvarFiorinoCities()">Salvar Cidades</button>
+            </div>
+            <p class="acc-hint">Edite as cidades que podem fazer Fiorino em cada rota. Separe por virgula em MAIUSCULO. Novas cidades adicionadas aqui ficam validas automaticamente.</p>
+            <div class="acc-row-inline acc-mt-sm" style="margin-bottom:0.75rem">
+              <input id="acc-fc-new-code" class="acc-input" style="max-width:140px" placeholder="Codigo da rota">
+              <button class="acc-btn acc-btn-sm" onclick="accAdicionarRotaFiorino()">+ Adicionar Rota</button>
+            </div>
+            <div id="acc-fiorino-routes" style="display:flex;flex-direction:column;gap:0.5rem">
+              <p style="color:#64748b;font-size:0.82rem">Carregando...</p>
+            </div>
+          </div>
+
+          <!-- Clientes Especiais -->
+          <div class="acc-card acc-mt">
+            <div class="acc-card-header-row">
+              <h3 class="acc-card-title">Clientes Especiais</h3>
+            </div>
+            <p class="acc-hint">Clientes listados aqui recebem tratamento especial na distribuicao. Adicione pelo nome exato em MAIUSCULO.</p>
+            <div class="acc-row-inline" style="margin-bottom:0.75rem">
+              <input id="acc-sc-new" class="acc-input" placeholder="Nome do cliente (MAIUSCULO)">
+              <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accAdicionarClienteEspecial()">+ Adicionar</button>
+            </div>
+            <div id="acc-special-clients-list" style="display:flex;flex-wrap:wrap;gap:0.5rem">
+              <p style="color:#64748b;font-size:0.82rem">Carregando...</p>
+            </div>
+          </div>
+
+          <!-- Agendamento -->
+          <div class="acc-card acc-mt">
+            <div class="acc-card-header-row">
+              <h3 class="acc-card-title">Overrides de Agendamento</h3>
+            </div>
+            <p class="acc-hint">Defina se um codigo de cliente tem agendamento (Sim) ou nao (Nao). Sobrescreve a lista padrao. Salvo no Supabase e aplicado para todos os usuarios.</p>
+            <div class="acc-row-inline" style="margin-bottom:0.75rem">
+              <input id="acc-ag-code" class="acc-input" style="max-width:160px" placeholder="Codigo do cliente">
+              <select id="acc-ag-val" class="acc-select">
+                <option value="Sim">Sim - com agendamento</option>
+                <option value="Nao">Nao - sem agendamento</option>
+              </select>
+              <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accAdicionarAgendamento()">Definir</button>
+            </div>
+            <div class="acc-table-scroll">
+              <table class="acc-table">
+                <thead><tr><th>Codigo</th><th>Agendamento</th><th>Acao</th></tr></thead>
+                <tbody id="acc-agend-tbody"><tr><td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Nenhum override.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+        </div><!-- /acc-pane-regras -->
+  </div>
+</div>
+
+        
+<script src="js/admin.js"></script>
+</body>
+</html>

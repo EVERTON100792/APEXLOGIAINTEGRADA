@@ -36,10 +36,10 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/toll_logic.js"></script> <!-- Carregar lógica de pedágios ANTES do simulador -->
+    <script src="js/toll_logic.js?v=3.0.3"></script> <!-- Carregar lógica de pedágios ANTES do simulador -->
     <script src="js/route_simulator.js"></script> <!-- Script do Novo Simulador -->
 
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=3.0.8">
     <link rel="stylesheet" href="css/email-generator.css">
 </head>
 <style>
@@ -193,6 +193,22 @@
 
         .btn-magic:hover::before {
             left: 100%;
+        }
+
+        /* --- STICKY WORKSPACE HEADER --- */
+        .sticky-header-workspace {
+            position: sticky;
+            top: -1.5rem;
+            margin-top: -1.5rem;
+            margin-left: -1.5rem;
+            margin-right: -1.5rem;
+            padding: 1.5rem 1.5rem 1rem 1.5rem;
+            background: rgba(13, 17, 29, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 1010;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+            transition: all 0.3s ease;
         }
 
         /* --- PREMIUM EMPTY STATE --- */
@@ -548,245 +564,462 @@
         font-weight: 500;
     }
 
-    /* --- "QUANTUM LOGISTICS CORE" (V10) - SURREAL ANIMATION --- */
+    /* --- "FUTURISTIC CARGO LOADING SCENE" (V12) --- */
     .loading-animation-container {
         position: relative;
         width: 100%;
-        height: 320px;
-        /* Mais alto para impacto */
+        height: 240px;
         overflow: hidden;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
         display: flex;
-        flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+        background: radial-gradient(circle at center, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 1) 100%);
         border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 24px;
-        box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.8), 0 0 30px rgba(59, 130, 246, 0.1);
-        perspective: 1000px;
-        /* Profundidade 3D */
+        border-radius: 20px;
+        box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.8), 
+                    0 0 30px rgba(59, 130, 246, 0.1);
+        perspective: 800px;
     }
 
-    /* O Núcleo Quântico */
-    .quantum-core {
-        position: relative;
-        width: 80px;
-        height: 80px;
-        transform-style: preserve-3d;
-        animation: core-float 6s ease-in-out infinite;
-    }
-
-    .core-sphere {
+    /* Grade Holográfica de Fundo */
+    .hologram-grid {
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at 30% 30%, #60a5fa, #2563eb);
-        border-radius: 50%;
-        box-shadow: 0 0 60px #3b82f6, 0 0 100px rgba(59, 130, 246, 0.5);
-        animation: pulse-core 3s infinite;
-        z-index: 10;
+        background-image: 
+            linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+        background-size: 20px 20px;
+        opacity: 0.6;
+        pointer-events: none;
     }
 
-    /* Anéis Orbitais */
-    .orbital-ring {
+    .logistics-scene {
+        position: relative;
+        width: 420px;
+        height: 180px;
+        display: flex;
+        align-items: flex-end;
+    }
+
+    /* Plataforma de Carga (Chão) */
+    .loading-dock {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 25px;
+        height: 4px;
+        background: linear-gradient(90deg, #f97316 0%, #38bdf8 100%);
+        box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        border-radius: 2px;
+    }
+
+    /* Caminhão Futurista */
+    .futuristic-truck {
+        position: absolute;
+        right: 20px;
+        bottom: 25px;
+        width: 190px;
+        height: 100px;
+        display: flex;
+        align-items: flex-end;
+        animation: truck-vibe 2s ease-in-out infinite alternate;
+    }
+
+    /* Baú de Carga */
+    .truck-cargo {
+        position: relative;
+        width: 130px;
+        height: 80px;
+        background: rgba(30, 41, 59, 0.5);
+        border: 2px solid rgba(56, 189, 248, 0.4);
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.15);
+    }
+
+    /* Grade Interna do Baú */
+    .cargo-grid {
+        position: absolute;
+        inset: 0;
+        background-image: 
+            linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+        background-size: 15px 15px;
+    }
+
+    /* Laser Scanner do Baú */
+    .laser-scanner {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #10b981;
+        box-shadow: 0 0 8px #10b981, 0 0 15px #10b981;
+        animation: laser-scan-horizontal 3s ease-in-out infinite;
+    }
+
+    /* Caixas de Carga (Animação de Preenchimento) */
+    .cargo-box {
+        position: absolute;
+        width: 25px;
+        height: 20px;
+        background: rgba(249, 115, 22, 0.35);
+        border: 1px solid rgba(249, 115, 22, 0.8);
+        border-radius: 2px;
+        box-shadow: 0 0 8px rgba(249, 115, 22, 0.4);
+        opacity: 0;
+    }
+
+    /* Posicionamento e delay das caixas entrando */
+    .box-a { left: 10px; bottom: 5px; animation: box-fill-a 6s ease-in-out infinite; }
+    .box-b { left: 40px; bottom: 5px; animation: box-fill-b 6s ease-in-out infinite; }
+    .box-c { left: 10px; bottom: 28px; animation: box-fill-c 6s ease-in-out infinite; }
+    .box-d { left: 70px; bottom: 5px; animation: box-fill-d 6s ease-in-out infinite; }
+
+    /* Cabine do Caminhão */
+    .truck-cabin {
+        position: relative;
+        width: 50px;
+        height: 55px;
+        background: #1e293b;
+        border: 2px solid rgba(56, 189, 248, 0.4);
+        border-left: none;
+        border-radius: 0 10px 4px 0;
+        clip-path: polygon(0 0, 75% 0, 100% 40%, 100% 100%, 0 100%);
+    }
+
+    .cabin-window {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        width: 26px;
+        height: 18px;
+        background: rgba(56, 189, 248, 0.2);
+        border: 1px solid rgba(56, 189, 248, 0.6);
+        border-radius: 0 6px 0 0;
+        clip-path: polygon(0 0, 80% 0, 100% 100%, 0 100%);
+    }
+
+    .cabin-headlight {
+        position: absolute;
+        bottom: 12px;
+        right: 2px;
+        width: 6px;
+        height: 6px;
+        background: #38bdf8;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #38bdf8, 0 0 20px #38bdf8;
+        animation: headlight-pulse 1s linear infinite alternate;
+    }
+
+    /* Rodas */
+    .truck-wheels {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -12px;
+        height: 24px;
+        pointer-events: none;
+    }
+
+    .wheel {
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: #0f172a;
+        border: 2px solid #38bdf8;
+        border-radius: 50%;
+        box-shadow: 0 0 6px rgba(56, 189, 248, 0.4);
+        animation: spin-wheels 2s linear infinite;
+    }
+    
+    .wheel::after {
+        content: '';
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        border-radius: 50%;
-        border: 2px solid transparent;
-        transform-style: preserve-3d;
+        width: 8px;
+        height: 2px;
+        background: #38bdf8;
     }
 
-    .ring-1 {
-        width: 140px;
-        height: 140px;
-        border-top: 4px solid #3b82f6;
-        border-bottom: 4px solid #3b82f6;
-        animation: spin-3d-x 4s linear infinite;
-        box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-    }
+    .wheel-back-1 { left: 20px; }
+    .wheel-back-2 { left: 46px; }
+    .wheel-front { right: 28px; }
 
-    .ring-2 {
-        width: 180px;
-        height: 180px;
-        border-left: 2px solid #a855f7;
-        /* Roxo Neon */
-        border-right: 2px solid #a855f7;
-        animation: spin-3d-y 6s linear infinite;
-        box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
-    }
-
-    .ring-3 {
-        width: 220px;
-        height: 220px;
-        border: 1px dashed rgba(255, 255, 255, 0.3);
-        animation: spin-z 10s linear infinite;
-    }
-
-    /* Partículas de Energia */
-    .energy-particle {
+    /* Operador Holográfico */
+    .hologram-operator {
         position: absolute;
-        width: 4px;
-        height: 4px;
-        background: #fff;
+        left: 170px;
+        bottom: 25px;
+        width: 40px;
+        height: 70px;
+        transform-style: preserve-3d;
+        filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.7));
+    }
+
+    /* Corpo do Operador */
+    .operator-body {
+        position: absolute;
+        bottom: 0;
+        left: 15px;
+        width: 10px;
+        height: 38px;
+        background: rgba(56, 189, 248, 0.6);
+        border: 1px solid #38bdf8;
+        border-radius: 4px;
+        animation: operator-lean 6s ease-in-out infinite;
+    }
+
+    .operator-head {
+        position: absolute;
+        top: 18px;
+        left: 13px;
+        width: 14px;
+        height: 14px;
+        background: rgba(56, 189, 248, 0.7);
+        border: 1px solid #38bdf8;
         border-radius: 50%;
-        box-shadow: 0 0 10px #fff, 0 0 20px #3b82f6;
-        animation: particle-orbit 2s linear infinite;
+        animation: operator-head-bob 6s ease-in-out infinite;
     }
 
-    .particle-1 {
-        animation-duration: 2s;
-        top: 50%;
-        left: 50%;
-        transform-origin: 60px 0;
+    /* Braço do Operador */
+    .operator-arm {
+        position: absolute;
+        top: 34px;
+        left: 18px;
+        width: 18px;
+        height: 6px;
+        background: #38bdf8;
+        border-radius: 3px;
+        transform-origin: left center;
+        animation: operator-arm-move 6s ease-in-out infinite;
     }
 
-    .particle-2 {
-        animation-duration: 3s;
-        top: 50%;
-        left: 50%;
-        transform-origin: -70px 20px;
-        animation-delay: 0.5s;
-        background: #a855f7;
+    /* Caixa segurada */
+    .operator-package {
+        position: absolute;
+        width: 18px;
+        height: 15px;
+        background: rgba(249, 115, 22, 0.85);
+        border: 1px solid #f97316;
+        border-radius: 2px;
+        box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+        left: 28px;
+        top: 28px;
+        animation: operator-package-move 6s ease-in-out infinite;
     }
 
-    .particle-3 {
-        animation-duration: 2.5s;
-        top: 50%;
-        left: 50%;
-        transform-origin: 0 80px;
-        animation-delay: 1s;
-        background: #22d3ee;
+    /* Palete de Origem */
+    .warehouse-pallet {
+        position: absolute;
+        left: 60px;
+        bottom: 25px;
+        width: 60px;
+        height: 12px;
+        background: #334155;
+        border: 1.5px solid rgba(255, 255, 255, 0.15);
+        border-radius: 2px;
     }
 
-    /* Keyframes Surreais */
-    @keyframes core-float {
-
-        0%,
-        100% {
-            transform: translateY(0) rotateX(0);
-        }
-
-        50% {
-            transform: translateY(-20px) rotateX(10deg);
-        }
+    .pallet-box {
+        position: absolute;
+        width: 20px;
+        height: 16px;
+        background: rgba(249, 115, 22, 0.4);
+        border: 1px solid rgba(249, 115, 22, 0.7);
+        border-radius: 2px;
     }
 
-    @keyframes pulse-core {
+    .pallet-box-1 { left: 5px; bottom: 12px; animation: pallet-box-disappear-1 6s ease-in-out infinite; }
+    .pallet-box-2 { left: 30px; bottom: 12px; animation: pallet-box-disappear-2 6s ease-in-out infinite; }
+    .pallet-box-3 { left: 18px; bottom: 27px; animation: pallet-box-disappear-3 6s ease-in-out infinite; }
 
-        0%,
-        100% {
-            transform: scale(1);
-            opacity: 1;
-            box-shadow: 0 0 60px #3b82f6;
-        }
-
-        50% {
-            transform: scale(1.2);
-            opacity: 0.8;
-            box-shadow: 0 0 100px #3b82f6;
-        }
+    /* Estilização Customizada do Modal para Visual Glassmorphism */
+    #processing-modal .modal-content {
+        background: rgba(15, 23, 42, 0.85) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 28px !important;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                    0 0 40px rgba(59, 130, 246, 0.15) !important;
+        overflow: hidden;
     }
 
-    @keyframes spin-3d-x {
-        0% {
-            transform: translate(-50%, -50%) rotateX(0deg) rotateY(0deg);
-        }
-
-        100% {
-            transform: translate(-50%, -50%) rotateX(360deg) rotateY(180deg);
-        }
+    /* Customização Futurista da Barra de Progresso do Bootstrap */
+    #processing-modal .progress {
+        height: 10px !important;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        overflow: visible !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.5) !important;
+        margin-top: 1rem;
     }
 
-    @keyframes spin-3d-y {
-        0% {
-            transform: translate(-50%, -50%) rotateY(0deg) rotateZ(0deg);
-        }
-
-        100% {
-            transform: translate(-50%, -50%) rotateY(360deg) rotateZ(180deg);
-        }
+    #processing-modal #processing-progress-bar {
+        background: linear-gradient(90deg, #f97316 0%, #facc15 100%) !important;
+        box-shadow: 0 0 12px rgba(249, 115, 22, 0.6), 0 0 20px rgba(250, 204, 21, 0.4) !important;
+        border-radius: 999px !important;
+        position: relative !important;
+        transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
     }
 
-    @keyframes spin-z {
-        0% {
-            transform: translate(-50%, -50%) rotateZ(0deg);
-        }
-
-        100% {
-            transform: translate(-50%, -50%) rotateZ(360deg);
-        }
+    #processing-modal #processing-progress-bar::after {
+        content: '' !important;
+        position: absolute !important;
+        right: -4px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        width: 14px !important;
+        height: 14px !important;
+        background: #ffffff !important;
+        border-radius: 50% !important;
+        box-shadow: 0 0 15px #ffffff, 
+                    0 0 25px #f97316, 
+                    0 0 35px #facc15 !important;
+        animation: pulse-tip-glow-premium 1s ease-in-out infinite alternate !important;
     }
 
-    @keyframes particle-orbit {
-        0% {
-            transform: rotate(0deg) translateX(var(--orbit-radius, 80px)) rotate(0deg);
-            opacity: 0;
-        }
-
-        20% {
-            opacity: 1;
-        }
-
-        80% {
-            opacity: 1;
-        }
-
-        100% {
-            transform: rotate(360deg) translateX(var(--orbit-radius, 80px)) rotate(-360deg);
-            opacity: 0;
-        }
-    }
-
-
-    @keyframes spin-v9-reverse {
-        0% {
-            transform: translate(-50%, -50%) rotate(360deg);
-        }
-
-        100% {
-            transform: translate(-50%, -50%) rotate(0deg);
-        }
-    }
-
-    @keyframes packet-travel {
-        0% {
-            transform: translate(-50%, -50%) rotate(var(--angle)) translateX(140px);
-            opacity: 0;
-        }
-
-        10% {
-            opacity: 1;
-        }
-
-        100% {
-            transform: translate(-50%, -50%) rotate(var(--angle)) translateX(20px);
-            opacity: 0;
-        }
+    #processing-status-text {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+        letter-spacing: -0.02em !important;
+        font-size: 1.25rem !important;
+        text-shadow: 0 0 20px rgba(255, 255, 255, 0.25) !important;
+        margin-top: 10px;
     }
 
     #thinking-text {
-        font-family: 'Courier New', Courier, monospace;
-        font-weight: bold;
-        color: var(--dark-accent);
-        animation: text-glitch 3s linear infinite;
+        font-family: 'Courier New', Courier, monospace !important;
+        font-weight: bold !important;
+        color: #facc15 !important;
+        font-size: 0.88rem !important;
+        letter-spacing: 0.05em !important;
+        text-shadow: 0 0 10px rgba(250, 204, 21, 0.3) !important;
+        margin-top: 4px;
     }
 
-    @keyframes text-glitch {
+    #processing-details-text {
+        font-family: 'Courier New', Courier, monospace !important;
+        color: #38bdf8 !important;
+        font-size: 0.78rem !important;
+        opacity: 0.85 !important;
+        margin-top: -5px;
+    }
 
-        2%,
-        64% {
-            transform: translate(2px, 0) skew(0deg);
+    /* --- Keyframes Futuristas de Alta Qualidade --- */
+    @keyframes truck-vibe {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-1.5px); }
+    }
+
+    @keyframes headlight-pulse {
+        0% { opacity: 0.6; box-shadow: 0 0 10px #38bdf8; }
+        100% { opacity: 1; box-shadow: 0 0 18px #38bdf8, 0 0 30px #38bdf8; }
+    }
+
+    @keyframes spin-wheels {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(-360deg); }
+    }
+
+    @keyframes laser-scan-horizontal {
+        0%, 100% { left: 0%; opacity: 0.7; }
+        50% { left: 100%; opacity: 1; }
+    }
+
+    @keyframes operator-lean {
+        0%, 100% { transform: rotate(0deg); }
+        35% { transform: rotate(-10deg); }
+        70% { transform: rotate(5deg); }
+    }
+
+    @keyframes operator-head-bob {
+        0%, 100% { transform: translate(0, 0); }
+        35% { transform: translate(-2px, 3px); }
+        70% { transform: translate(2px, -1px); }
+    }
+
+    @keyframes operator-arm-move {
+        0%, 100% { transform: rotate(0deg); }
+        35% { transform: rotate(-25deg) scaleX(0.9); }
+        70% { transform: rotate(15deg) scaleX(1.1); }
+    }
+
+    @keyframes operator-package-move {
+        0% {
+            opacity: 0;
+            transform: translate(0, 0);
         }
-
-        4%,
+        25% {
+            opacity: 1;
+        }
+        35% {
+            transform: translate(-10px, 12px) scale(0.9);
+            opacity: 1;
+        }
         60% {
-            transform: translate(-2px, 0) skew(0deg);
+            opacity: 1;
         }
+        70% {
+            transform: translate(25px, 2px) scale(0.85);
+            opacity: 1;
+        }
+        80%, 100% {
+            opacity: 0;
+            transform: translate(25px, 2px) scale(0.85);
+        }
+    }
 
-        62% {
-            transform: translate(0, 0) skew(5deg);
+    @keyframes pallet-box-disappear-1 {
+        0%, 30% { opacity: 1; }
+        35%, 100% { opacity: 0; }
+    }
+
+    @keyframes pallet-box-disappear-2 {
+        0%, 63% { opacity: 1; }
+        68%, 100% { opacity: 0; }
+    }
+
+    @keyframes pallet-box-disappear-3 {
+        0%, 46% { opacity: 1; }
+        51%, 100% { opacity: 0; }
+    }
+
+    @keyframes box-fill-a {
+        0%, 35% { opacity: 0; transform: translateY(-5px); }
+        40%, 100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes box-fill-b {
+        0%, 68% { opacity: 0; transform: translateY(-5px); }
+        73%, 100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes box-fill-c {
+        0%, 51% { opacity: 0; transform: translateY(-5px); }
+        56%, 100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes box-fill-d {
+        0%, 82% { opacity: 0; transform: translateY(-5px); }
+        87%, 100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse-tip-glow-premium {
+        0% {
+            box-shadow: 0 0 10px #ffffff, 0 0 18px #f97316, 0 0 25px #facc15;
+            transform: translateY(-50%) scale(0.9);
+        }
+        100% {
+            box-shadow: 0 0 18px #ffffff, 0 0 28px #f97316, 0 0 40px #facc15;
+            transform: translateY(-50%) scale(1.1);
         }
     }
 </style>
@@ -854,9 +1087,8 @@
                         stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
             </div>
-            <span class="sidebar-brand-text">ApexLog <span
-                    class="badge bg-primary-subtle text-primary-emphasis fw-normal"
-                    style="font-size: 0.6rem; vertical-align: top;">v3.0</span></span>
+            <span class="sidebar-brand-text">ApexLog <span class="ms-1"
+                    style="font-size: 0.6rem; vertical-align: top; letter-spacing: 0.05em; padding: 2.5px 6px; border-radius: 4px; background: #f97316 !important; color: #ffffff !important; font-weight: 800; display: inline-block; line-height: 1;">4.0 PRO</span></span>
         </div>
 
         <!-- Navigation -->
@@ -900,6 +1132,20 @@
                 onclick="activateView('email-generator-view', this); if(window.initEmailGenerator) window.initEmailGenerator();">
                 <i class="bi bi-envelope-check-fill" style="color: #10b981;"></i>
                 <span>Gerador de E-mails</span>
+            </a>
+
+            <!-- LINK RELATÓRIO MENSAL DE VAREJO -->
+            <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#relatorioVarejoOffcanvas">
+                <i class="bi bi-bar-chart-steps text-warning"></i>
+                <span>Relatório Varejo SP/PR</span>
+            </a>
+
+            <!-- LINK AGENDAMENTOS TRIZE (PLANILHA) -->
+            <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#trizeAgendamentosModal">
+                <i class="bi bi-calendar-event text-warning" style="color: #f59e0b !important;"></i>
+                <span>Agendamentos Trize</span>
+                <span class="badge bg-success ms-auto"
+                    style="font-size: 0.55rem; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); padding: 2px 4px;">PLANILHA</span>
             </a>
 
             <!-- Dropdown Logic for Sidebar (Basic Collapse) -->
@@ -1000,7 +1246,7 @@
                     <i class="bi bi-three-dots-vertical ms-auto text-muted small"></i>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-dark-glass p-2 mb-2 ms-2">
-                    <li><span class="dropdown-header py-0">ApexLog v3.0</span></li>
+                    <li><span class="dropdown-header py-0">ApexLog 4.0 PRO</span></li>
                     <li>
                         <hr class="dropdown-divider border-white-10">
                     </li>
@@ -1108,7 +1354,7 @@
         <!-- VIEW: MESAS DE TRABALHO -->
         <!-- ======================================================================================= -->
         <div id="workspace-view" class="main-view">
-            <h1 class="h2 mb-4 animated-entry">Mesas de Trabalho</h1> <!-- p-4 removido -->
+            <h1 class="h2 mb-4 animated-entry"><i class="bi bi-grid-1x2-fill text-primary me-2"></i>Mesas de Trabalho</h1>
             <div class="row g-3">
                 <div class="col-12 col-lg-6 col-xl-6 mb-4 animated-entry">
                     <div class="workspace-card h-100">
@@ -1122,10 +1368,6 @@
                                         id="loadSearchInput" placeholder="ID Carga..."
                                         title="Digite o ID curto da carga (ex: 12345)">
                                 </div>
-                                <button class="btn btn-sm btn-magic" onclick="montarTodasAsRotas()"
-                                    title="Montar cargas para todas as rotas disponíveis automaticamente">
-                                    <i class="bi bi-stars me-1"></i>Auto Montar
-                                </button>
                                 <button id="start-manual-routing-btn" class="btn btn-sm btn-outline-secondary"
                                     data-bs-toggle="modal" data-bs-target="#manualRoutingModal"
                                     title="Roteirização Manual">
@@ -1134,6 +1376,21 @@
                             </div>
                         </div>
                         <div class="card-body p-0">
+                            <!-- Botões de Ações Centralizados no Card -->
+                            <div class="d-flex justify-content-center gap-3 p-3 border-bottom border-secondary border-opacity-10" style="background: rgba(255, 255, 255, 0.01);">
+                                <button class="btn btn-magic px-4 py-2.5 d-flex align-items-center gap-2 shadow" 
+                                        onclick="abrirModalAutoMontar()" 
+                                        style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.35); box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
+                                    <i class="bi bi-stars text-warning fs-5"></i>
+                                    <span>AUTO MONTAR ROTAS</span>
+                                </button>
+                                <button class="btn btn-outline-warning px-4 py-2.5 d-flex align-items-center gap-2 shadow" 
+                                        onclick="executarImpressaoResumoAutoMontarEstilosa()" 
+                                        style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.25);">
+                                    <i class="bi bi-printer-fill text-warning fs-5"></i>
+                                    <span>IMPRIMIR PREVISÃO</span>
+                                </button>
+                            </div>
                             <ul class="nav nav-tabs-modern" id="vehicleTabs" role="tablist">
                                 <li class="nav-item" role="presentation"><button class="nav-link tab-fiorino active"
                                         data-bs-toggle="tab" data-bs-target="#fiorino-tab-pane"><i
@@ -1150,11 +1407,21 @@
                                             class="bi bi-truck"></i>VAN - 3/4 SP <span id="badge-van-sp"
                                             class="badge bg-white text-primary ms-2 rounded-pill d-none">0</span></button>
                                 </li>
+                                <li class="nav-item" role="presentation"><button class="nav-link tab-van"
+                                        data-bs-toggle="tab" data-bs-target="#van-ms-tab-pane"><i
+                                            class="bi bi-truck"></i>VAN - 3/4 MS <span id="badge-van-ms"
+                                            class="badge bg-white text-primary ms-2 rounded-pill d-none">0</span></button>
+                                </li>
 
                                 <li class="nav-item" role="presentation"><button class="nav-link tab-toco"
                                         data-bs-toggle="tab" data-bs-target="#toco-tab-pane"><i
                                             class="bi bi-boxes"></i>Toco <span id="badge-toco"
                                             class="badge bg-white text-secondary ms-2 rounded-pill d-none">0</span></button>
+                                </li>
+                                <li class="nav-item" role="presentation"><button class="nav-link tab-truck"
+                                        data-bs-toggle="tab" data-bs-target="#truck-tab-pane"><i
+                                            class="bi bi-truck-flatbed"></i>Truck <span id="badge-truck"
+                                            class="badge bg-white text-danger ms-2 rounded-pill d-none">0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation"><button class="nav-link tab-pr"
                                         data-bs-toggle="tab" data-bs-target="#cargas-fechadas-pr-tab-pane"><i
@@ -1256,6 +1523,29 @@
                                     <div id="resultado-van-sp" class="mt-3"></div>
                                 </div>
 
+                                <div class="tab-pane fade workspace-tab-pane" id="van-ms-tab-pane" role="tabpanel">
+                                    <div
+                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
+                                            <strong>(Mato Grosso do Sul)</strong> para montar as cargas de Van.
+                                        </p>
+                                        <div class="btn-group">
+                                            <button class="btn btn-primary"
+                                                onclick="imprimirCargasGeneric('resultado-van-ms', 'Cargas de Van - MS')">
+                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3 no-print" id="botoes-van-ms">
+                                        <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
+                                            <p>Nenhuma rota de Van (MS) disponível. Processe um arquivo para começar.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <hr class="no-print">
+                                    <div id="resultado-van-ms" class="mt-3"></div>
+                                </div>
+
                                 <div class="tab-pane fade" id="toco-tab-pane" role="tabpanel">
                                     <div
                                         class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
@@ -1271,6 +1561,23 @@
                                     <div id="resultado-toco">
                                         <div class="empty-state"><i class="bi bi-inboxes-fill"></i>
                                             <p>Nenhuma carga "Toco" encontrada. Processe um arquivo.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="truck-tab-pane" role="tabpanel">
+                                    <div
+                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Gerencie as cargas consolidadas de Truck.</p>
+                                        <div class="btn-group">
+                                            <button class="btn btn-primary"
+                                                onclick="imprimirCargasGeneric('resultado-truck', 'Cargas de Truck')">
+                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="resultado-truck">
+                                        <div class="empty-state"><i class="bi bi-truck"></i>
+                                            <p>Nenhuma carga "Truck" encontrada.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1401,11 +1708,14 @@
                                         placeholder="Buscar pedido, cliente, cidade..." onkeyup="liveSearch()">
                                 </div>
                                 <div id="search-result" class="mt-3"></div>
-                                <div class="d-grid gap-2 mt-2">
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
-                                        data-bs-target="#roteirizacaoModal"
-                                        title="Roteirizar e montar cargas a partir de uma lista de pedidos"><i
-                                            class="bi bi-map-fill me-1"></i>Roteirizar Lista</button>
+                                <div class="d-flex justify-content-center mt-2 w-100">
+                                    <button class="btn btn-magic w-100 py-2.5 d-flex align-items-center justify-content-center gap-2 shadow" 
+                                            onclick="abrirModalRoteirizacaoLista()" 
+                                            title="Roteirizar e montar cargas (incluindo sobras) a partir de rotas combinadas"
+                                            style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.35); box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
+                                        <i class="bi bi-stars text-warning fs-5"></i>
+                                        <span>ROTEIRIZAR E MONTAR SOBRAS</span>
+                                    </button>
                                 </div>
                             </div>
                             <ul class="nav nav-tabs-modern" id="pedidosDisponiveisTabs" role="tablist">
@@ -1998,152 +2308,16 @@
                         </div>
                     </div>
 
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h2 class="card-title h5 mb-0"><i class="bi bi-truck me-2"></i>Configurações de Veículos
-                            </h2>
-                        </div>
-                        <div class="card-body">
-                            <div class="row g-3 mb-3 border-bottom pb-3 border-secondary">
-                                <div class="col-md-12"><strong class="text-success fs-5">Fiorino</strong></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Peso mínimo para que uma carga seja considerada válida e náo vire sobra.">Peso
-                                        Mín (kg)</label><input type="number" class="form-control"
-                                        id="fiorinoMinCapacity" value="300" step="10"></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="O peso ideal que o algoritmo tentará atingir. A carga pode passar um pouco deste valor.">Peso
-                                        Pref. (kg)</label><input type="number" class="form-control"
-                                        id="fiorinoMaxCapacity" value="500" step="10"></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="A cubagem preferencial que o algoritmo tentará atingir.">Cubagem Pref.
-                                        (m³)</label><input type="number" class="form-control" id="fiorinoCubage"
-                                        value="1.5" step="0.1"></div>
-                                <div class="col-md-3 d-flex align-items-end"><button class="btn btn-secondary w-100"
-                                        id="resetFiorino" onclick="resetFiorino()">Reset</button></div>
-                                <div class="col-md-3"></div>
-                                <div class="col-md-3"><label class="form-label fw-bold" data-bs-toggle="tooltip"
-                                        title="Limite máximo absoluto. Nenhuma carga, nem mesmo manualmente, poderá ultrapassar este peso.">Peso
-                                        Má¡x Final (kg)</label><input type="number" class="form-control"
-                                        id="fiorinoHardMaxCapacity" value="560" step="10"></div>
-                                <div class="col-md-3"><label class="form-label fw-bold" data-bs-toggle="tooltip"
-                                        title="Limite de cubagem má¡ximo absoluto.">Cubagem Má¡x Final
-                                        (m³)</label><input type="number" class="form-control" id="fiorinoHardCubage"
-                                        value="1.7" step="0.1"></div>
-                            </div>
-                            <div class="row g-3 mb-3 border-bottom pb-3 border-secondary">
-                                <div class="col-md-12"><strong class="text-primary fs-5">Van</strong></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Peso mínimo para que uma carga seja considerada válida e náo vire sobra.">Peso
-                                        Má­n (kg)</label><input type="number" class="form-control" id="vanMinCapacity"
-                                        value="1100" step="10"></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="O peso ideal que o algoritmo tentará¡ atingir. A carga pode passar um pouco deste valor.">Peso
-                                        Pref. (kg)</label><input type="number" class="form-control" id="vanMaxCapacity"
-                                        value="1560" step="10"></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="A cubagem preferencial que o algoritmo tentará¡ atingir.">Cubagem Pref.
-                                        (m³)</label><input type="number" class="form-control" id="vanCubage" value="5.0"
-                                        step="0.1"></div>
-                                <div class="col-md-3 d-flex align-items-end"><button class="btn btn-secondary w-100"
-                                        id="resetVan" onclick="resetVan()">Reset</button></div>
-                                <div class="col-md-3"></div>
-                                <div class="col-md-3"><label class="form-label fw-bold" data-bs-toggle="tooltip"
-                                        title="Limite máximo absoluto. Nenhuma carga, nem mesmo manualmente, poderá ultrapassar este peso.">Peso
-                                        Má¡x Final (kg)</label><input type="number" class="form-control"
-                                        id="vanHardMaxCapacity" value="1600" step="10"></div>
-                                <div class="col-md-3"><label class="form-label fw-bold" data-bs-toggle="tooltip"
-                                        title="Limite de cubagem má¡ximo absoluto.">Cubagem Má¡x Final
-                                        (m³)</label><input type="number" class="form-control" id="vanHardCubage"
-                                        value="5.6" step="0.1">
-                                </div>
-                            </div>
-                            <div class="row g-3 mb-3 border-bottom pb-3 border-secondary">
-                                <div class="col-md-12"><strong class="text-warning fs-5">3/4</strong></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Peso mínimo para que uma carga seja considerada válida e náo vire sobra.">Peso
-                                        Mín (kg)</label><input type="number" class="form-control"
-                                        id="tresQuartosMinCapacity" value="2300" step="10"></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Peso má¡ximo que o algoritmo tentará¡ atingir.">Peso Má¡x
-                                        (kg)</label><input type="number" class="form-control"
-                                        id="tresQuartosMaxCapacity" value="4100" step="10"></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Cubagem máxima que o algoritmo tentará atingir.">Cubagem Máx
-                                        (mÂ³)</label><input type="number" class="form-control" id="tresQuartosCubage"
-                                        value="15.0" step="0.1"></div>
-                                <div class="col-md-3 d-flex align-items-end"><button class="btn btn-secondary w-100"
-                                        id="resetTresQuartos" onclick="resetTresQuartos()">Reset</button></div>
-                            </div>
-                            <div class="row g-3">
-                                <div class="col-md-12"><strong class="fs-5">Toco</strong></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Peso mínimo para que uma carga seja considerada válida.">Peso Mín
-                                        (kg)</label><input type="number" class="form-control" id="tocoMinCapacity"
-                                        value="5000" step="10"></div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Peso máximo que o algoritmo tentará atingir.">Peso Máx
-                                        (kg)</label><input type="number" class="form-control" id="tocoMaxCapacity"
-                                        value="8500" step="10">
-                                </div>
-                                <div class="col-md-3"><label class="form-label" data-bs-toggle="tooltip"
-                                        title="Cubagem máxima que o algoritmo tentará atingir.">Cubagem Máx
-                                        (mÂ³)</label><input type="number" class="form-control" id="tocoCubage"
-                                        value="30.0" step="0.1"></div>
-                                <div class="col-md-3 d-flex align-items-end"><button class="btn btn-secondary w-100"
-                                        id="resetToco" onclick="resetToco()">Reset</button></div>
-                            </div>
-                            <div class="mt-4 d-flex justify-content-end"><button class="btn btn-success me-2"
-                                    id="saveConfig"><i class="bi bi-check-circle-fill me-2"></i>Salvar
-                                    Tudo</button><button class="btn btn-danger" id="resetAllConfigs"
-                                    onclick="resetAll()"><i class="bi bi-arrow-clockwise me-2"></i>Resetar Tudo</button>
-                            </div>
-                            <div id="configStatus" class="mt-2 status-message text-end"></div>
-                        </div>
-                    </div>
 
-                    <div class="row mt-4">
-                        <div class="col-lg-6 mb-4 mb-lg-0">
-                            <div class="card h-100">
-                                <div class="card-header">
-                                    <h2 class="card-title h5 mb-0"><i class="bi bi-scissors me-2"></i>Pedidos Sem Corte
-                                    </h2>
-                                </div>
-                                <div class="card-body d-flex flex-column">
-                                    <label for="semCorteInput" class="form-label">Pedidos a marcar como "Sem
-                                        Corte":</label>
-                                    <div class="input-group mb-3"><textarea class="form-control" id="semCorteInput"
-                                            rows="3" placeholder="Cole os números aqui..."></textarea><button
-                                            class="btn btn-outline-warning" type="button"
-                                            onclick="marcarPedidosSemCorte()">Marcar</button></div>
-                                    <label class="form-label mt-2">Pedidos Marcados:</label>
-                                    <div id="lista-pedidos-sem-corte" class="p-2 border rounded flex-grow-1"
-                                        style="background-color: var(--dark-bg); min-height: 100px;">
-                                        <div class="empty-state"><i class="bi bi-scissors"></i>
-                                            <p>Nenhum pedido marcado.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-6 mb-4 mb-lg-0">
-                            <div class="card h-100">
-                                <div class="card-header">
-                                    <h2 class="card-title h5 mb-0"><i class="bi bi-star-fill me-2"></i>Carga Especial
-                                    </h2>
-                                </div>
-                                <div class="card-body d-flex flex-column">
-                                    <p class="text-muted small">Esta funcionalidade foi movida para a tela principal
-                                        para facilitar o acesso.</p>
-                                    <p class="text-muted small">Vocáª pode encontrar os cards de "Venda Antecipada" e
-                                        "Carga Especial" logo abaixo da "Mesa de Trabalho".</p>
-                                    <i class="bi bi-arrow-down-circle-fill fs-1 text-info text-center mt-3"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <div class="modal-footer d-flex justify-content-between">
+                    <div id="configStatus" class="status-message text-start"></div>
+                    <div>
+                        <button class="btn btn-success me-2" id="saveConfig"><i class="bi bi-check-circle-fill me-2"></i>Salvar
+                            Configurações</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2657,6 +2831,223 @@
         </div>
     </div>
 
+    <!-- Modal de Seleção de Rotas para Auto Montar -->
+    <div class="modal fade" id="autoMontarModal" tabindex="-1" aria-labelledby="autoMontarModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content shadow-lg border border-secondary border-opacity-25" style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); border-radius: 16px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3">
+                    <h5 class="modal-title text-light fw-bold d-flex align-items-center" id="autoMontarModalLabel">
+                        <i class="bi bi-stars text-warning me-2 fs-4"></i>
+                        Auto Montagem Inteligente
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4" style="max-height: 60vh; overflow-y: auto;">
+                    <p class="text-secondary small mb-3">
+                        Selecione as rotas que deseja montar automaticamente. O sistema processará cada rota sequencialmente seguindo as mesmas regras do painel individual e de prioritários.
+                    </p>
+                    
+                    <!-- Barra de Ações Rápidas -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 py-2 px-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10">
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllAutoMontar(true)">
+                                <i class="bi bi-check-all me-1"></i>Selecionar Todas
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllAutoMontar(false)">
+                                <i class="bi bi-x-circle me-1"></i>Limpar Seleção
+                            </button>
+                        </div>
+                        <span id="selected-routes-count" class="badge bg-secondary px-2 py-1 text-light font-monospace" style="font-size: 0.75rem;">
+                            0 rotas selecionadas
+                        </span>
+                    </div>
+
+                    <!-- Lista de Rotas -->
+                    <div id="auto-montar-routes-list" class="d-flex flex-column gap-2">
+                        <!-- Gerado dinamicamente via JS -->
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10">
+                    <button type="button" class="btn btn-outline-secondary px-4 text-light" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" id="btn-start-auto-montar" class="btn btn-magic px-4 py-2" onclick="iniciarAutoMontagemSelecionadas()">
+                        <i class="bi bi-play-circle-fill me-2 fs-6"></i>Iniciar Montagem
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Resumo da Auto Montagem (Estiloso) -->
+    <div class="modal fade" id="autoMontarSummaryModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border border-warning border-opacity-20" style="background: rgba(15, 23, 42, 0.98); backdrop-filter: blur(20px); border-radius: 20px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3">
+                    <h5 class="modal-title text-light fw-bold d-flex align-items-center">
+                        <i class="bi bi-check-circle-fill text-success me-2 fs-4"></i>
+                        Resumo da Auto Montagem
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-4">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success rounded-circle mb-3" style="width: 64px; height: 64px; border: 1px solid rgba(25, 135, 84, 0.3);">
+                            <i class="bi bi-truck fs-1"></i>
+                        </div>
+                        <h4 class="text-light fw-bold m-0" id="summary-total-loads">0 Cargas Montadas</h4>
+                        <p class="text-secondary small mt-1">Todas as cargas foram organizadas e separadas com sucesso!</p>
+                    </div>
+
+                    <div class="d-flex flex-column gap-2" id="summary-loads-breakdown">
+                        <!-- Inserido dinamicamente via JS -->
+                    </div>
+                    
+                    <div id="summary-weight-balance" class="mt-4">
+                        <!-- Balanço de peso (Disponível, Montado, Sobra) via JS -->
+                    </div>
+
+                    <div id="summary-sobras-justificativas">
+                        <!-- Justificativas de sobras por rota via JS -->
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary py-2.5 fw-bold text-light flex-grow-1" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-magic py-2.5 fw-bold flex-grow-1" onclick="imprimirResumoAutoMontar()">
+                        <i class="bi bi-printer-fill me-2"></i>Imprimir Resumo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Priorização antes da Auto-Montagem -->
+    <div class="modal fade" id="modalConfirmarPrioridade" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background: rgba(20, 25, 40, 0.95); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10">
+                    <h5 class="modal-title text-light"><i class="bi bi-star-fill text-warning me-2 animate-pulse"></i>Priorização de Pedidos</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <p class="text-light fs-5 mb-3">Gostaria de priorizar algum pedido de varejo antes de iniciar a montagem das rotas selecionadas?</p>
+                    <p class="text-secondary small">
+                        Ao priorizar, os pedidos selecionados serão agrupados e alocados com preferência nas primeiras cargas geradas das suas respectivas rotas.
+                    </p>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 d-flex justify-content-between p-3">
+                    <button type="button" class="btn btn-outline-secondary px-3 text-light" data-bs-dismiss="modal">Cancelar</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-info px-3" onclick="processarSemPriorizar()">
+                            Não, Iniciar Direto
+                        </button>
+                        <button type="button" class="btn btn-magic px-3 py-2" onclick="abrirModalSelecaoPrioridades()">
+                            <i class="bi bi-star-fill text-warning me-1"></i>Sim, Priorizar Pedidos
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Seleção de Pedidos Prioritários -->
+    <div class="modal fade" id="modalPriorizacaoAutomontar" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content" style="background: rgba(20, 25, 40, 0.98); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10">
+                    <h5 class="modal-title text-light"><i class="bi bi-list-check text-info me-2"></i>Selecionar Pedidos Prioritários (Varejo)</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row align-items-center mb-3 g-2">
+                        <div class="col-md-6">
+                            <p class="text-secondary small mb-0">
+                                Pedidos disponíveis ordenados pela <strong>Predat (mais antiga para mais nova)</strong>. Marque as caixas para priorizar.
+                            </p>
+                        </div>
+                        <div class="col-md-6 d-flex justify-content-end gap-2">
+                            <div class="input-group input-group-sm w-75">
+                                <span class="input-group-text bg-dark bg-opacity-30 border-secondary border-opacity-20 text-secondary"><i class="bi bi-search"></i></span>
+                                <input type="text" id="busca-pedidos-priorizar" class="form-control bg-dark bg-opacity-30 border-secondary border-opacity-20 text-light" placeholder="Buscar pedido, cliente, rota ou cidade..." oninput="filtrarPedidosPriorizar()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Painel de Resumo de Seleção e Pesos -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10 gap-3">
+                        <div class="d-flex align-items-center gap-4 text-light small">
+                            <div>
+                                <i class="bi bi-collection-fill text-secondary me-1.5"></i>
+                                Total Disponível: <strong id="prio-total-pedidos" class="text-info font-monospace">0</strong> pedidos 
+                                (<strong id="prio-total-peso" class="text-info font-monospace">0,00</strong> kg)
+                            </div>
+                            <div class="border-start border-secondary border-opacity-20 ps-4">
+                                <i class="bi bi-check-circle-fill text-success me-1.5"></i>
+                                Selecionados: <strong id="prio-sel-pedidos" class="text-warning font-monospace">0</strong> pedidos 
+                                (<strong id="prio-sel-peso" class="text-warning font-monospace">0,00</strong> kg)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela de Pedidos -->
+                    <div class="table-responsive border border-secondary border-opacity-10 rounded mb-3" style="max-height: 45vh; overflow-y: auto;">
+                        <table class="table table-dark table-striped table-hover align-middle mb-0" id="tabela-pedidos-priorizar">
+                            <thead class="table-light text-uppercase font-monospace" style="font-size: 0.7rem; position: sticky; top: 0; z-index: 5;">
+                                <tr>
+                                    <th style="width: 45px;" class="text-center">
+                                        <input class="form-check-input" type="checkbox" id="check-all-priorizar" onclick="toggleSelectAllPrioritarios(this)">
+                                    </th>
+                                    <th>Predata</th>
+                                    <th>Data Pedido</th>
+                                    <th>Rota</th>
+                                    <th>Cód. Cliente</th>
+                                    <th>Nome Cliente</th>
+                                    <th>Nº Pedido</th>
+                                    <th>Tipo</th>
+                                    <th>Peso (kg)</th>
+                                    <th>Cidade</th>
+                                    <th>UF</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-pedidos-priorizar" style="font-size: 0.78rem;">
+                                <!-- Preenchido dinamicamente via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Opções de Regra de Auto-Montagem -->
+                    <div class="p-3 rounded border border-info border-opacity-25" style="background: rgba(13, 202, 240, 0.03);">
+                        <h6 class="text-info mb-2 small text-uppercase fw-bold"><i class="bi bi-gear-fill me-1"></i>Regra de Montagem para este lote</h6>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="regraMontagemLote" id="regraApenasPrioritarios" value="apenasPrioritarios" checked>
+                                <label class="form-check-label text-light small fw-bold" for="regraApenasPrioritarios">
+                                    Montar Somente os Prioritários
+                                </label>
+                                <div class="text-secondary" style="font-size: 0.72rem; margin-left: 20px;">
+                                    Gera cargas prioritárias contendo os pedidos marcados. Pedidos normais da rota são incluídos apenas para preencher o veículo e completar a carga mínima. Cargas compostas apenas por pedidos comuns não serão criadas.
+                                </div>
+                            </div>
+                            <div class="form-check mt-1">
+                                <input class="form-check-input" type="radio" name="regraMontagemLote" id="regraCompletar" value="completar">
+                                <label class="form-check-label text-light small fw-bold" for="regraCompletar">
+                                    Prioritários + Completar
+                                </label>
+                                <div class="text-secondary" style="font-size: 0.72rem; margin-left: 20px;">
+                                    Gera todas as cargas possíveis para a rota de forma sequencial, priorizando a alocação dos pedidos marcados nas primeiras cargas geradas.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 d-flex justify-content-between p-3">
+                    <button type="button" class="btn btn-outline-secondary px-4 text-light" onclick="voltarParaConfirmacaoPrioridade()">Voltar</button>
+                    <button type="button" class="btn btn-magic px-4 py-2" onclick="confirmarPrioridadesEIniciar()">
+                        <i class="bi bi-play-circle-fill me-2 fs-6"></i>Confirmar e Iniciar Montagem
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Priorização em Massa -->
     <div class="modal fade" id="bulkPriorityModal" tabindex="-1">
         <div class="modal-dialog">
@@ -2682,29 +3073,107 @@
     </div>
 
     <!-- Modal de Roteirização e Montagem por Lista -->
-    <div class="modal fade" id="roteirizacaoModal" tabindex="-1">
+    <div class="modal fade" id="roteirizacaoModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content" style="background: rgba(20, 25, 40, 0.98); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3">
+                    <h5 class="modal-title text-light fw-bold d-flex align-items-center">
+                        <i class="bi bi-map-fill text-primary me-2 fs-4"></i>
+                        Roteirizar e Montar (Combinação de Rotas)
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row align-items-center mb-3 g-2">
+                        <div class="col-md-6">
+                            <p class="text-secondary small mb-0">
+                                Selecione as rotas que deseja combinar na mesma montagem de cargas. O sistema consolidará os pedidos por geolocalização.
+                            </p>
+                        </div>
+                        <div class="col-md-6 d-flex justify-content-end gap-2">
+                            <div class="input-group input-group-sm w-75">
+                                <span class="input-group-text bg-dark bg-opacity-30 border-secondary border-opacity-20 text-secondary"><i class="bi bi-search"></i></span>
+                                <input type="text" id="busca-rotas-roteirizar" class="form-control bg-dark bg-opacity-30 border-secondary border-opacity-20 text-light" placeholder="Buscar rota ou cidade..." oninput="filtrarRotasRoteirizar()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Ações Rápidas de Seleção -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 py-2 px-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10">
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllRotasRoteirizar(true)">
+                                <i class="bi bi-check-all me-1"></i>Selecionar Todas
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllRotasRoteirizar(false)">
+                                <i class="bi bi-x-circle me-1"></i>Limpar Seleção
+                            </button>
+                        </div>
+                        <span id="roteiro-selected-routes-count" class="badge bg-secondary px-2 py-1 text-light font-monospace" style="font-size: 0.75rem;">
+                            0 rotas selecionadas
+                        </span>
+                    </div>
+
+                    <!-- Painel de Resumo de Seleção e Pesos -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10 gap-3">
+                        <div class="d-flex align-items-center gap-4 text-light small">
+                            <div>
+                                <i class="bi bi-collection-fill text-secondary me-1.5"></i>
+                                Total Disponível: <strong id="roteiro-total-rotas" class="text-info font-monospace">0</strong> rotas 
+                                (<strong id="roteiro-total-peso" class="text-info font-monospace">0,00</strong> kg)
+                            </div>
+                            <div class="border-start border-secondary border-opacity-20 ps-4">
+                                <i class="bi bi-check-circle-fill text-success me-1.5"></i>
+                                Selecionado: <strong id="roteiro-sel-rotas" class="text-warning font-monospace">0</strong> rotas 
+                                (<strong id="roteiro-sel-peso" class="text-warning font-monospace">0,00</strong> kg)
+                            </div>
+                        </div>
+                        <div class="form-check form-switch m-0">
+                            <input class="form-check-input" type="checkbox" id="roteiroGeoCheck" checked>
+                            <label class="form-check-label text-light small fw-bold" for="roteiroGeoCheck">Usar Geolocalização (Agrupar cidades próximas)</label>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Rotas para Combinar -->
+                    <div id="roteirizar-routes-list" class="d-flex flex-column gap-2" style="max-height: 45vh; overflow-y: auto;">
+                        <!-- Gerado dinamicamente via JS (cards de rotas) -->
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 d-flex justify-content-between p-3">
+                    <button type="button" class="btn btn-outline-secondary px-4 text-light" data-bs-dismiss="modal">Cancelar</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" id="btn-start-roteirizar-tudo" class="btn btn-outline-info px-4 py-2" onclick="processarRoteirizacaoLista(false)">
+                            <i class="bi bi-box-seam-fill me-2 fs-6"></i>Montar Todas as Rotas
+                        </button>
+                        <button type="button" id="btn-start-roteirizar-selecionados" class="btn btn-primary px-4 py-2" onclick="processarRoteirizacaoLista(true)">
+                            <i class="bi bi-play-circle-fill me-2 fs-6"></i>Montar Rotas Selecionadas
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Montar Truck Consolidado -->
+    <div class="modal fade" id="modalMontarTruck" tabindex="-1" aria-labelledby="modalMontarTruckLabel" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-map-fill me-2"></i>Roteirizar e Montar (Lista)</h5>
+                    <h5 class="modal-title" id="modalMontarTruckLabel"><i class="bi bi-truck me-2 text-danger"></i>Montar Carga Truck</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">Cole os números dos pedidos. O sistema irá¡ roteirizar as cidades e
-                        montar as cargas sequencialmente respeitando a capacidade do veículo.</p>
-                    <div class="mb-3">
-                        <label for="roteiroPedidosInput" class="form-label">Pedidos:</label>
-                        <textarea class="form-control" id="roteiroPedidosInput" rows="5"
-                            placeholder="Cole os números aqui..."></textarea>
+                    <p class="text-muted small">Digite a meta de peso desejada para consolidar os pedidos da rota em uma carga do tipo Truck. O sistema selecionará os pedidos disponíveis sequencialmente (priorizando os mais antigos de pré-data) até atingir o peso informado:</p>
+                    
+                    <div class="card bg-dark-glass text-light border border-secondary rounded-3">
+                        <div class="card-body">
+                            <label for="truckPesoDesejado" class="form-label small fw-bold text-secondary-emphasis"><i class="bi bi-speedometer2 me-1"></i>Meta de Peso para o Truck (kg):</label>
+                            <input type="number" class="form-control form-control-lg text-light bg-dark border-secondary fw-bold" id="truckPesoDesejado" value="8000" min="1000" step="500" style="font-size: 1.25rem;">
+                        </div>
                     </div>
-                    <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox"
-                            id="roteiroGeoCheck" checked><label class="form-check-label" for="roteiroGeoCheck">Usar
-                            Geolocalização (Agrupar cidades próximas)</label></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary"
-                        onclick="processarRoteirizacaoLista()">Processar</button>
+                    <button type="button" class="btn btn-danger" onclick="confirmarMontagemTruck()"><i class="bi bi-truck me-1.5"></i>Montar Truck</button>
                 </div>
             </div>
         </div>
@@ -2713,18 +3182,54 @@
     <div class="modal fade no-print" id="processing-modal" data-bs-backdrop="static" data-bs-keyboard="false"
         tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="background-color: var(--dark-surface); backdrop-filter: blur(12px);">
+            <div class="modal-content">
                 <div class="modal-body text-center p-4">
-                    <!-- NOVA ANIMAÇÃO V10 - "QUANTUM LOGISTICS CORE" -->
+                    <!-- NOVA ANIMAÇÃO V12 - "FUTURISTIC CARGO LOADING SCENE" -->
                     <div class="loading-animation-container">
-                        <div class="quantum-core">
-                            <div class="core-sphere"></div>
-                            <div class="orbital-ring ring-1"></div>
-                            <div class="orbital-ring ring-2"></div>
-                            <div class="orbital-ring ring-3"></div>
-                            <div class="energy-particle particle-1"></div>
-                            <div class="energy-particle particle-2"></div>
-                            <div class="energy-particle particle-3"></div>
+                        <div class="logistics-scene">
+                            <!-- Plataforma/Dock de Carga -->
+                            <div class="loading-dock"></div>
+                            
+                            <!-- Caminhão Futurista -->
+                            <div class="futuristic-truck">
+                                <div class="truck-cargo">
+                                    <div class="cargo-grid"></div>
+                                    <!-- Caixas que vão enchendo no baú -->
+                                    <div class="cargo-box box-a"></div>
+                                    <div class="cargo-box box-b"></div>
+                                    <div class="cargo-box box-c"></div>
+                                    <div class="cargo-box box-d"></div>
+                                    <!-- Linha Laser de Varredura -->
+                                    <div class="laser-scanner"></div>
+                                </div>
+                                <div class="truck-cabin">
+                                    <div class="cabin-window"></div>
+                                    <div class="cabin-headlight"></div>
+                                </div>
+                                <div class="truck-wheels">
+                                    <div class="wheel wheel-back-1"></div>
+                                    <div class="wheel wheel-back-2"></div>
+                                    <div class="wheel wheel-front"></div>
+                                </div>
+                            </div>
+
+                            <!-- Operador Holográfico / Pessoa Carregando -->
+                            <div class="hologram-operator">
+                                <div class="operator-body"></div>
+                                <div class="operator-head"></div>
+                                <div class="operator-arm"></div>
+                                <div class="operator-package"></div>
+                            </div>
+
+                            <!-- Palete de Caixas Disponíveis -->
+                            <div class="warehouse-pallet">
+                                <div class="pallet-box pallet-box-1"></div>
+                                <div class="pallet-box pallet-box-2"></div>
+                                <div class="pallet-box pallet-box-3"></div>
+                            </div>
+                            
+                            <!-- Efeito de varredura global/holograma -->
+                            <div class="hologram-grid"></div>
                         </div>
                     </div>
 
@@ -2732,11 +3237,10 @@
                     <h5 id="processing-status-text" class="mb-2">Montando Cargas...</h5>
                     <p id="thinking-text" class="text-muted small mb-3" style="height: 20px;"></p>
                     <p id="processing-details-text" class="text-muted small mb-3" style="height: 20px;"></p>
-                    <div class="progress" role="progressbar"
-                        style="height: 6px; background-color: rgba(255,255,255,0.1);">
+                    <div class="progress" role="progressbar">
                         <div id="processing-progress-bar"
                             class="progress-bar progress-bar-striped progress-bar-animated"
-                            style="width: 0%; background-color: var(--dark-primary);"></div>
+                            style="width: 0%;"></div>
                     </div>
                 </div>
             </div>
@@ -2790,7 +3294,8 @@
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="freight-config-tab" data-bs-toggle="tab"
-                                data-bs-target="#freight-config-pane" type="button" role="tab"><i
+                                data-bs-target="#freight-config-pane" type="button" role="tab"
+                                onclick="renderFreightConfigForm()"><i
                                     class="bi bi-gear me-2"></i>Configurar Valores</button>
                         </li>
                     </ul>
@@ -2817,106 +3322,11 @@
                             </div>
                         </div>
 
-                        <!-- Aba de Configuraá§á£o -->
+                        <!-- Aba de Configuração -->
                         <div class="tab-pane fade" id="freight-config-pane" role="tabpanel">
                             <form id="freightConfigForm">
-                                <!-- Fiorino -->
-                                <div class="card mb-3 border-success">
-                                    <div class="card-header bg-success text-white py-1">Fiorino</div>
-                                    <div class="card-body py-2">
-                                        <div class="row g-2 align-items-center">
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Limite Km (Fixo)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="fiorinoLimit" placeholder="Ex: 300">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Valor Fixo (R$)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="fiorinoFixed" step="0.01" placeholder="Ex: 225.00">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Taxa/Km (Excedente)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="fiorinoRate" step="0.01" placeholder="Ex: 1.80">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Van -->
-                                <div class="card mb-3 border-primary">
-                                    <div class="card-header bg-primary text-white py-1">Van</div>
-                                    <div class="card-body py-2">
-                                        <div class="row g-2 align-items-center">
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Limite Km (Tabela)</label>
-                                                <input type="number" class="form-control form-control-sm" id="vanLimit"
-                                                    placeholder="Ex: 500">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Valor Tabela (R$)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="vanTableValue" step="0.01"
-                                                    placeholder="0.00 se for 'A combinar'">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Taxa/Km (Excedente)</label>
-                                                <input type="number" class="form-control form-control-sm" id="vanRate"
-                                                    step="0.01" placeholder="Ex: 1.80">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- 3/4 -->
-                                <div class="card mb-3 border-warning">
-                                    <div class="card-header bg-warning text-dark py-1">3/4 (Truck)</div>
-                                    <div class="card-body py-2">
-                                        <div class="row g-2 align-items-center">
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Limite Km (Tabela)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="truck34Limit" placeholder="Ex: 500">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Valor Tabela (R$)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="truck34TableValue" step="0.01"
-                                                    placeholder="0.00 se for 'A combinar'">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Taxa/Km (Excedente)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="truck34Rate" step="0.01" placeholder="Ex: 2.85">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Toco -->
-                                <div class="card mb-3 border-secondary">
-                                    <div class="card-header bg-secondary text-white py-1">Toco</div>
-                                    <div class="card-body py-2">
-                                        <div class="row g-2 align-items-center">
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Limite Km (Tabela)</label>
-                                                <input type="number" class="form-control form-control-sm" id="tocoLimit"
-                                                    placeholder="Ex: 500">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Valor Tabela (R$)</label>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    id="tocoTableValue" step="0.01"
-                                                    placeholder="0.00 se for 'A combinar'">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label small mb-1">Taxa/Km (Excedente)</label>
-                                                <input type="number" class="form-control form-control-sm" id="tocoRate"
-                                                    step="0.01" placeholder="Ex: 3.45">
-                                            </div>
-                                        </div>
-                                    </div>
+                                <div id="dynamic-freight-config-container">
+                                    <!-- Preenchido via JS -->
                                 </div>
                             </form>
                         </div>
@@ -2931,10 +3341,9 @@
         </div>
     </div>
 
-
     <script src="js/ai-optimizer.js"></script>
-    <script src="js/script.js"></script>
-    <script src="js/freight_logic.js"></script>
+    <script src="js/script.js?v=3.0.8"></script>
+    <script src="js/freight_logic.js?v=3.0.8"></script>
     <script src="js/email-generator.js"></script>
 
     <!-- Modal Novo Motorista -->
@@ -3155,6 +3564,1014 @@
             }
         }
     </style>
+
+
+    <!-- MODAL FULL-SCREEN RELATORIO DE VAREJO - BI Style -->
+
+    <div class="modal fade" id="relatorioVarejoOffcanvas" tabindex="-1" aria-hidden="true">
+
+        <div class="modal-dialog modal-fullscreen varejo-bi-modal">
+
+            <div class="modal-content varejo-bi-content">
+
+                <!-- Header Bar -->
+
+                <div class="varejo-bi-header">
+
+                    <div class="varejo-bi-title">
+
+                        <i class="bi bi-bar-chart-steps"></i>
+
+                        <div>
+
+                            <span class="varejo-bi-title-main">Relatorio de Varejo</span>
+
+                            <span class="varejo-bi-title-sub">Volume Mensal SP / PR</span>
+
+                        </div>
+
+                    </div>
+
+                    <div class="varejo-bi-filter">
+
+                        <div class="varejo-filter-group">
+
+                            <label class="varejo-filter-label"><i class="bi bi-calendar3 me-1"></i>Periodo</label>
+
+                            <input type="month" id="filtroMesVarejo" class="varejo-filter-input">
+
+                        </div>
+
+                        <button class="varejo-search-btn" onclick="carregarRelatorioVarejo()">
+
+                            <i class="bi bi-search"></i><span>Buscar</span>
+
+                        </button>
+
+                    </div>
+
+                    <button class="varejo-bi-close" data-bs-dismiss="modal" aria-label="Fechar">
+
+                        <i class="bi bi-x-lg"></i>
+
+                    </button>
+
+                </div>
+
+                <!-- Loader -->
+
+                <div id="loaderRelatorioVarejo" class="d-none varejo-bi-loader">
+
+                    <div class="varejo-loader-inner">
+
+                        <div class="spinner-border text-warning" role="status" style="width:2.5rem;height:2.5rem;">
+                        </div>
+
+                        <p class="mt-3 text-muted small">Consultando historico na nuvem...</p>
+
+                    </div>
+
+                </div>
+
+                <!-- Tabs Nav -->
+
+                <div class="varejo-bi-tabs-wrapper">
+
+                    <ul class="varejo-bi-tabs nav" id="varejoTabs" role="tablist">
+
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn active" data-bs-toggle="tab" data-bs-target="#pane-resumo"
+                                type="button" role="tab">
+
+                                <i class="bi bi-grid-3x3-gap-fill me-2"></i>Resumo Geral
+
+                            </button>
+
+                        </li>
+
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn" data-bs-toggle="tab" data-bs-target="#pane-sp" type="button"
+                                role="tab">
+
+                                <i class="bi bi-building me-2"></i>Sao Paulo
+
+                            </button>
+
+                        </li>
+
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn" data-bs-toggle="tab" data-bs-target="#pane-pr" type="button"
+                                role="tab">
+
+                                <i class="bi bi-tree me-2"></i>Parana
+
+                            </button>
+
+                        </li>
+
+                        <li class="nav-item" role="presentation">
+
+                            <button class="varejo-tab-btn" data-bs-toggle="tab" data-bs-target="#pane-ms" type="button"
+                                role="tab">
+
+                                <i class="bi bi-geo-alt-fill me-2"></i>Mato Grosso do Sul
+
+                            </button>
+
+                        </li>
+
+                    </ul>
+
+                </div>
+
+                <!-- Tab Content -->
+
+                <div class="varejo-bi-body tab-content" id="varejoTabContent">
+
+                    <!-- Empty state shown before search -->
+
+                    <div id="resultadoRelatorioVarejo" class="varejo-empty-state">
+
+                        <i class="bi bi-cloud-upload varejo-empty-icon"></i>
+
+                        <h5 class="text-light fw-bold mt-3">Pronto para Analise</h5>
+
+                        <p class="text-muted small">Selecione o mes e clique em <strong>Buscar</strong>.</p>
+
+                    </div>
+
+                    <!-- Pane Resumo -->
+
+                    <div class="tab-pane fade show active varejo-tab-pane" id="pane-resumo" role="tabpanel">
+
+                        <div id="kpiCards" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaGeral" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Todos os Pedidos</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsGeral" class="varejo-btn-export xls d-none"
+                                        onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'GERAL')"><i
+                                            class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfGeral" class="varejo-btn-export pdf d-none"
+                                        onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'GERAL')"><i
+                                            class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaGeralContent"></div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Pane SP -->
+
+                    <div class="tab-pane fade varejo-tab-pane" id="pane-sp" role="tabpanel">
+
+                        <div id="kpiSP" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaSP" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Pedidos - Sao Paulo</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsSP" class="varejo-btn-export xls d-none"
+                                        onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'SP')"><i
+                                            class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfSP" class="varejo-btn-export pdf d-none"
+                                        onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'SP')"><i
+                                            class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaSPContent"></div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Pane PR -->
+
+                    <div class="tab-pane fade varejo-tab-pane" id="pane-pr" role="tabpanel">
+
+                        <div id="kpiPR" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaPR" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Pedidos - Parana</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsPR" class="varejo-btn-export xls d-none"
+                                        onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'PR')"><i
+                                            class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfPR" class="varejo-btn-export pdf d-none"
+                                        onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'PR')"><i
+                                            class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaPRContent"></div>
+
+                        </div>
+
+                    </div>
+
+                    <!-- Pane MS -->
+
+                    <div class="tab-pane fade varejo-tab-pane" id="pane-ms" role="tabpanel">
+
+                        <div id="kpiMS" class="varejo-kpi-row"></div>
+
+                        <div id="tabelaMS" class="varejo-table-area d-none">
+
+                            <div class="varejo-section-header">
+
+                                <span><i class="bi bi-table me-2"></i>Pedidos - Mato Grosso do Sul</span>
+
+                                <div class="varejo-export-inline">
+
+                                    <button id="btnXlsMS" class="varejo-btn-export xls d-none"
+                                        onclick="exportarRelatorioVarejoExcel(window.__varejoPeriodo,'MS')"><i
+                                            class="bi bi-file-earmark-excel"></i> XLS</button>
+
+                                    <button id="btnPdfMS" class="varejo-btn-export pdf d-none"
+                                        onclick="exportarRelatorioVarejoPDF(window.__varejoPeriodo,'MS')"><i
+                                            class="bi bi-file-earmark-pdf"></i> PDF</button>
+
+                                </div>
+
+                            </div>
+
+                            <div class="varejo-table-scroll" id="tabelaMSContent"></div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <!-- ======================================================================================= -->
+    <!-- MODAL: AGENDAMENTOS TRIZE (PREMIUM GLASSMORPHIC) -->
+    <!-- ======================================================================================= -->
+    <div class="modal fade" id="trizeAgendamentosModal" tabindex="-1" aria-labelledby="trizeAgendamentosModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="background: rgba(15, 23, 42, 0.93) !important; backdrop-filter: blur(20px) saturate(180%) !important; -webkit-backdrop-filter: blur(20px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 40px rgba(245, 158, 11, 0.15) !important;">
+                
+                <!-- Cabeçalho -->
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3" style="background: rgba(255, 255, 255, 0.01);">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-calendar-check text-warning fs-4" style="filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));"></i>
+                        <div>
+                            <h5 class="modal-title text-light fw-bold mb-0" id="trizeAgendamentosModalLabel" style="letter-spacing: -0.02em;">Agendamentos Trize</h5>
+                            <span class="text-muted" style="font-size: 0.7rem;">Base de dados de motoristas para cadastro externo</span>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 ms-auto">
+                        <button type="button" class="btn btn-sm btn-outline-warning d-flex align-items-center gap-1 px-3" data-bs-toggle="modal" data-bs-target="#novoMotoristaTrizeModal" style="border-radius: 6px; font-size: 0.75rem; transition: all 0.2s;">
+                            <i class="bi bi-person-plus-fill"></i>
+                            Novo Motorista
+                        </button>
+                        <button type="button" class="btn-close btn-close-white opacity-75 hover-opacity-100" data-bs-dismiss="modal" aria-label="Close" style="margin-left: 0.25rem;"></button>
+                    </div>
+                </div>
+
+                <!-- Corpo do Modal -->
+                <div class="modal-body p-3">
+                    
+                    <!-- Linha de Busca e Informações Básicas -->
+                    <div class="row g-3 mb-3 align-items-center">
+                        <!-- Busca Rápida -->
+                        <div class="col-md-7">
+                            <div class="input-group input-group-sm rounded bg-dark bg-opacity-40 border border-secondary border-opacity-25 p-1 transition-all" style="border-radius: 8px !important;" id="trizeSearchContainer">
+                                <span class="input-group-text bg-transparent border-0 text-muted ps-2"><i class="bi bi-search"></i></span>
+                                <input type="text" id="trizeSearch" class="form-control bg-transparent border-0 text-light py-1 ps-1 shadow-none" placeholder="Buscar por Nome, CPF, Placa ou Cidade..." style="font-size: 0.85rem;">
+                            </div>
+                        </div>
+                        <!-- Contador de resultados -->
+                        <div class="col-md-5 d-flex align-items-center justify-content-md-end">
+                            <span id="trizeResultsCounter" class="badge bg-dark border border-secondary border-opacity-25 text-muted py-2 px-3 rounded-pill" style="font-size: 0.75rem; font-weight: normal;">0 motorista(s) encontrado(s)</span>
+                        </div>
+                    </div>
+
+                    <!-- Filtros por Tipo de Veículo (Abas Estilizadas) -->
+                    <div class="mb-3">
+                        <div class="nav nav-pills gap-1 p-1 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-10" role="tablist">
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-muted fw-bold trize-filter-btn active" data-veiculo="TODOS" style="font-size: 0.75rem; transition: all 0.2s;">TODOS</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-success fw-bold trize-filter-btn" data-veiculo="FIORINO" style="font-size: 0.75rem; transition: all 0.2s;">FIORINO</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-primary fw-bold trize-filter-btn" data-veiculo="VAN" style="font-size: 0.75rem; transition: all 0.2s;">VAN</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-danger fw-bold trize-filter-btn" data-veiculo="3/4" style="font-size: 0.75rem; transition: all 0.2s;">3/4</button>
+                            <button class="nav-link py-1.5 px-3 rounded-2 text-warning fw-bold trize-filter-btn" data-veiculo="TOCO" style="font-size: 0.75rem; transition: all 0.2s;">TOCO</button>
+                        </div>
+                    </div>
+
+                    <!-- Listagem de Motoristas -->
+                    <div id="trizeList" class="pe-1" style="max-height: 50vh; overflow-y: auto; scrollbar-width: thin;">
+                        <!-- Injetado por JS -->
+                    </div>
+
+                </div>
+
+                <!-- Rodapé -->
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5" style="background: rgba(255, 255, 255, 0.01);">
+                    <div class="w-100 d-flex align-items-center justify-content-between">
+                        <span class="text-muted" style="font-size: 0.65rem;"><i class="bi bi-info-circle me-1"></i>Clique no motorista para abrir os detalhes de cadastro.</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal" style="border-radius: 6px; font-size: 0.8rem;">Fechar</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ======================================================================================= -->
+    <!-- MODAL: CADASTRAR NOVO MOTORISTA TRIZE (GLASSMORPHIC PREMIUM) -->
+    <!-- ======================================================================================= -->
+    <div class="modal fade" id="novoMotoristaTrizeModal" tabindex="-1" aria-labelledby="novoMotoristaTrizeModalLabel" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(25px) saturate(180%) !important; -webkit-backdrop-filter: blur(25px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 16px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;">
+                
+                <!-- Cabeçalho -->
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3" style="background: rgba(255, 255, 255, 0.01);">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-person-plus text-warning fs-4" style="filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));"></i>
+                        <div>
+                            <h5 class="modal-title text-light fw-bold mb-0" id="novoMotoristaTrizeModalLabel" style="letter-spacing: -0.02em;">Cadastrar Motorista (Trize)</h5>
+                            <span class="text-muted" style="font-size: 0.7rem;">Adicione um motorista novo à base local e do sistema</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white opacity-75 hover-opacity-100" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <!-- Corpo -->
+                <form id="trizeNovoMotoristaForm" onsubmit="window.salvarNovoMotoristaTrize(event)">
+                    <div class="modal-body p-3">
+                        <div class="row g-3">
+                            <!-- Motorista (Nome) -->
+                            <div class="col-12">
+                                <label for="trizeNovoMotorista" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Nome do Motorista *</label>
+                                <input type="text" id="trizeNovoMotorista" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: JOÃO DA SILVA" required style="border-radius: 6px;">
+                            </div>
+
+                            <!-- CPF e Placa -->
+                            <div class="col-6">
+                                <label for="trizeNovoCpf" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">CPF *</label>
+                                <input type="text" id="trizeNovoCpf" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="000.000.000-00" required maxlength="14" style="border-radius: 6px;" oninput="this.value = this.value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1');">
+                            </div>
+                            <div class="col-6">
+                                <label for="trizeNovoPlaca" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Placa *</label>
+                                <input type="text" id="trizeNovoPlaca" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="ABC1D23" required maxlength="8" style="border-radius: 6px;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');">
+                            </div>
+
+                            <!-- Tipo de Veículo e Cidade -->
+                            <div class="col-6">
+                                <label for="trizeNovoTipo" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Tipo de Veículo *</label>
+                                <select id="trizeNovoTipo" class="form-select form-select-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" required style="border-radius: 6px;">
+                                    <option value="" disabled selected>Selecione...</option>
+                                    <option value="FIORINO">FIORINO</option>
+                                    <option value="VAN">VAN</option>
+                                    <option value="3/4">3/4</option>
+                                    <option value="TOCO">TOCO</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label for="trizeNovoCidade" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Cidade</label>
+                                <input type="text" id="trizeNovoCidade" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: LONDRINA" style="border-radius: 6px;">
+                            </div>
+
+                            <!-- Proprietário -->
+                            <div class="col-12">
+                                <label for="trizeNovoProprietario" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Proprietário</label>
+                                <input type="text" id="trizeNovoProprietario" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="Se vazio, será igual ao motorista" style="border-radius: 6px;">
+                            </div>
+
+                            <!-- LCONT, Nº Motorista, Transportador -->
+                            <div class="col-4">
+                                <label for="trizeNovoLcont" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">LCONT</label>
+                                <input type="text" id="trizeNovoLcont" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: 925" style="border-radius: 6px;">
+                            </div>
+                            <div class="col-4">
+                                <label for="trizeNovoNMotorista" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Nº Motorista</label>
+                                <input type="text" id="trizeNovoNMotorista" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: 925" style="border-radius: 6px;">
+                            </div>
+                            <div class="col-4">
+                                <label for="trizeNovoTransportador" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Transportador</label>
+                                <input type="text" id="trizeNovoTransportador" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: 22926" style="border-radius: 6px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Rodapé -->
+                    <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5" style="background: rgba(255, 255, 255, 0.01);">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal" style="border-radius: 6px; font-size: 0.8rem;">Cancelar</button>
+                        <button type="submit" class="btn btn-sm btn-warning px-4 text-dark fw-bold" style="border-radius: 6px; font-size: 0.8rem;">Salvar Cadastro</button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Estilos do Modal Trize */
+        .trize-filter-btn {
+            background: transparent;
+            border: none;
+        }
+        .trize-filter-btn.active {
+            background: rgba(255, 255, 255, 0.08) !important;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .trize-filter-btn[data-veiculo="TODOS"].active { color: #f8fafc !important; }
+        .trize-filter-btn[data-veiculo="FIORINO"].active { background: rgba(16, 185, 129, 0.1) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.2); }
+        .trize-filter-btn[data-veiculo="VAN"].active { background: rgba(59, 130, 246, 0.1) !important; color: #3b82f6 !important; border: 1px solid rgba(59, 130, 246, 0.2); }
+        .trize-filter-btn[data-veiculo="3/4"].active { background: rgba(239, 68, 68, 0.1) !important; color: #ef4444 !important; border: 1px solid rgba(239, 68, 68, 0.2); }
+        .trize-filter-btn[data-veiculo="TOCO"].active { background: rgba(245, 158, 11, 0.1) !important; color: #f59e0b !important; border: 1px solid rgba(245, 158, 11, 0.2); }
+
+        #trizeList::-webkit-scrollbar {
+            width: 5px;
+        }
+        #trizeList::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        #trizeList::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+        }
+        #trizeList::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-trize-copy {
+            background: rgba(255, 193, 7, 0.04);
+            border-radius: 0 4px 4px 0 !important;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-trize-copy:hover {
+            background: rgba(245, 158, 11, 0.15) !important;
+            color: #ffffff !important;
+        }
+        
+        .btn-copied-pulse {
+            animation: copy-pulse 0.4s ease-out;
+            border-color: #10b981 !important;
+        }
+
+        @keyframes copy-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+            50% { transform: scale(1.18); box-shadow: 0 0 10px 2px rgba(16, 185, 129, 0.2); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes fade-in-slide {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .trize-item {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .trize-item:hover {
+            border-color: rgba(245, 158, 11, 0.25) !important;
+            background: rgba(255, 255, 255, 0.02) !important;
+        }
+        .trize-header-row {
+            transition: background-color 0.2s;
+        }
+        .trize-header-row:hover {
+            background-color: rgba(255, 255, 255, 0.01);
+        }
+        .btn-trize-toggle i {
+            transition: transform 0.2s ease-in-out;
+        }
+        #trizeSearchContainer:focus-within {
+            border-color: rgba(245, 158, 11, 0.4) !important;
+            box-shadow: 0 0 10px rgba(245, 158, 11, 0.15) !important;
+        }
+    </style>
+
+    <!-- APEX_ADMIN_START -->
+
+    <!-- APEX COMMAND CENTER: PIN MODAL -->
+    <div id="apex-pin-modal" style="display:none">
+        <div class="acc-pin-card">
+            <div class="acc-pin-logo">&#x2B21;</div>
+            <h2 class="acc-pin-title">APEX COMMAND CENTER</h2>
+            <p class="acc-pin-sub">Acesso restrito &mdash; insira seu PIN</p>
+            <div class="acc-pin-display" id="apex-pin-display">_ _ _ _</div>
+            <p class="acc-pin-error" id="apex-pin-error" style="display:none">PIN incorreto</p>
+            <div class="acc-pin-grid">
+                <button class="acc-pin-btn" onclick="apexPinKey('1')">1</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('2')">2</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('3')">3</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('4')">4</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('5')">5</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('6')">6</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('7')">7</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('8')">8</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('9')">9</button>
+                <button class="acc-pin-btn acc-pin-cancel" onclick="apexPinClose()">X</button>
+                <button class="acc-pin-btn" onclick="apexPinKey('0')">0</button>
+                <button class="acc-pin-btn acc-pin-ok" onclick="apexPinConfirm()">OK</button>
+            </div>
+            <button class="acc-pin-back" onclick="apexPinBackspace()">Apagar</button>
+        </div>
+    </div>
+
+    <!-- APEX COMMAND CENTER: MAIN PANEL -->
+    <div id="apex-command-center" style="display:none">
+        <div class="acc-container">
+            <div class="acc-header">
+                <div class="acc-header-left">
+                    <span class="acc-logo-icon">&#x2B21;</span>
+                    <div>
+                        <h1 class="acc-title">APEX COMMAND CENTER</h1>
+                        <p class="acc-subtitle">Painel de Super Usuario &mdash; Controle Total do Sistema</p>
+                    </div>
+                </div>
+                <button class="acc-close-btn" onclick="closeCommandCenter()">X</button>
+            </div>
+            <div id="acc-alert" class="acc-alert" style="display:none"></div>
+            <div class="acc-tabs">
+                <button class="acc-tab active" data-tab="banco" onclick="switchAdminTab('banco')">Banco de
+                    Dados</button>
+                <button class="acc-tab" data-tab="rotas" onclick="switchAdminTab('rotas')">Rotas e Veiculos</button>
+                <button class="acc-tab" data-tab="config" onclick="switchAdminTab('config')">Configuracoes</button>
+                <button class="acc-tab" data-tab="regras" onclick="switchAdminTab('regras')">Regras de Negocio</button>
+                <button class="acc-tab" data-tab="saude" onclick="switchAdminTab('saude')">Saude do Sistema</button>
+            </div>
+
+            <!-- PANE: Banco -->
+            <div id="acc-pane-banco" class="acc-pane active">
+                <div class="acc-grid-2">
+                    <div class="acc-card">
+                        <h3 class="acc-card-title">Limpeza de Dados</h3>
+                        <div class="acc-stat-row"><span>Total de registros:</span><strong id="acc-db-count"
+                                class="acc-amber">--</strong></div>
+                        <div class="acc-form-group">
+                            <label class="acc-label">Limpar por mes/ano</label>
+                            <div class="acc-row-inline">
+                                <select id="acc-mes" class="acc-select">
+                                    <option value="">Mes</option>
+                                    <option value="01">Jan</option>
+                                    <option value="02">Fev</option>
+                                    <option value="03">Mar</option>
+                                    <option value="04">Abr</option>
+                                    <option value="05">Mai</option>
+                                    <option value="06">Jun</option>
+                                    <option value="07">Jul</option>
+                                    <option value="08">Ago</option>
+                                    <option value="09">Set</option>
+                                    <option value="10">Out</option>
+                                    <option value="11">Nov</option>
+                                    <option value="12">Dez</option>
+                                </select>
+                                <input id="acc-ano" class="acc-input" type="number" placeholder="Ano" min="2020"
+                                    max="2030" value="2025" style="width:90px">
+                                <button class="acc-btn acc-btn-warning" onclick="accLimparPeriodo()">Limpar</button>
+                            </div>
+                        </div>
+                        <div class="acc-form-group">
+                            <label class="acc-label">Limpar por Estado</label>
+                            <div class="acc-row-inline">
+                                <select id="acc-uf-select" class="acc-select">
+                                    <option value="SP">Sao Paulo (SP)</option>
+                                    <option value="PR">Parana (PR)</option>
+                                    <option value="AMBOS">SP e PR</option>
+                                </select>
+                                <button class="acc-btn acc-btn-warning" onclick="accLimparUF()">Limpar</button>
+                            </div>
+                        </div>
+                        <div class="acc-form-group">
+                            <label class="acc-label">Limpar por Rota especifica</label>
+                            <div class="acc-row-inline">
+                                <input id="acc-rota-input" class="acc-input" type="text" placeholder="Ex: 10101">
+                                <button class="acc-btn acc-btn-warning" onclick="accLimparRota()">Limpar</button>
+                            </div>
+                        </div>
+                        <div class="acc-danger-zone">
+                            <p class="acc-danger-label">ZONA DE PERIGO</p>
+                            <button class="acc-btn acc-btn-danger" onclick="accLimparTudo()">Apagar TUDO do
+                                banco</button>
+                        </div>
+                    </div>
+                    <div class="acc-card">
+                        <h3 class="acc-card-title">Backup e Rollback</h3>
+                        <div class="acc-form-group">
+                            <label class="acc-label">Exportar backup completo</label>
+                            <div class="acc-row-inline">
+                                <select id="acc-export-format" class="acc-select">
+                                    <option value="json">JSON</option>
+                                    <option value="excel">Excel</option>
+                                </select>
+                                <button class="acc-btn acc-btn-primary" onclick="accExportarBackup()">Exportar</button>
+                            </div>
+                        </div>
+                        <div class="acc-form-group">
+                            <label class="acc-label">Salvar Snapshot (para rollback)</label>
+                            <div class="acc-row-inline">
+                                <input id="acc-snapshot-name" class="acc-input" type="text"
+                                    placeholder="Nome do snapshot">
+                                <button class="acc-btn acc-btn-primary" onclick="accSalvarSnapshot()">Salvar</button>
+                            </div>
+                        </div>
+                        <div class="acc-form-group">
+                            <label class="acc-label">Snapshots salvos</label>
+                            <div id="acc-snapshot-list" class="acc-snapshot-container">
+                                <p style="color:#64748b;font-size:0.8rem">Carregando...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="acc-card acc-mt">
+                    <h3 class="acc-card-title">Log de Acoes</h3>
+                    <div class="acc-table-scroll">
+                        <table class="acc-table">
+                            <thead>
+                                <tr>
+                                    <th>Data/Hora</th>
+                                    <th>Usuario</th>
+                                    <th>Acao</th>
+                                    <th>Registros</th>
+                                </tr>
+                            </thead>
+                            <tbody id="acc-audit-tbody">
+                                <tr>
+                                    <td colspan="4" style="text-align:center;color:#64748b;padding:1rem">Carregando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANE: Rotas -->
+            <div id="acc-pane-rotas" class="acc-pane">
+                <div class="acc-card">
+                    <div class="acc-card-header-row">
+                        <h3 class="acc-card-title">Override de Veiculo por Rota</h3>
+                        <div class="acc-row-inline">
+                            <button class="acc-btn acc-btn-primary" onclick="accSalvarRotas()">Salvar
+                                Alteracoes</button>
+                            <button class="acc-btn acc-btn-ghost" onclick="accResetarRotas()">Resetar Tudo</button>
+                        </div>
+                    </div>
+                    <div class="acc-table-scroll acc-mt">
+                        <table class="acc-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 80px">CÃ³digo</th>
+                                    <th style="width: 150px">Nome PadrÃ£o</th>
+                                    <th style="width: 250px">Nome Custom</th>
+                                    <th style="width: 120px">VeÃ­culo</th>
+                                    <th style="width: 100px">PosiÃ§Ã£o</th>
+                                </tr>
+                            </thead>
+                            <tbody id="acc-rotas-tbody">
+                                <tr>
+                                    <td colspan="5" style="text-align:center;color:#64748b;padding:2rem">Carregando
+                                        rotas...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANE: Config -->
+            <div id="acc-pane-config" class="acc-pane">
+                <div class="acc-card" style="margin-bottom: 1.5rem;">
+                    <div class="acc-card-header-row">
+                        <h3 class="acc-card-title"><i class="bi bi-truck me-2"
+                                style="margin-right:0.5rem"></i>CONFIGURACOES DE VEICULOS</h3>
+                        <button class="acc-btn acc-btn-primary" onclick="accSalvarVehicleConfig()">Salvar
+                            Alteracoes</button>
+                    </div>
+
+                    <!-- Fiorino -->
+                    <div style="border-bottom: 1px solid #1e293b; padding-bottom: 1.5rem; margin-top: 1rem;">
+                        <strong
+                            style="color: #10b981; font-size: 1.25rem; display: block; margin-bottom: 1rem;">Fiorino</strong>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 1rem;">
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min
+                                    (kg)</label><input id="acc-vc-fiorino-minKg" class="acc-input" type="number"></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Pref.
+                                    (kg)</label><input id="acc-vc-fiorino-softMax" class="acc-input" type="number">
+                            </div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Pref.
+                                    (m3)</label><input id="acc-vc-fiorino-cubage" class="acc-input" type="number"
+                                    step="0.1"></div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+                            <div></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max Final
+                                    (kg)</label><input id="acc-vc-fiorino-hardMax" class="acc-input" type="number">
+                            </div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max
+                                    Final (m3)</label><input id="acc-vc-fiorino-hardCubage" class="acc-input"
+                                    type="number" step="0.1"></div>
+                        </div>
+                    </div>
+
+                    <!-- Van -->
+                    <div style="border-bottom: 1px solid #1e293b; padding: 1.5rem 0;">
+                        <strong
+                            style="color: #3b82f6; font-size: 1.25rem; display: block; margin-bottom: 1rem;">Van</strong>
+                        <div
+                            style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-bottom: 1rem;">
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min
+                                    (kg)</label><input id="acc-vc-van-minKg" class="acc-input" type="number"></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Pref.
+                                    (kg)</label><input id="acc-vc-van-softMax" class="acc-input" type="number"></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Pref.
+                                    (m3)</label><input id="acc-vc-van-cubage" class="acc-input" type="number"
+                                    step="0.1"></div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+                            <div></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max Final
+                                    (kg)</label><input id="acc-vc-van-hardMax" class="acc-input" type="number"></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max
+                                    Final (m3)</label><input id="acc-vc-van-hardCubage" class="acc-input" type="number"
+                                    step="0.1"></div>
+                        </div>
+                    </div>
+
+                    <!-- 3/4 -->
+                    <div style="border-bottom: 1px solid #1e293b; padding: 1.5rem 0;">
+                        <strong
+                            style="color: #f59e0b; font-size: 1.25rem; display: block; margin-bottom: 1rem;">3/4</strong>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min
+                                    (kg)</label><input id="acc-vc-tresQuartos-minKg" class="acc-input" type="number">
+                            </div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max
+                                    (kg)</label><input id="acc-vc-tresQuartos-hardMax" class="acc-input" type="number"
+                                    oninput="document.getElementById('acc-vc-tresQuartos-softMax').value=this.value"><input
+                                    id="acc-vc-tresQuartos-softMax" type="hidden"></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max
+                                    (m3)</label><input id="acc-vc-tresQuartos-hardCubage" class="acc-input"
+                                    type="number" step="0.1"
+                                    oninput="document.getElementById('acc-vc-tresQuartos-cubage').value=this.value"><input
+                                    id="acc-vc-tresQuartos-cubage" type="hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Toco -->
+                    <div style="padding-top: 1.5rem;">
+                        <strong
+                            style="color: #f8fafc; font-size: 1.25rem; display: block; margin-bottom: 1rem;">Toco</strong>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Min
+                                    (kg)</label><input id="acc-vc-toco-minKg" class="acc-input" type="number"></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Peso Max
+                                    (kg)</label><input id="acc-vc-toco-hardMax" class="acc-input" type="number"
+                                    oninput="document.getElementById('acc-vc-toco-softMax').value=this.value"><input
+                                    id="acc-vc-toco-softMax" type="hidden"></div>
+                            <div><label class="acc-label" style="font-weight:bold;margin-bottom:0.25rem">Cubagem Max
+                                    (m3)</label><input id="acc-vc-toco-hardCubage" class="acc-input" type="number"
+                                    step="0.1"
+                                    oninput="document.getElementById('acc-vc-toco-cubage').value=this.value"><input
+                                    id="acc-vc-toco-cubage" type="hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="acc-grid-2">
+                    <div class="acc-card">
+                        <div class="acc-card-header-row">
+                            <h3 class="acc-card-title">Modulos do Sistema</h3>
+                            <button class="acc-btn acc-btn-primary acc-btn-sm"
+                                onclick="accSalvarModulos()">Salvar</button>
+                        </div>
+                        <div class="acc-toggle-list mt-3">
+                            <label class="acc-toggle-row"><span>Relatorio Varejo</span><input type="checkbox"
+                                    id="acc-mod-relatorioVarejo" class="acc-toggle-input"></label>
+                            <label class="acc-toggle-row"><span>Modulo Varejo</span><input type="checkbox"
+                                    id="acc-mod-varejo" class="acc-toggle-input"></label>
+                            <label class="acc-toggle-row"><span>Modulo Toco</span><input type="checkbox"
+                                    id="acc-mod-toco" class="acc-toggle-input"></label>
+                            <label class="acc-toggle-row"><span>Cargas Fechadas</span><input type="checkbox"
+                                    id="acc-mod-cargasFechadas" class="acc-toggle-input"></label>
+                            <label class="acc-toggle-row"><span>Roteirizacao</span><input type="checkbox"
+                                    id="acc-mod-roteirizacao" class="acc-toggle-input"></label>
+                            <label class="acc-toggle-row"><span>Gerador de E-mails</span><input type="checkbox"
+                                    id="acc-mod-emailGenerator" class="acc-toggle-input"></label>
+                        </div>
+                    </div>
+                    <div class="acc-card">
+                        <h3 class="acc-card-title">Alterar PIN de Acesso</h3>
+                        <div class="acc-form-group acc-mt-sm">
+                            <input id="acc-new-pin" class="acc-input" type="password" maxlength="4"
+                                placeholder="Novo PIN (4 digitos)">
+                            <input id="acc-confirm-pin" class="acc-input" type="password" maxlength="4"
+                                placeholder="Confirmar PIN" style="margin-top:0.5rem">
+                            <button class="acc-btn acc-btn-primary" style="margin-top:0.5rem;width:100%"
+                                onclick="accAlterarPin()">Alterar PIN</button>
+                        </div>
+                        <button class="acc-btn acc-btn-danger" style="width:100%;margin-top:0.75rem"
+                            onclick="accLimparCache()">Limpar Cache do Navegador</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANE: Regras -->
+            <div id="acc-pane-regras" class="acc-pane">
+                <div class="acc-grid-2">
+                    <!-- Cidades Fiorino -->
+                    <div class="acc-card">
+                        <div class="acc-card-header-row">
+                            <h3 class="acc-card-title">Cidades Fiorino por Rota</h3>
+                            <button class="acc-btn acc-btn-primary acc-btn-sm"
+                                onclick="accSalvarFiorinoCities()">Salvar</button>
+                        </div>
+                        <p class="acc-hint">Cidades permitidas para Fiorino (MAIUSCULO, virgula).</p>
+                        <div class="acc-row-inline acc-mt-sm" style="margin-bottom:0.75rem">
+                            <input id="acc-fc-new-code" class="acc-input" style="max-width:120px" placeholder="Rota">
+                            <button class="acc-btn acc-btn-sm" onclick="accAdicionarRotaFiorino()">+ Add</button>
+                        </div>
+                        <div id="acc-fiorino-routes" class="acc-regra-list">
+                            <p style="color:#64748b;font-size:0.8rem">Carregando...</p>
+                        </div>
+                    </div>
+
+                    <!-- Clientes Especiais -->
+                    <div class="acc-card">
+                        <div class="acc-card-header-row">
+                            <h3 class="acc-card-title">Clientes Especiais</h3>
+                        </div>
+                        <p class="acc-hint">Nomes exatos em MAIUSCULO.</p>
+                        <div class="acc-row-inline" style="margin-bottom:0.75rem">
+                            <input id="acc-sc-new" class="acc-input" placeholder="NOME DO CLIENTE">
+                            <button class="acc-btn acc-btn-primary acc-btn-sm" onclick="accAdicionarClienteEspecial()">+
+                                Add</button>
+                        </div>
+                        <div id="acc-special-clients-list" class="acc-tag-container">
+                            <p style="color:#64748b;font-size:0.8rem">Carregando...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="acc-grid-2 acc-mt">
+                    <!-- Agendamento -->
+                    <div class="acc-card">
+                        <div class="acc-card-header-row">
+                            <h3 class="acc-card-title">Overrides de Agendamento</h3>
+                        </div>
+                        <p class="acc-hint">Sobrescreve se o codigo tem agendamento.</p>
+                        <div class="acc-row-inline" style="margin-bottom:0.75rem">
+                            <input id="acc-ag-code" class="acc-input" style="max-width:140px" placeholder="Cod Cliente">
+                            <select id="acc-ag-val" class="acc-select">
+                                <option value="Sim">Sim</option>
+                                <option value="Nao">Nao</option>
+                            </select>
+                            <button class="acc-btn acc-btn-primary acc-btn-sm"
+                                onclick="accAdicionarAgendamento()">Definir</button>
+                        </div>
+                        <div class="acc-table-scroll">
+                            <table class="acc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Codigo</th>
+                                        <th>Valor</th>
+                                        <th>Acao</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="acc-agend-tbody">
+                                    <tr>
+                                        <td colspan="3" style="text-align:center;color:#64748b;padding:1rem">
+                                            Carregando...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Observacoes de Clientes -->
+                    <div class="acc-card">
+                        <div class="acc-card-header-row">
+                            <h3 class="acc-card-title">Observações de Clientes</h3>
+                        </div>
+                        <p class="acc-hint">Notas exibidas nos cards de carga.</p>
+                        <div class="acc-form-group">
+                            <input id="acc-obs-code" class="acc-input" placeholder="Codigo do Cliente"
+                                style="margin-bottom:0.5rem">
+                            <textarea id="acc-obs-text" class="acc-textarea"
+                                placeholder="Observacao (ex: Entregar em paletes)" style="height:60px"></textarea>
+                            <button class="acc-btn acc-btn-primary acc-mt-sm" style="width:100%"
+                                onclick="accSalvarObsCliente()">Salvar Observação</button>
+                        </div>
+                        <div class="acc-table-scroll acc-mt">
+                            <table class="acc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Cod</th>
+                                        <th>Obs</th>
+                                        <th>Acao</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="acc-obs-tbody">
+                                    <tr>
+                                        <td colspan="3" style="text-align:center;color:#64748b;padding:1rem">
+                                            Carregando...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANE: Saude -->
+            <div id="acc-pane-saude" class="acc-pane">
+                <div class="acc-grid-3">
+                    <div class="acc-stat-card">
+                        <div class="acc-stat-icon">&#x1F4E6;</div>
+                        <div class="acc-stat-value" id="acc-health-count">--</div>
+                        <div class="acc-stat-label">Pedidos no banco</div>
+                    </div>
+                    <div class="acc-stat-card">
+                        <div class="acc-stat-icon">&#x1F4C5;</div>
+                        <div class="acc-stat-value acc-stat-sm" id="acc-health-range">--</div>
+                        <div class="acc-stat-label">Periodo coberto</div>
+                    </div>
+                    <div class="acc-stat-card">
+                        <div class="acc-stat-icon">&#x1F4BE;</div>
+                        <div class="acc-stat-value" id="acc-health-ls">--</div>
+                        <div class="acc-stat-label">LocalStorage</div>
+                    </div>
+                </div>
+                <div class="acc-card acc-mt">
+                    <h3 class="acc-card-title">Ultimo Processamento</h3>
+                    <p id="acc-health-lastprocess" class="acc-mono">--</p>
+                </div>
+                <div class="acc-card acc-mt">
+                    <h3 class="acc-card-title">Log de Erros Recentes</h3>
+                    <div id="acc-health-errors" class="acc-error-log"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
+    <script src="js/admin.js"></script>
+    <!-- APEX_ADMIN_END -->
+    <script src="js/trize-agendamentos.js"></script>
 </body>
+<script>
+    // Script bridge if needed for the admin panel to talk to main UI
+</script>
 
 </html>
