@@ -96,40 +96,38 @@ async function runAIOptimization(pedidos, vehicleConfigs, rotasVeiculoMap, baseV
         toco: { maxKg: vehicleConfigs.tocoHardMaxCapacity || vehicleConfigs.tocoMaxCapacity, maxM3: vehicleConfigs.tocoHardCubage || vehicleConfigs.tocoCubage }
     };
 
+    // Extrai APENAS a configuração do veículo alvo para focar a IA
+    const targetConfig = estruturedConfigs[baseVehicleType];
+
     const systemPrompt = `
 Você é um Profissional de Logística Sênior com 20 anos de experiência (Especialista em Roteirização e Bin Packing 3D).
-Sua missão é agrupar os pedidos em cargas (veículos), garantindo o máximo de aproveitamento de espaço (mínimo de sobras), mas respeitando RIGOROSAMENTE as Regras de Negócio e o Efeito Sanfona (Cascata).
+Sua missão EXCLUSIVA é agrupar os pedidos formando cargas APENAS para veículos do tipo "${baseVehicleType}".
 
-DADOS DO CENÁRIO ATUAL:
-- Tipo de Veículo Alvo Principal desta Rota: "${baseVehicleType}"
-- Limites Rigorosos (maxKg e maxM3) por veículo:
-${JSON.stringify(estruturedConfigs, null, 2)}
+LIMITE MATEMÁTICO INVIOLÁVEL PARA CADA CARGA:
+- Peso Máximo: ${targetConfig.maxKg} KG
+- Cubagem Máxima: ${targetConfig.maxM3} M3
 
 REGRA 1 - AGRUPAMENTO OBRIGATÓRIO:
-Sempre agrupe pedidos do MESMO CLIENTE (mesmo "cli") no mesmo veículo. Não separe pedidos do mesmo cliente.
+Sempre agrupe pedidos do MESMO CLIENTE (mesmo "cli") na mesma carga. Não separe pedidos do mesmo cliente.
 
-REGRA 2 - EFEITO SANFONA (CASCATA - EXTREMAMENTE IMPORTANTE):
-O seu objetivo PRINCIPAL é esgotar a capacidade dos veículos menores exigidos pela Rota Alvo ("${baseVehicleType}") antes de sequer pensar em veículos maiores!
-- Se o Alvo for "fiorino": VOCÊ É OBRIGADO a tentar criar o máximo de cargas do tipo 'fiorino' possível. Junte clientes até chegar perto de ${estruturedConfigs.fiorino.maxKg}KG. SÓ crie uma carga do tipo 'van' se um grupo de pedidos de um ÚNICO CLIENTE for maior que o limite da fiorino e não puder ser separado. NUNCA junte vários clientes pequenos em uma Van se eles couberem separados em várias Fiorinos!
-- Se o Alvo for "van": Crie o máximo de cargas 'van' (${estruturedConfigs.van.maxKg}KG). Só escale para 'tresQuartos' se um único cliente ultrapassar o limite da van.
-- Se o Alvo for "tresQuartos": Crie o máximo de 'tresQuartos'. Escale para 'toco' apenas o que não couber.
+REGRA 2 - FOCO ÚNICO:
+Você SÓ TEM PERMISSÃO para criar cargas do tipo "${baseVehicleType}". NÃO crie cargas de outros tipos. 
+Se um cliente (ou grupo de clientes) for maior que o limite de ${targetConfig.maxKg} KG, ou se simplesmente não couber de forma otimizada em nenhuma carga, jogue OBRIGATORIAMENTE na lista "pedidos_nao_alocados".
 
-Se você colocar vários clientes pequenos dentro de uma Van numa rota de Fiorino, você falhará na sua missão!
+REGRA 3 - OTIMIZAÇÃO:
+Preencha as cargas chegando o mais perto possível do Peso Máximo, combinando clientes diferentes se necessário, desde que não estoure o limite.
 
-REGRA 3 - LIMITES MATEMÁTICOS (INVIOLÁVEIS):
-A soma de "kg" e "m3" dos pedidos de uma carga NUNCA pode ser maior que o "maxKg" e "maxM3" do tipo_veiculo escolhido.
-
-Você DEVE retornar APENAS um JSON estrito neste formato exato (inclua o passo a passo no "raciocinio" para garantir qualidade):
+Você DEVE retornar APENAS um JSON estrito neste formato exato:
 {
-  "raciocinio": "Explique detalhadamente: 1. Por que você não conseguiu colocar todos na ${baseVehicleType}? 2. Se você usou um veículo maior, prove que o peso de um cliente único obrigou isso e que não eram apenas clientes pequenos agrupados.",
+  "raciocinio": "Mostre como você combinou os clientes para chegar perto do limite da carga de ${baseVehicleType} sem estourá-lo.",
   "cargas": [
     {
-      "tipo_veiculo": "van", // fiorino, van, tresQuartos ou toco
+      "tipo_veiculo": "${baseVehicleType}",
       "rota_base": "1234", 
       "pedidos_ids": ["ID_1", "ID_2"]
     }
   ],
-  "pedidos_nao_alocados": []
+  "pedidos_nao_alocados": ["ID_X", "ID_Y"] // IDs dos pedidos que não couberam
 }
     `.trim();
 
