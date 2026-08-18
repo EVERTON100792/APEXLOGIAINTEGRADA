@@ -4752,10 +4752,7 @@ window.reaplicarRegrasPainelInterno = function() {
         tocoHardCubage: getCfg('toco').hardMaxCubage
     };
 
-    const modalElement = document.getElementById('processing-modal');
-    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-    const progressBar = document.getElementById('processing-progress-bar');
-    const statusText = document.getElementById('processing-status-text');
+
 
     let aiUsed = false;
     if (typeof getAiSettings === 'function' && typeof runAIOptimization === 'function') {
