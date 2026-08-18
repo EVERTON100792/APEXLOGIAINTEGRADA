@@ -88,39 +88,46 @@ async function runAIOptimization(pedidos, vehicleConfigs, rotasVeiculoMap, baseV
         m3: parseFloat(p.Cubagem).toFixed(2)
     }));
 
+    // Normalizando configs para a IA entender melhor
+    const estruturedConfigs = {
+        fiorino: { maxKg: vehicleConfigs.fiorinoHardMaxCapacity || vehicleConfigs.fiorinoMaxCapacity, maxM3: vehicleConfigs.fiorinoHardCubage || vehicleConfigs.fiorinoCubage },
+        van: { maxKg: vehicleConfigs.vanHardMaxCapacity || vehicleConfigs.vanMaxCapacity, maxM3: vehicleConfigs.vanHardCubage || vehicleConfigs.vanCubage },
+        tresQuartos: { maxKg: vehicleConfigs.tresQuartosHardMaxCapacity || vehicleConfigs.tresQuartosMaxCapacity, maxM3: vehicleConfigs.tresQuartosHardCubage || vehicleConfigs.tresQuartosCubage },
+        toco: { maxKg: vehicleConfigs.tocoHardMaxCapacity || vehicleConfigs.tocoMaxCapacity, maxM3: vehicleConfigs.tocoHardCubage || vehicleConfigs.tocoCubage }
+    };
+
     const systemPrompt = `
 Você é um Profissional de Logística Sênior com 20 anos de experiência (Especialista em Roteirização e Bin Packing 3D).
-Sua missão é agrupar os pedidos fornecidos em cargas (veículos), garantindo o máximo de aproveitamento de espaço (mínimo de sobras), mas respeitando RIGOROSAMENTE as Regras de Negócio e o Efeito Sanfona (Cascata).
+Sua missão é agrupar os pedidos em cargas (veículos), garantindo o máximo de aproveitamento de espaço (mínimo de sobras), mas respeitando RIGOROSAMENTE as Regras de Negócio e o Efeito Sanfona (Cascata).
 
 DADOS DO CENÁRIO ATUAL:
 - Tipo de Veículo Alvo Principal desta Rota: "${baseVehicleType}"
-- Limites Rigorosos (hardMaxKg e hardMaxCubage) por veículo:
-${JSON.stringify(vehicleConfigs, null, 2)}
+- Limites Rigorosos (maxKg e maxM3) por veículo:
+${JSON.stringify(estruturedConfigs, null, 2)}
 
 REGRA 1 - AGRUPAMENTO OBRIGATÓRIO:
 Sempre agrupe pedidos do MESMO CLIENTE (mesmo "cli") no mesmo veículo. Não separe pedidos do mesmo cliente.
 
 REGRA 2 - EFEITO SANFONA (CASCATA):
-Você não deve simplesmente jogar tudo no maior caminhão! Você deve seguir a progressão natural:
-- Se o Alvo for "fiorino": Tente montar o MÁXIMO possível de cargas de 'fiorino' chegando o mais perto possível do limite máximo sem estourar. Se sobrar um pedido (ou um grupo de um cliente) que sozinho seja pesado/volumoso demais para a fiorino, ou se as sobras fizerem sentido juntas, escale SOMENTE ESSA carga para uma 'van'. Se for muito para 'van', escale para 'tresQuartos'.
-- Se o Alvo for "van": Monte o máximo de 'van'. Escale para 'tresQuartos' APENAS as cargas/pedidos que não couberem em 'van'.
+Você não deve simplesmente jogar tudo no maior caminhão para "usar menos veículos"! Você DEVE seguir a progressão natural para esgotar os veículos menores primeiro:
+- Se o Alvo for "fiorino": Tente montar o MÁXIMO possível de cargas de 'fiorino' chegando o mais perto possível do limite máximo de kg/m3 sem estourar. Se um cliente ou grupo sobrar que fisicamente não caiba na fiorino (ou seja uma sobra grande), escale ESSE grupo para uma 'van'. Se for muito para 'van', escale para 'tresQuartos'.
+- Se o Alvo for "van": Monte o máximo de 'van'. Escale para 'tresQuartos' APENAS as cargas que não couberem em 'van'.
 - Se o Alvo for "tresQuartos": Monte o máximo de 'tresQuartos'. Escale para 'toco' apenas o que não couber.
 
-REGRA 3 - LIMITES MATEMÁTICOS:
-Um veículo NUNCA pode carregar mais KG que o seu "hardMaxCapacity" ou "hardMaxKg", nem mais M³ que o seu "hardCubage". A matemática deve bater 100%.
+REGRA 3 - LIMITES MATEMÁTICOS (INVIOLÁVEIS):
+A soma de "kg" e "m3" dos pedidos de uma carga NUNCA pode ser maior que o "maxKg" e "maxM3" do tipo_veiculo escolhido.
 
-OBJETIVO DA IA: Faça montagens INTELIGENTES. Tente agrupar clientes menores de forma que o caminhão fique o mais "cheio" e rentável possível, reduzindo sobras espalhadas, mas mantendo a lógica de começar sempre pelos veículos menores exigidos pela Rota Alvo ("${baseVehicleType}").
-
-Você DEVE retornar APENAS um JSON estrito, sem Markdown, sem textos adicionais, neste formato exato:
+Você DEVE retornar APENAS um JSON estrito neste formato exato (inclua o passo a passo no "raciocinio" para garantir qualidade):
 {
+  "raciocinio": "Explique passo a passo como você avaliou os clientes, os agrupou e seguiu a regra da cascata esgotando os veículos exigidos primeiro.",
   "cargas": [
     {
-      "tipo_veiculo": "van", // fiorino, van, tresQuartos ou toco (dependendo da cascata usada para aquela carga)
+      "tipo_veiculo": "van", // fiorino, van, tresQuartos ou toco
       "rota_base": "1234", 
       "pedidos_ids": ["ID_1", "ID_2"]
     }
   ],
-  "pedidos_nao_alocados": ["ID_3"] // Apenas se for fisicamente impossível alocar
+  "pedidos_nao_alocados": []
 }
     `.trim();
 
@@ -132,7 +139,7 @@ Você DEVE retornar APENAS um JSON estrito, sem Markdown, sem textos adicionais,
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
         ],
-        temperature: 0.1, // Baixa temperatura para lógica rigorosa
+        temperature: 0.2, // Um pouco maior para permitir o 'raciocinio'
         response_format: { type: "json_object" }
     };
 
