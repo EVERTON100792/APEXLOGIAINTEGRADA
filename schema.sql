@@ -140,3 +140,16 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+
+-- 9. Tabela de Configuracoes do Admin (Admin Config)
+CREATE TABLE apex_admin_config (
+  config_key TEXT PRIMARY KEY,
+  config_value JSONB NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE apex_admin_config ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated read" ON apex_admin_config FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated manage" ON apex_admin_config FOR ALL USING (auth.role() = 'authenticated');
