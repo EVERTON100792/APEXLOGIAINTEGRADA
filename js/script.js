@@ -4795,7 +4795,8 @@ window.reaplicarRegrasPainelInterno = function() {
                                 groups: cargaPedidos,
                                 totalKg,
                                 totalCubagem,
-                                density: totalCubagem > 0 ? totalKg / totalCubagem : Infinity
+                                density: totalCubagem > 0 ? totalKg / totalCubagem : Infinity,
+                                vehicleType: carga.tipo_veiculo || vehicleType
                             });
                         }
                     });
@@ -4907,7 +4908,7 @@ window.reaplicarRegrasPainelInterno = function() {
         leftoverGroups.push(...tocoResultForExcluded.leftovers);
     }
 
-    primaryLoads.forEach(l => l.vehicleType = vehicleType);
+    primaryLoads.forEach(l => l.vehicleType = l.vehicleType || vehicleType);
 
     switch (vehicleType) {
         case 'fiorino':

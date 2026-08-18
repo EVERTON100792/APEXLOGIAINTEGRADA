@@ -108,18 +108,20 @@ ${JSON.stringify(estruturedConfigs, null, 2)}
 REGRA 1 - AGRUPAMENTO OBRIGATÓRIO:
 Sempre agrupe pedidos do MESMO CLIENTE (mesmo "cli") no mesmo veículo. Não separe pedidos do mesmo cliente.
 
-REGRA 2 - EFEITO SANFONA (CASCATA):
-Você não deve simplesmente jogar tudo no maior caminhão para "usar menos veículos"! Você DEVE seguir a progressão natural para esgotar os veículos menores primeiro:
-- Se o Alvo for "fiorino": Tente montar o MÁXIMO possível de cargas de 'fiorino' chegando o mais perto possível do limite máximo de kg/m3 sem estourar. Se um cliente ou grupo sobrar que fisicamente não caiba na fiorino (ou seja uma sobra grande), escale ESSE grupo para uma 'van'. Se for muito para 'van', escale para 'tresQuartos'.
-- Se o Alvo for "van": Monte o máximo de 'van'. Escale para 'tresQuartos' APENAS as cargas que não couberem em 'van'.
-- Se o Alvo for "tresQuartos": Monte o máximo de 'tresQuartos'. Escale para 'toco' apenas o que não couber.
+REGRA 2 - EFEITO SANFONA (CASCATA - EXTREMAMENTE IMPORTANTE):
+O seu objetivo PRINCIPAL é esgotar a capacidade dos veículos menores exigidos pela Rota Alvo ("${baseVehicleType}") antes de sequer pensar em veículos maiores!
+- Se o Alvo for "fiorino": VOCÊ É OBRIGADO a tentar criar o máximo de cargas do tipo 'fiorino' possível. Junte clientes até chegar perto de ${estruturedConfigs.fiorino.maxKg}KG. SÓ crie uma carga do tipo 'van' se um grupo de pedidos de um ÚNICO CLIENTE for maior que o limite da fiorino e não puder ser separado. NUNCA junte vários clientes pequenos em uma Van se eles couberem separados em várias Fiorinos!
+- Se o Alvo for "van": Crie o máximo de cargas 'van' (${estruturedConfigs.van.maxKg}KG). Só escale para 'tresQuartos' se um único cliente ultrapassar o limite da van.
+- Se o Alvo for "tresQuartos": Crie o máximo de 'tresQuartos'. Escale para 'toco' apenas o que não couber.
+
+Se você colocar vários clientes pequenos dentro de uma Van numa rota de Fiorino, você falhará na sua missão!
 
 REGRA 3 - LIMITES MATEMÁTICOS (INVIOLÁVEIS):
 A soma de "kg" e "m3" dos pedidos de uma carga NUNCA pode ser maior que o "maxKg" e "maxM3" do tipo_veiculo escolhido.
 
 Você DEVE retornar APENAS um JSON estrito neste formato exato (inclua o passo a passo no "raciocinio" para garantir qualidade):
 {
-  "raciocinio": "Explique passo a passo como você avaliou os clientes, os agrupou e seguiu a regra da cascata esgotando os veículos exigidos primeiro.",
+  "raciocinio": "Explique detalhadamente: 1. Por que você não conseguiu colocar todos na ${baseVehicleType}? 2. Se você usou um veículo maior, prove que o peso de um cliente único obrigou isso e que não eram apenas clientes pequenos agrupados.",
   "cargas": [
     {
       "tipo_veiculo": "van", // fiorino, van, tresQuartos ou toco
