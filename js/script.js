@@ -4809,6 +4809,10 @@ window.reaplicarRegrasPainelInterno = function() {
                     }
                 });
 
+                if (loads.length === 0) {
+                    throw new Error("IA retornou 0 cargas. Caindo para heurística.");
+                }
+                
                 optimizationResult = { loads, leftovers };
                 aiUsed = true;
                 console.log("SUCESSO IA. Cargas:", loads, "Sobras:", leftovers);
