@@ -125,9 +125,8 @@ Se um cliente (ou grupo de clientes) for maior que o limite de ${targetConfig.ma
 REGRA 3 - OTIMIZAÇÃO:
 Preencha as cargas chegando o mais perto possível do Peso Máximo, combinando clientes diferentes se necessário, desde que não estoure o limite.
 
-Você DEVE retornar APENAS um JSON estrito neste formato exato:
+Você DEVE retornar APENAS um JSON estrito neste formato exato (sem texto adicional):
 {
-  "raciocinio": "Mostre como você combinou os clientes para chegar perto do limite da carga de ${baseVehicleType} sem estourá-lo.",
   "cargas": [
     {
       "tipo_veiculo": "${baseVehicleType}",
@@ -135,7 +134,7 @@ Você DEVE retornar APENAS um JSON estrito neste formato exato:
       "pedidos_ids": ["ID_1", "ID_2"]
     }
   ],
-  "pedidos_nao_alocados": ["ID_X", "ID_Y"] // IDs dos pedidos que não couberam
+  "pedidos_nao_alocados": ["ID_X", "ID_Y"]
 }
     `.trim();
 
@@ -150,9 +149,9 @@ Você DEVE retornar APENAS um JSON estrito neste formato exato:
         temperature: 0.2 // Removido response_format pois algumas APIs da OpenCode podem não suportar
     };
 
-    // Timeout de 45 segundos para a requisição
+    // Timeout de 120 segundos para a requisição
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
 
     let response;
     try {
@@ -171,7 +170,7 @@ Você DEVE retornar APENAS um JSON estrito neste formato exato:
         });
     } catch (fetchErr) {
         if (fetchErr.name === 'AbortError') {
-            throw new Error("A Inteligência Artificial demorou mais de 45 segundos para responder. Servidor sobrecarregado.");
+            throw new Error("A Inteligência Artificial demorou mais de 120 segundos para responder. Servidor sobrecarregado.");
         }
         throw fetchErr;
     } finally {
