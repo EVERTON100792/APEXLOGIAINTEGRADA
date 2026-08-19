@@ -48,11 +48,19 @@ window.saveAiUiSettings = function() {
     const apiKeyInput = document.getElementById('aiApiKey');
     const modelSelect = document.getElementById('aiModelSelect');
     
+    const selectedModel = modelSelect.value;
+    let endpointUrl = 'https://opencode.ai/zen/go/v1/chat/completions';
+    
+    // Alguns modelos da OpenCode exigem um endpoint diferente segundo a documentação
+    if (selectedModel === 'grok-4.5' || selectedModel === 'gpt-5.6-luna') {
+        endpointUrl = 'https://opencode.ai/zen/go/v1/responses';
+    }
+
     const settings = {
         enabled: toggle.checked,
         apiKey: apiKeyInput.value.trim(),
-        model: modelSelect.value,
-        endpoint: 'https://opencode.ai/zen/go/v1/chat/completions'
+        model: selectedModel,
+        endpoint: endpointUrl
     };
     
     saveAiSettings(settings);
