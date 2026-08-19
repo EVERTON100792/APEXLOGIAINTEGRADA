@@ -4818,8 +4818,10 @@ window.reaplicarRegrasPainelInterno = function() {
                 console.log("SUCESSO IA. Cargas:", loads, "Sobras:", leftovers);
             } catch (err) {
                 console.error("Erro CRÍTICO na Otimização por IA:", err);
-                alert("Erro na IA: " + err.message + "\n\nAbrir o console (F12) para detalhes.");
                 if (typeof showToast === 'function') showToast("Falha na IA. Voltando ao algoritmo padrão...", "warning");
+                // Mostrar o erro diretamente na tela de carregamento para o usuário ver
+                statusText.innerHTML = `<span class="text-danger">Erro na IA: ${err.message}.<br>Iniciando plano B...</span>`;
+                await new Promise(r => setTimeout(r, 3000)); // Espera 3 segundos para o usuário ler
             }
         }
     }

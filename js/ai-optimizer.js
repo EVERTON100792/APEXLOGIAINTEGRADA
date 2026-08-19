@@ -150,18 +150,34 @@ Você DEVE retornar APENAS um JSON estrito neste formato exato:
         temperature: 0.2 // Removido response_format pois algumas APIs da OpenCode podem não suportar
     };
 
-    // Chamando nosso Proxy Serverless na Vercel para evitar erro de CORS
-    const response = await fetch('/api/ai', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            endpoint: settings.endpoint,
-            apiKey: settings.apiKey,
-            payload: payload
-        })
-    });
+    // Timeout de 45 segundos para a requisição
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+    let response;
+    try {
+        // Chamando nosso Proxy Serverless na Vercel para evitar erro de CORS
+        response = await fetch('/api/ai', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                endpoint: settings.endpoint,
+                apiKey: settings.apiKey,
+                payload: payload
+            }),
+            signal: controller.signal
+        });
+    } catch (fetchErr) {
+        if (fetchErr.name === 'AbortError') {
+            throw new Error("A Inteligência Artificial demorou mais de 45 segundos para responder. Servidor sobrecarregado.");
+        }
+        throw fetchErr;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+
 
     if (!response.ok) {
         const err = await response.text();
