@@ -1541,7 +1541,15 @@ function buscarPedido() {
                 return { pedido, local, viewId, tabId, accordionId, cardId };
             }
         }
-        const gruposPR = cargasFechadasPR.reduce((acc, p) => { const key = (String(p.Coluna5 || '').toUpperCase().includes('CONDOR')) ? 'Condor Truck' : `CF: ${p.CF}`; if (!acc[key]) acc[key] = []; acc[key].push(p); return acc; }, {});
+        const gruposPR = cargasFechadasPR.reduce((acc, p) => { 
+            const col5 = String(p.Coluna5 || '').toUpperCase();
+            const nm = String(p.Nome_Cliente || '').toUpperCase();
+            const isCondor = col5.includes('CONDOR (TRUCK)') || col5.includes('CONDOR TOD TRUC') || (String(p.Cod_Rota || '').trim() === '2' && nm.includes('CONDOR'));
+            const key = isCondor ? 'Condor Truck' : `CF: ${p.CF}`; 
+            if (!acc[key]) acc[key] = []; 
+            acc[key].push(p); 
+            return acc; 
+        }, {});
         for (const key in gruposPR) {
             if (gruposPR[key].some(p => String(p.Num_Pedido) === numPedido)) {
                 local = `Carga Fechada PR (${key})`;
@@ -2039,6 +2047,9 @@ function garantirPlanilhaProcessada(pedidos) {
         else if (col5.includes('MOINHO')) pedidosMoinho.push(p);
         else if (col5.includes('MARCA PROPRIA')) pedidosMarcaPropria.push(p);
         else if (String(p.Cod_Rota || '').trim() === '1' && !isNumeric(p.CF)) rota1SemCarga.push(p);
+        else if (String(p.Cod_Rota || '').trim() === '2' && String(p.Nome_Cliente || '').toUpperCase().includes('CONDOR')) {
+            cargasFechadasPR.push(p);
+        }
         else if (isNumeric(p.CF)) {
             const isPR = String(p.UF || '').trim().toUpperCase() === 'PR';
             const isCondor = col5.includes('CONDOR (TRUCK)') || col5.includes('CONDOR TOD TRUC');
@@ -2278,7 +2289,15 @@ function processar() {
             // Separa Cargas Fechadas PR (Condor e CFs numá©ricos do PR)
             cargasFechadasPR = pedidosParaProcessamentoGeral.filter(p => {
                 const coluna5 = String(p.Coluna5 || '').toUpperCase();
-                const isCondor = coluna5.includes('CONDOR (TRUCK)') || coluna5.includes('CONDOR TOD TRUC');
+                const nomeCliente = String(p.Nome_Cliente || '').toUpperCase();
+                
+                let isCondor = coluna5.includes('CONDOR (TRUCK)') || coluna5.includes('CONDOR TOD TRUC');
+                
+                // Regra Corrigida: Se está na Rota 2 e o cliente é Condor, DEVE ir para Condor Truck (independentemente do nome da tabela na Coluna5)
+                if (String(p.Cod_Rota || '').trim() === '2' && nomeCliente.includes('CONDOR')) {
+                    isCondor = true;
+                }
+
                 const isPR = String(p.UF).trim().toUpperCase() === 'PR';
                 return isCondor || (isPR && isNumeric(p.CF));
             });
@@ -2428,7 +2447,8 @@ function processar() {
                             .then(({ error }) => {
                                 if (error) {
                                     console.error("Erro ao salvar histórico de varejo no Supabase:", error);
-                                    if (typeof showToast === 'function') showToast('Erro ao salvar no banco de dados.', 'danger');
+                                    let errorMsg = error.message || JSON.stringify(error);
+                                    if (typeof showToast === 'function') showToast(`Erro ao salvar no BD: ${errorMsg}`, 'danger');
                                 } else {
                                     const count = payloadSupabase.length.toLocaleString('pt-BR');
                                     if (typeof showToast === 'function') showToast(`✅ ${count} pedidos salvos no banco de dados`, 'success');
@@ -7901,8 +7921,11 @@ if (!div) { console.warn('displayCargasFechadasPR: div nao encontrada no DOM.');
     // Agrupa por CF ou 'Condor'
     const grupos = pedidos.reduce((acc, p) => {
         const coluna5 = String(p.Coluna5 || '').toUpperCase();
+        const nomeCliente = String(p.Nome_Cliente || '').toUpperCase();
         let key;
-        if (coluna5.includes('CONDOR (TRUCK)') || coluna5.includes('CONDOR TOD TRUC')) {
+        
+        if (coluna5.includes('CONDOR (TRUCK)') || coluna5.includes('CONDOR TOD TRUC') || 
+           (String(p.Cod_Rota || '').trim() === '2' && nomeCliente.includes('CONDOR'))) {
             key = 'Condor Truck';
         } else if (coluna5.includes('TBL ESPECIAL') && !isNumeric(p.CF)) {
             key = 'TBL ESPECIAL SEM CF';
