@@ -1512,6 +1512,23 @@ function buscarPedido() {
             }
         }
 
+        // 4.5 GARANTIA: Verifica a aba TOCO diretamente (pedidos de varejo com peso
+        // >= tocoMin são alocados direto pro Toco). Mesmo que a renderização das
+        // abas não tenha acontecido, o pedido NUNCA aparece como "Não processado".
+        const cfKeysToco = Object.keys(gruposToco).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        for (const cfToco of cfKeysToco) {
+            const grupoToco = gruposToco[cfToco];
+            if (grupoToco && grupoToco.pedidos && grupoToco.pedidos.some(p => String(p.Num_Pedido) === numPedido)) {
+                local = `Carga Toco (${cfToco})`;
+                viewId = 'workspace-view';
+                tabId = 'toco-tab-pane';
+                const index = cfKeysToco.indexOf(cfToco);
+                if (index !== -1) accordionId = `collapseToco${index}`;
+                cardId = grupoToco.id || null;
+                return { pedido, local, viewId, tabId, accordionId, cardId };
+            }
+        }
+
         // 5. Verificar Cargas Fechadas (PR e Resto BR)
         for (const cf in gruposPorCFGlobais) {
             if (gruposPorCFGlobais[cf].pedidos.some(p => String(p.Num_Pedido) === numPedido)) {
@@ -1839,6 +1856,8 @@ function bloquearPedido(numPedido) {
                     affectedLoadId = loadId; // MODIFICADO: Captura o ID da carga afetada
                     if (load.pedidos.length === 0) {
                         delete activeLoads[loadId];
+                        // CORREÇÃO: Libera pedidos que estavam "presos" na memória de Especial/Venda Antecipada
+                        sanearMemoriaPedidosEspeciais();
                     }
                     break; // Sai do loop de cargas
                 }
@@ -1934,6 +1953,30 @@ function atualizarUIAposAcao(mensagemToast, affectedLoadId = null) {
     showToast(mensagemToast, 'info');
 }
 
+// CORREÇÃO GERAL: Saneia a memória de pedidos "Especial" / "Venda Antecipada".
+// Esses conjuntos guardavam o número do pedido para sempre APÓS mountar uma carga
+// manual, sem nunca liberá-lo quando a carga era excluída/reprocessada — resultado:
+// pedidos sumiam de TODAS as listas e apareciam no sistema como "Não processado /
+// Planilha Original". Agora, qualquer número que não pertença a uma carga
+// Especial/Venda Antecipada ATIVA é liberado automaticamente.
+function sanearMemoriaPedidosEspeciais() {
+    const idsEmCargasEspeciais = new Set();
+    Object.values(activeLoads).forEach(load => {
+        const ehCargaEspecial = (load.id || '').startsWith('especial') || (load.id || '').startsWith('venda-antecipada');
+        if (ehCargaEspecial && Array.isArray(load.pedidos)) {
+            load.pedidos.forEach(p => idsEmCargasEspeciais.add(String(p.Num_Pedido)));
+        }
+    });
+    let liberados = 0;
+    [...pedidosEspeciaisProcessados].forEach(id => {
+        if (!idsEmCargasEspeciais.has(String(id))) { pedidosEspeciaisProcessados.delete(id); liberados++; }
+    });
+    [...pedidosVendaAntecipadaProcessados].forEach(id => {
+        if (!idsEmCargasEspeciais.has(String(id))) { pedidosVendaAntecipadaProcessados.delete(id); liberados++; }
+    });
+    return liberados;
+}
+
 function resetarEstadoGlobal() {
     pedidosGeraisAtuais = [];
     gruposToco = {};
@@ -1951,8 +1994,78 @@ function resetarEstadoGlobal() {
     tocoPedidoIds.clear();
     currentLeftoversForPrinting = [];
     activeLoads = {};
+    // CORREÇÃO: As cargas Especial/Venda Antecipada também são resetadas acima,
+    // portanto a "memória" delas deve ser zerada junto — senão os pedidos ficavam
+    // presos para sempre, sem aparecer em lista nenhuma.
+    pedidosEspeciaisProcessados = new Set();
+    pedidosVendaAntecipadaProcessados = new Set();
     kpiData = {};
     processedRoutes.clear();
+}
+
+// CORREÇÃO DEFINITIVA: garante que TODA a planilha seja processada — nenhum pedido
+// fica "para trás". Ao final da divisão, todo pedido que não tenha caído em NENHUMA
+// lista (Disponíveis, Toco, Cargas Fechadas, Bloqueados, etc.) é reclassificado com as
+// MESMAS regras de varejo e direcionado para o lugar correto.
+function garantirPlanilhaProcessada(pedidos) {
+    if (!Array.isArray(pedidos) || pedidos.length === 0) return { recuperados: [], msg: '' };
+
+    const destino = new Set();
+    const marcar = (p) => { if (p && p.Num_Pedido != null) destino.add(String(p.Num_Pedido)); };
+    (pedidosGeraisAtuais || []).forEach(marcar);
+    Object.values(gruposToco || {}).forEach(g => (g.pedidos || []).forEach(marcar));
+    Object.values(gruposPorCFGlobais || {}).forEach(g => (g.pedidos || []).forEach(marcar));
+    (cargasFechadasPR || []).forEach(marcar);
+    (pedidosComCFNumericoIsolado || []).forEach(marcar);
+    (pedidosManualmenteBloqueadosAtuais || []).forEach(marcar);
+    (rota1SemCarga || []).forEach(marcar);
+    (pedidosFuncionarios || []).forEach(marcar);
+    (pedidosTransferencias || []).forEach(marcar);
+    (pedidosExportacao || []).forEach(marcar);
+    (pedidosMoinho || []).forEach(marcar);
+    (pedidosMarcaPropria || []).forEach(marcar);
+    (pedidosCarretaSemCF || []).forEach(marcar);
+    (currentLeftoversForPrinting || []).forEach(marcar);
+    Object.values(activeLoads || {}).forEach(l => (l.pedidos || []).forEach(marcar));
+
+    const orfaos = pedidos.filter(p => p && p.Num_Pedido != null && String(p.Num_Pedido).trim() && !destino.has(String(p.Num_Pedido)));
+    if (orfaos.length === 0) return { recuperados: [], msg: '' };
+
+    orfaos.forEach(p => {
+        const col5 = String(p.Coluna5 || '').toUpperCase();
+        if (col5.includes('TBL FUNCIONARIO')) pedidosFuncionarios.push(p);
+        else if (col5.includes('TABELA TRANSFER') || col5.includes('TRANSF. TODESCH') || col5.includes('INSTITUCIONAL')) pedidosTransferencias.push(p);
+        else if (col5.includes('TBL EXPORTACAO')) pedidosExportacao.push(p);
+        else if (col5.includes('MOINHO')) pedidosMoinho.push(p);
+        else if (col5.includes('MARCA PROPRIA')) pedidosMarcaPropria.push(p);
+        else if (String(p.Cod_Rota || '').trim() === '1' && !isNumeric(p.CF)) rota1SemCarga.push(p);
+        else if (isNumeric(p.CF)) {
+            const isPR = String(p.UF || '').trim().toUpperCase() === 'PR';
+            const isCondor = col5.includes('CONDOR (TRUCK)') || col5.includes('CONDOR TOD TRUC');
+            if (isPR || isCondor) {
+                cargasFechadasPR.push(p);
+            } else {
+                const cf = String(p.CF).trim();
+                if (!gruposPorCFGlobais[cf]) gruposPorCFGlobais[cf] = { pedidos: [], totalKg: 0, totalCubagem: 0 };
+                gruposPorCFGlobais[cf].pedidos.push(p);
+                gruposPorCFGlobais[cf].totalKg += p.Quilos_Saldo;
+                gruposPorCFGlobais[cf].totalCubagem += p.Cubagem;
+            }
+        } else {
+            const bloq = p['BLOQ.'];
+            if (pedidosBloqueados.has(String(p.Num_Pedido))) {
+                pedidosManualmenteBloqueadosAtuais.push(p);
+            } else if (bloq != null && String(bloq).trim()) {
+                pedidosComCFNumericoIsolado.push(p);
+            } else {
+                pedidosGeraisAtuais.push(p); // Varejo padrão
+            }
+        }
+    });
+
+    // ATENÇÃO: pedidos de varejo recuperados ficam nos "Disponíveis" — o Toco é montado
+    // automaticamente pela cascata quando o usuário clica no botão da rota (regra atual).
+    return { recuperados: orfaos.map(p => String(p.Num_Pedido)), msg: '' };
 }
 
 function processar() {
@@ -2037,11 +2150,17 @@ function processar() {
             const hasMarcaPropria = displayPedidosMarcaPropria(resultadoMarcaPropriaDiv, pedidosMarcaPropria); // prettier-ignore
 
             // Se nenhuma das categorias especiais tiver pedidos, mostra um estado vazio unificado.
+            // CORREÇÃO: Preenche o vazio DENTRO de cada div existente, sem removê-las do DOM.
+            // Antes isto trocava o innerHTML da aba, DESTRUINDO as divs resultado-moinho/
+            // resultado-funcionarios/etc. No próximo processar/renderAllUI, displayPedidos*
+            // recebia null e estourava "Cannot set properties of null", abortando TODO o
+            // processamento — e todos os pedidos ficavam como "Não processado".
             if (!hasMoinho && !hasFuncionarios && !hasTransferencias && !hasExportacao && !hasMarcaPropria) {
-                const outrosPedidosTab = document.getElementById('outros-pedidos-tab-pane');
-                if (outrosPedidosTab) {
-                    outrosPedidosTab.innerHTML = '<div class="empty-state"><i class="bi bi-collection"></i><p>Nenhum pedido para as categorias especiais foi encontrado.</p></div>';
-                }
+                const emptyEstadosHtml = '<div class="empty-state"><i class="bi bi-collection"></i><p>Nenhum pedido para as categorias especiais foi encontrado.</p></div>';
+                ['resultado-moinho', 'resultado-funcionarios', 'resultado-transferencias', 'resultado-exportacao', 'resultado-marca-propria'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = emptyEstadosHtml;
+                });
             }
 
 
@@ -2108,22 +2227,15 @@ function processar() {
             gruposToco = {};
             tocoPedidoIds = new Set();
 
-            Object.entries(gruposDeClientesVarejo).forEach(([clienteId, grupo]) => {
-                const deveSerExcluido = grupo.pedidos.some(p => {
-                    const coluna5Upper = String(p.Coluna5 || '').toUpperCase();
-                    return coluna5Upper.includes('TBL ESP CARRETA') || coluna5Upper.includes('TRUCK') || coluna5Upper.includes('CARRETA');
-                });
+            // ALTERAÇÃO SOLICITADA: pedidos de VAREJO (sem CF numérico) que têm peso para Toco
+            // NÃO são mais pré-separados para a aba Toco aqui. Eles permanecem na lista de
+            // "Disponíveis" e, ao CLICAR no botão de montagem da rota, a CASCATA de montagem
+            // (Fiorino -> Van -> 3/4 -> Toco) monta o Toco automaticamente com eles,
+            // respeitando as MESMAS regras de peso/cubagem (tocoMin/tocoMax) da montagem.
+            // Os tocos por FLAG (abaixo) continuam funcionando como antes.
 
-                // Valida o limite mínimo e máximo do Toco do Super Usuário para este cliente de varejo
-                if (grupo.totalKg >= tocoMin && grupo.totalKg <= tocoMax && grupo.totalCubagem <= tocoMaxCubage && !deveSerExcluido) {
-                    const cf = grupo.pedidos[0]?.CF || `CLI-${clienteId}`; // Usa CF ou um ID de cliente
-                    gruposToco[cf] = grupo;
-                    grupo.pedidos.forEach(p => tocoPedidoIds.add(p.Num_Pedido));
-                }
-            });
-
-            // Remonta a lista de processamento geral com os pedidos que não viraram Toco por peso.
-            pedidosParaProcessamentoGeral = [...outrosPedidos, ...pedidosDeVarejo.filter(p => !tocoPedidoIds.has(p.Num_Pedido))];
+            // Remonta a lista de processamento geral (todos os varejos continuam disponíveis).
+            pedidosParaProcessamentoGeral = [...outrosPedidos, ...pedidosDeVarejo];
 
             // Adiciona os grupos toco antigos (baseados em flag) se existirem
             const pedidosTocoPorFlag = pedidosParaProcessamentoGeral.filter(p => (p.Coluna4 && String(p.Coluna4).toUpperCase().includes('TOCO')) || (p.Coluna5 && String(p.Coluna5).toUpperCase().includes('TOCO')));
@@ -2151,9 +2263,14 @@ function processar() {
             displayToco(resultadoTocoDiv, gruposToco);
 
             // Identifica clientes com qualquer tipo de bloqueio na planilha
+            // CORREÇÃO: Usa p['BLOQ.'] != null antes do String(). Quando a coluna BLOQ.
+            // NÃO EXISTE no arquivo, String(undefined) === 'undefined' (truthy!), o que
+            // fazia TODOS os clientes serem tratados como "bloqueados por regra" e os
+            // pedidos nunca entrarem no Varejo — aparecendo como "Não processado".
             const clientesComBloqueio = new Set();
             pedidosParaProcessamentoGeral.forEach(p => {
-                if (String(p['BLOQ.']).trim()) {
+                const bloq = p['BLOQ.'];
+                if (bloq != null && String(bloq).trim()) {
                     clientesComBloqueio.add(normalizeClientId(p.Cliente));
                 }
             });
@@ -2231,6 +2348,18 @@ function processar() {
             // ────────────────────────────────────────────────────────────────────────────
 
             pedidosGeraisAtuais = [...pedidosParaProcessamentoVarejo];
+
+            // CORREÇÃO DEFINITIVA: verifica se algum pedido ficou "para trás" (não entrou
+            // em NENHUMA lista). Se entrou, reclassifica com a MESMA cadeia de regras
+            // (nunca muda regra: tags especiais, rota 1, CF, bloqueio e, por fim, varejo).
+            const verificacao = garantirPlanilhaProcessada(dadosParaProcessar);
+            if (verificacao.recuperados.length > 0) {
+                console.warn(`[APEX] Pedidos recuperados do descarte (reclassificados pela regra normal): ${verificacao.recuperados.join(', ')}`);
+                if (typeof showToast === 'function') {
+                    showToast(`⚠️ ${verificacao.recuperados.length} pedido(s) que ficariam de fora foram reclassificados e processados: ${verificacao.recuperados.join(', ')}`, 'warning');
+                }
+            }
+
             renderAllUI(); // NOVO: Chama a função de renderização centralizada
 
             // --- INÍCIO: INTEGRAÇÃO SUPABASE VAREJO (Apenas Disponíveis e Bloqueados) ---
@@ -2955,7 +3084,29 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
     return table;
 }
 
+// CORREÇÃO GERAL: Escreve HTML em uma div pelo id, criando a div se ela não
+// existir no HTML. Evita o erro "Cannot set properties of null" que abortava
+// TODO o processamento e deixava pedidos como "Não processado".
+function setDivInnerHTML(divId, html) {
+    let el = document.getElementById(divId);
+    if (!el) {
+        el = document.createElement('div');
+        el.id = divId;
+        el.className = 'mb-3 no-print';
+        const anchor = document.getElementById('resultado-geral');
+        if (anchor && anchor.parentNode) {
+            anchor.parentNode.insertBefore(el, anchor);
+        } else {
+            document.body.appendChild(el);
+        }
+    }
+    el.innerHTML = html;
+    return el;
+}
+
 function displayGerais(div, grupos) {
+if (!div) { console.warn('displayGerais: div nao encontrada no DOM.'); return false; }
+
     // MODIFICADO: Agora considera tambá©m as rotas já¡ processadas para exibir os botáµes,
     // mesmo que ná£o tenham pedidos pendentes (caso de alocaá§á£o total sem sobras).
     const rotasPendentes = Object.keys(grupos);
@@ -2973,9 +3124,9 @@ function displayGerais(div, grupos) {
         const emptyStateVan = '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota de Van disponível</h5><p class="text-muted small">Processe um arquivo para começar.</p></div>';
         const emptyState34 = '<div class="empty-state-premium"><i class="bi bi-truck-flatbed empty-state-icon"></i><h5 class="text-light">Nenhuma rota de 3/4 disponível</h5><p class="text-muted small">Processe um arquivo para começar.</p></div>';
 
-        document.getElementById('botoes-fiorino').innerHTML = emptyStateFio;
-        document.getElementById('botoes-van').innerHTML = emptyStateVan;
-        document.getElementById('botoes-34').innerHTML = emptyState34;
+        setDivInnerHTML('botoes-fiorino', emptyStateFio);
+        setDivInnerHTML('botoes-van', emptyStateVan); // Cria a div se o HTML não tiver
+        setDivInnerHTML('botoes-34', emptyState34);   // Cria a div se o HTML não tiver
         return;
     }
 
@@ -3061,10 +3212,10 @@ function displayGerais(div, grupos) {
     const btnVerTodasVanSP = `<button class="btn btn-tactical primary mt-2 me-2" style="background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.35); color: #0ea5e9;" onclick="exibirTodasCargasAba('resultado-van-sp', 'van', 'vanSP')"><i class="bi bi-grid-fill me-1"></i>Ver Todas Cargas</button>`;
     const btnVerTodasVanMS = `<button class="btn btn-tactical primary mt-2 me-2" style="background: rgba(14, 165, 233, 0.15); border-color: rgba(14, 165, 233, 0.35); color: #0ea5e9;" onclick="exibirTodasCargasAba('resultado-van-ms', 'van', 'vanMS')"><i class="bi bi-grid-fill me-1"></i>Ver Todas Cargas</button>`;
 
-    document.getElementById('botoes-fiorino').innerHTML = (botoes.fiorino ? btnVerTodasFio + botoes.fiorino : '') || '<div class="empty-state-premium"><i class="bi bi-box-seam empty-state-icon"></i><h5 class="text-light">Nenhuma rota de Fiorino encontrada</h5><p class="text-muted small">Não há rotas para este veículo na carga atual.</p></div>';
-    document.getElementById('botoes-van-pr').innerHTML = (botoes.vanPR ? btnVerTodasVanPR + botoes.vanPR : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (PR) encontrada</h5><p class="text-muted small">Não há rotas do Paraná na carga atual.</p></div>';
-    document.getElementById('botoes-van-sp').innerHTML = (botoes.vanSP ? btnVerTodasVanSP + botoes.vanSP : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (SP) encontrada</h5><p class="text-muted small">Não há rotas de SP na carga atual.</p></div>';
-    document.getElementById('botoes-van-ms').innerHTML = (botoes.vanMS ? btnVerTodasVanMS + botoes.vanMS : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (MS) encontrada</h5><p class="text-muted small">Não há rotas do MS na carga atual.</p></div>';
+    setDivInnerHTML('botoes-fiorino', (botoes.fiorino ? btnVerTodasFio + botoes.fiorino : '') || '<div class="empty-state-premium"><i class="bi bi-box-seam empty-state-icon"></i><h5 class="text-light">Nenhuma rota de Fiorino encontrada</h5><p class="text-muted small">Não há rotas para este veículo na carga atual.</p></div>');
+    setDivInnerHTML('botoes-van-pr', (botoes.vanPR ? btnVerTodasVanPR + botoes.vanPR : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (PR) encontrada</h5><p class="text-muted small">Não há rotas do Paraná na carga atual.</p></div>');
+    setDivInnerHTML('botoes-van-sp', (botoes.vanSP ? btnVerTodasVanSP + botoes.vanSP : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (SP) encontrada</h5><p class="text-muted small">Não há rotas de SP na carga atual.</p></div>');
+    setDivInnerHTML('botoes-van-ms', (botoes.vanMS ? btnVerTodasVanMS + botoes.vanMS : '') || '<div class="empty-state-premium"><i class="bi bi-truck-front-fill empty-state-icon"></i><h5 class="text-light">Nenhuma rota (MS) encontrada</h5><p class="text-muted small">Não há rotas do MS na carga atual.</p></div>');
     // document.getElementById('botoes-34').innerHTML = botoes.tresQuartos || ''; // Removido pois a aba 3/4 foi excluída
     let accordionHtml = '<div class="accordion accordion-flush" id="accordionGeral">';
     let hasPendingItems = false;
@@ -3202,6 +3353,8 @@ function displayAccordionGerais(div, grupos) {
 }
 
 function displayPedidosBloqueados(div, pedidos) {
+if (!div) { console.warn('displayPedidosBloqueados: div nao encontrada no DOM.'); return false; }
+
     if (pedidos.length === 0) {
         div.innerHTML = '<div class="empty-state"><i class="bi bi-shield-check"></i><p>Nenhum pedido bloqueado manualmente.</p></div>';
         return;
@@ -3222,6 +3375,8 @@ function displayPedidosBloqueados(div, pedidos) {
 }
 
 function displayPedidosCFNumerico(div, pedidos) {
+if (!div) { console.warn('displayPedidosCFNumerico: div nao encontrada no DOM.'); return false; }
+
     if (pedidos.length === 0) { div.innerHTML = '<div class="empty-state"><i class="bi bi-funnel"></i><p>Nenhum pedido filtrado por esta regra.</p></div>'; return; }
 
     const grupos = pedidos.reduce((acc, p) => {
@@ -3256,6 +3411,8 @@ function displayTresQuartos(div, loads) {
 }
 
 function displayRota1(div, pedidos) {
+if (!div) { console.warn('displayRota1: div nao encontrada no DOM.'); return false; }
+
     if (!pedidos || pedidos.length === 0) {
         div.innerHTML = '<div class="empty-state"><i class="bi bi-check-circle"></i><p>Nenhum pedido da Rota 1 para alteraá§á£o encontrado.</p></div>';
         return;
@@ -4706,8 +4863,6 @@ window.reaplicarRegrasPainelInterno = function() {
     }    const optimizationLevel = document.getElementById('optimizationLevelSelect').value;
     let optimizationResult;
 
-    // --- Lá“GICA DE PROCESSAMENTO COM WEB WORKER ---
-    const processingWorker = new Worker('worker.js');
     const modalElement = document.getElementById('processing-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     const progressBar = document.getElementById('processing-progress-bar');
@@ -4754,116 +4909,33 @@ window.reaplicarRegrasPainelInterno = function() {
 
 
 
-    let aiUsed = false;
-    if (typeof getAiSettings === 'function' && typeof runAIOptimization === 'function') {
-        const aiSettings = getAiSettings();
-        if (aiSettings && aiSettings.enabled) {
-            progressBar.style.width = '75%';
-            statusText.textContent = `Inteligência Artificial (${aiSettings.model}) processando ${title}...`;
-            startThinkingText();
-            modal.show();
-            
-            try {
-                const aiData = await runAIOptimization(pedidosRota, vehicleConfigs, rotaVeiculoMap, vehicleType);
-                
-                // Converter JSON da IA para optimizationResult: { loads, leftovers }
-                const loads = [];
-                const leftovers = [];
-                const mappedOrders = new Set();
-                
-                // A IA retorna: { cargas: [{ tipo_veiculo, pedidos_ids }], pedidos_nao_alocados: [] }
-                if (aiData && aiData.cargas) {
-                    aiData.cargas.forEach(carga => {
-                        let totalKg = 0;
-                        let totalCubagem = 0;
-                        const cargaPedidos = [];
-                        
-                        // Para agruparmos como o sistema espera (clientes juntos), filtramos os packableGroups originais
-                        carga.pedidos_ids.forEach(pId => {
-                            // Find the group that contains this pedido
-                            const group = packableGroups.find(g => g.pedidos.some(p => p.Pedido == pId));
-                            if (group && !mappedOrders.has(group)) {
-                                mappedOrders.add(group);
-                                totalKg += group.totalKg;
-                                totalCubagem += group.totalCubagem;
-                                cargaPedidos.push(group);
-                            }
-                        });
-                        
-                        if (cargaPedidos.length > 0) {
-                            loads.push({
-                                groups: cargaPedidos,
-                                totalKg,
-                                totalCubagem,
-                                density: totalCubagem > 0 ? totalKg / totalCubagem : Infinity,
-                                vehicleType: carga.tipo_veiculo || vehicleType
-                            });
-                        }
-                    });
-                }
-                
-                // Os que não foram colocados nas cargas vão para leftovers
-                packableGroups.forEach(g => {
-                    if (!mappedOrders.has(g)) {
-                        leftovers.push(g);
-                    }
-                });
+    // --- LÓGICA DE PROCESSAMENTO COM WEB WORKER ---
+    const processingWorker = new Worker('worker.js');
 
-                if (loads.length === 0) {
-                    throw new Error("IA retornou 0 cargas. Caindo para heurística.");
-                }
-                
-                optimizationResult = { loads, leftovers };
-                aiUsed = true;
-                console.log("SUCESSO IA. Cargas:", loads, "Sobras:", leftovers);
-            } catch (err) {
-                console.error("Erro CRÍTICO na Otimização por IA:", err);
-                if (typeof showToast === 'function') showToast("Falha na IA. Voltando ao algoritmo padrão...", "warning");
-                // Mostrar o erro diretamente na tela de carregamento para o usuário ver
-                statusText.innerHTML = `<span class="text-danger">Erro na IA: ${err.message}.<br>Iniciando plano B...</span>`;
-                await new Promise(r => setTimeout(r, 3000)); // Espera 3 segundos para o usuário ler
-            }
-        }
-    }
+    processingWorker.postMessage({
+        command: 'start-optimization',
+        packableGroups: packableGroups,
+        vehicleType: vehicleType,
+        optimizationLevel: optimizationLevel,
+        configs: vehicleConfigs,
+        pedidosPrioritarios: pedidosPrioritarios,
+        pedidosRecall: pedidosRecall
+    });
 
-    if (!aiUsed) {
-        // --- LÓGICA DE PROCESSAMENTO COM WEB WORKER (Padrão) ---
-        const processingWorker = new Worker('worker.js');
+    optimizationResult = await new Promise((resolve, reject) => {
+        processingWorker.onmessage = function (e) {
+            const { status, result, message, stack, progress } = e.data;
+            if (status === 'complete') resolve(result);
+            else if (status === 'progress') progressBar.style.width = `${progress}%`;
+            else if (status === 'error') reject(new Error(message));
+        };
+        processingWorker.onerror = function (e) { reject(new Error(`Erro no Worker: ${e.message}`)); };
+    });
+    processingWorker.terminate();
 
-        if (optimizationLevel !== '1') {
-            progressBar.style.width = '0%';
-            statusText.textContent = `Otimizando ${title}...`;
-            startThinkingText();
-            modal.show();
-        } else {
-            resultadoDiv.insertAdjacentHTML('beforeend', '<div id="spinner-temp-container" class="d-flex align-items-center justify-content-center p-5"><div class="spinner-border text-primary" role="status"></div><span class="ms-3">Analisando estratégias e montando cargas...</span></div>');
-        }
-
-        processingWorker.postMessage({
-            command: 'start-optimization',
-            packableGroups: packableGroups,
-            vehicleType: vehicleType,
-            optimizationLevel: optimizationLevel,
-            configs: vehicleConfigs,
-            pedidosPrioritarios: pedidosPrioritarios,
-            pedidosRecall: pedidosRecall
-        });
-
-        optimizationResult = await new Promise((resolve, reject) => {
-            processingWorker.onmessage = function (e) {
-                const { status, result, message, stack, progress } = e.data;
-                if (status === 'complete') resolve(result);
-                else if (status === 'progress') progressBar.style.width = `${progress}%`;
-                else if (status === 'error') reject(new Error(message));
-            };
-            processingWorker.onerror = function (e) { reject(new Error(`Erro no Worker: ${e.message}`)); };
-        });
-        processingWorker.terminate();
-    }
-
-    // Limpeza após o término (tanto para IA quanto para Worker)
+    // Limpeza após o término
     allRouteButtons.forEach(btn => { if (!btn.classList.contains('active')) btn.disabled = false; });
-    if (aiUsed || optimizationLevel !== '1') {
+    if (optimizationLevel !== '1') {
         stopThinkingText();
         modal.hide();
     } else {
@@ -5057,6 +5129,63 @@ window.reaplicarRegrasPainelInterno = function() {
         // DISPARA CÁLCULO DE FRETE AUTOMÁTICO
         if (typeof refreshLoadFreight === 'function') refreshLoadFreight(loadId);
     });
+
+    // ========================================================================
+    // TOCO AUTOMÁTICO AO CLICAR (pós-montagem da rota)
+    // Os pedidos de varejo (sem CF numérico/tag/bloqueio) ficam nos Disponíveis e,
+    // ao clicar no botão da rota, as sobras que atendem à regra de peso/cubagem do
+    // Toco são montadas automaticamente em uma carga Toco (mesma regra de peso da
+    // antiga pré-separação por peso — só muda o momento: agora no clique).
+    // ========================================================================
+    if (!onlyPriority) {
+        const tocoCfgAuto = getVehicleConfigSafe('toco');
+        const tocoMinAuto = tocoCfgAuto.minKg || 5000;
+        const tocoMaxAuto = tocoCfgAuto.softMaxKg || 8500;
+        const tocoCubAuto = tocoCfgAuto.softMaxCubage || 30.0;
+        const gruposTocoAutomatico = [];
+        const sobrasRestantes = [];
+        finalLeftoverGroups.forEach(group => {
+            const p0 = group.pedidos[0];
+            const temTagEspecial = group.pedidos.some(p => {
+                const c5 = String(p.Coluna5 || '').toUpperCase();
+                return c5.includes('TBL FUNCIONARIO') || c5.includes('TABELA TRANSFER') || c5.includes('TRANSF. TODESCH') || c5.includes('INSTITUCIONAL') || c5.includes('TBL EXPORTACAO') || c5.includes('MOINHO') || c5.includes('MARCA PROPRIA') || c5.includes('TBL ESP CARRETA') || c5.includes('TRUCK') || c5.includes('CARRETA');
+            });
+            const bloqValor = p0 ? p0['BLOQ.'] : null;
+            const ehVarejoToco = p0 && !isNumeric(String(p0.CF || '')) && !temTagEspecial && !(bloqValor != null && String(bloqValor).trim());
+            if (ehVarejoToco && group.totalKg >= tocoMinAuto && group.totalKg <= tocoMaxAuto && group.totalCubagem <= tocoCubAuto) {
+                gruposTocoAutomatico.push(group);
+            } else {
+                sobrasRestantes.push(group);
+            }
+        });
+        finalLeftoverGroups = sobrasRestantes;
+        const loadsTocoAutomatico = gruposTocoAutomatico.map((group, i) => {
+            const tocoNumero = 'T' + (finalValidLoads.length + i + 1);
+            const tocoId = `toco-auto-${Date.now()}-${i}`;
+            const loadToco = {
+                id: tocoId,
+                pedidos: group.pedidos,
+                totalKg: group.totalKg,
+                totalCubagem: group.totalCubagem,
+                density: group.totalCubagem > 0 ? group.totalKg / group.totalCubagem : Infinity,
+                vehicleType: 'toco',
+                numero: tocoNumero,
+                routesKey: routesKey,
+                isSpecial: group.pedidos.some(isSpecialClient)
+            };
+            activeLoads[tocoId] = loadToco;
+            if (typeof refreshLoadFreight === 'function') refreshLoadFreight(tocoId);
+            return loadToco;
+        });
+        finalValidLoads.push(...loadsTocoAutomatico);
+        if (loadsTocoAutomatico.length > 0) {
+            const tocoAutoIds = new Set(loadsTocoAutomatico.flatMap(load => load.pedidos.map(p => p.Num_Pedido)));
+            pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !tocoAutoIds.has(p.Num_Pedido));
+            if (typeof showToast === 'function') {
+                showToast(`🚚 ${loadsTocoAutomatico.length} carga(s) Toco montada(s) automaticamente para a rota ${title}.`, 'success');
+            }
+        }
+    }
 
     // CORREá‡áƒO: Isola as cargas geradas nesta execuá§á£o especá­fica para renderizaá§á£o.
     // Isso impede que cargas de processamentos anteriores sejam redesenhadas.
@@ -6917,6 +7046,8 @@ function removerTodasAsCargasDoMapa(loadId) {
 
     // 3. Deleta a carga
     delete activeLoads[loadId];
+    // CORREÇÃO: Libera pedidos que estavam "presos" na memória de Especial/Venda Antecipada
+    sanearMemoriaPedidosEspeciais();
 
     // 4. Interface
     bootstrap.Modal.getInstance(document.getElementById('mapModal'))?.hide();
@@ -6975,6 +7106,8 @@ function removerPedidoDoMapa(loadId, orderNumber) {
     // 3. Verifica se a carga ficou vazia
     if (load.pedidos.length === 0) {
         delete activeLoads[loadId];
+        // CORREÇÃO: Libera pedidos que estavam "presos" na memória de Especial/Venda Antecipada
+        sanearMemoriaPedidosEspeciais();
         bootstrap.Modal.getInstance(document.getElementById('mapModal'))?.hide();
         showToast(`Pedido ${orderNumber} removido. A carga ficou vazia e foi excluída.`, 'info');
     } else {
@@ -7450,6 +7583,8 @@ function shareRouteOnWhatsApp() {
 // ... (cá³digo existente) ...
 
 function displayToco(div, grupos) {
+if (!div) { console.warn('displayToco: div nao encontrada no DOM.'); return false; }
+
     if (Object.keys(grupos).length === 0) { div.innerHTML = '<div class="empty-state"><i class="bi bi-inboxes-fill"></i><p>Nenhuma carga "Toco" encontrada.</p></div>'; return; }
 
     const configToco = getVehicleConfigSafe('toco');
@@ -7755,6 +7890,8 @@ function displayTruck(div, grupos, pedidosCarreta) {
 }
 
 function displayCargasFechadasPR(div, pedidos) {
+if (!div) { console.warn('displayCargasFechadasPR: div nao encontrada no DOM.'); return false; }
+
     if (!div) return;
     if (pedidos.length === 0) {
         div.innerHTML = '<div class="empty-state"><i class="bi bi-building-fill-check"></i><p>Nenhuma Carga Fechada do Paraná¡ encontrada.</p></div>';
@@ -7821,6 +7958,8 @@ function displayCargasFechadasPR(div, pedidos) {
 }
 
 function displayCargasFechadasRestBrasil(div, grupos, pedidosCarreta) {
+if (!div) { console.warn('displayCargasFechadasRestBrasil: div nao encontrada no DOM.'); return false; }
+
     if (!div) return;
 
     let todosOsGrupos = JSON.parse(JSON.stringify(grupos)); // Clona para ná£o modificar o original
@@ -8817,6 +8956,8 @@ function montarCargaPredefinida(inputId, resultadoId, processedSet, nomeCarga) {
 }
 
 function displayPedidosFuncionarios(div, pedidos) {
+if (!div) { console.warn('displayPedidosFuncionarios: div nao encontrada no DOM.'); return false; }
+
     div.innerHTML = ''; // Limpa o container
     if (pedidos.length === 0) {
         return false; // Retorna false se ná£o houver pedidos
@@ -8866,6 +9007,8 @@ function displayPedidosFuncionarios(div, pedidos) {
 }
 
 function displayPedidosTransferencias(div, pedidos) {
+if (!div) { console.warn('displayPedidosTransferencias: div nao encontrada no DOM.'); return false; }
+
     if (!div) return;
     div.innerHTML = ''; // Limpa o container
     if (pedidos.length === 0) {
@@ -8917,6 +9060,8 @@ function displayPedidosTransferencias(div, pedidos) {
 }
 
 function displayPedidosExportacao(div, pedidos) {
+if (!div) { console.warn('displayPedidosExportacao: div nao encontrada no DOM.'); return false; }
+
     if (!div) return;
     div.innerHTML = ''; // Limpa o container
     if (pedidos.length === 0) {
@@ -8957,6 +9102,8 @@ function displayPedidosExportacao(div, pedidos) {
 }
 
 function displayPedidosMoinho(div, pedidos) {
+if (!div) { console.warn('displayPedidosMoinho: div nao encontrada no DOM.'); return false; }
+
     if (!div) return;
     div.innerHTML = ''; // Limpa o container
     if (pedidos.length === 0) {
@@ -9001,6 +9148,8 @@ function displayPedidosMoinho(div, pedidos) {
 }
 
 function displayPedidosMarcaPropria(div, pedidos) {
+if (!div) { console.warn('displayPedidosMarcaPropria: div nao encontrada no DOM.'); return false; }
+
     if (!div) return;
     div.innerHTML = ''; // Limpa o container
     if (pedidos.length === 0) {
@@ -10967,6 +11116,10 @@ async function saveStateToLocalStorage() {
         return;
     }
     try {
+        // CORREÇÃO: Antes de salvar, libera da memória qualquer pedido de
+        // "Especial/Venda Antecipada" que não esteja mais em uma carga ativa.
+        // Isso evita que o estado salvo "prend" pedidos para sempre.
+        sanearMemoriaPedidosEspeciais();
         const state = {
             originalColumnHeaders,
             pedidosGeraisAtuais,
@@ -11125,6 +11278,17 @@ async function loadStateFromLocalStorage() {
         Object.values(activeLoads).forEach(load => load.pedidos = reviveDates(load.pedidos));
         Object.values(gruposToco).forEach(group => group.pedidos = reviveDates(group.pedidos));
         Object.values(gruposPorCFGlobais).forEach(group => group.pedidos = reviveDates(group.pedidos));
+
+        // CORREÇÃO GERAL: Saneia a memória de pedidos "Especial/Venda Antecipada"
+        // restaurada de sessões antigas. Pedidos presos sem carga ativa são liberados
+        // e voltam ao processamento na próxima vez que a planilha for processada.
+        const liberadosNaRestauracao = sanearMemoriaPedidosEspeciais();
+        if (liberadosNaRestauracao > 0) {
+            console.warn(`[APEX] ${liberadosNaRestauracao} pedido(s) liberados da memória de Especial/Venda Antecipada durante a restauração do estado.`);
+            if (typeof showToast === 'function') {
+                showToast(`${liberadosNaRestauracao} pedido(s) antigos de "Especial/Venda Antecipada" foram liberados e voltarão ao processamento normal.`, 'info');
+            }
+        }
 
         // Se ná£o houver dados da planilha E nenhum estado salvo, ná£o há¡ o que restaurar.
         if (planilhaData.length === 0 && (pedidosGeraisAtuais.length === 0 && Object.keys(activeLoads).length === 0 && currentLeftoversForPrinting.length === 0)) {

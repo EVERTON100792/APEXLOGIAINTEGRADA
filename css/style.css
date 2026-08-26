@@ -1296,7 +1296,7 @@
 
         /* Forçado: Alinhamento à esquerda, sem quebra de linha */
         tbody tr {
-            transition: background-color 0.2s ease;
+            /* transition: background-color 0.2s ease; - Removido para melhorar performance */
         }
 
         /* NOVO: Efeito de brilho e fonte menor para a tabela de disponíveis */
@@ -2542,13 +2542,13 @@
         .premium-load-card {
             position: relative;
             background: var(--dark-surface);
-            backdrop-filter: blur(var(--backdrop-blur));
-            -webkit-backdrop-filter: blur(var(--backdrop-blur));
+            /* backdrop-filter: blur(var(--backdrop-blur)); - Removido para performance */
+            /* -webkit-backdrop-filter: blur(var(--backdrop-blur)); */
             border: 1px solid var(--dark-border);
             border-radius: var(--border-radius);
             padding: 0;
             margin-bottom: 2rem;
-            transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+            transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -2556,9 +2556,9 @@
         }
 
         .premium-load-card:hover {
-            transform: translateY(-8px) scale(1.01);
+            transform: translateY(-4px);
             border-color: rgba(255, 255, 255, 0.2);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(59, 130, 246, 0.1);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 20px var(--dark-primary-glow);
         }
 
         .card-glass-overlay {
