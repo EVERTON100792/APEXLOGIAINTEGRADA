@@ -65,7 +65,7 @@ async function getFreightConfigFromSupabase() {
         // Por simplicidade, pega a última criada/atualizada
         const { data, error } = await sb
             .from('freight_configs')
-            .select('config_data')
+            .select('config_json')
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -75,7 +75,7 @@ async function getFreightConfigFromSupabase() {
             if (error.code !== 'PGRST116') console.warn("Supabase load error:", error);
             return null;
         }
-        return data?.config_data;
+        return data?.config_json;
     } catch (e) {
         console.error("Erro ao conectar Supabase:", e);
         return null;
@@ -328,7 +328,7 @@ async function saveFreightConfig() {
                     .from('freight_configs')
                     .insert([
                         {
-                            config_data: freightTables,
+                            config_json: freightTables,
                             user_id: user.data.user.id
                         }
                     ]);
