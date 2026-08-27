@@ -65,7 +65,7 @@ async function getFreightConfigFromSupabase() {
         // Por simplicidade, pega a última criada/atualizada
         const { data, error } = await sb
             .from('freight_configs')
-            .select('config_json')
+            .select('config_data')
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -75,7 +75,7 @@ async function getFreightConfigFromSupabase() {
             if (error.code !== 'PGRST116') console.warn("Supabase load error:", error);
             return null;
         }
-        return data?.config_json;
+        return data?.config_data;
     } catch (e) {
         console.error("Erro ao conectar Supabase:", e);
         return null;
@@ -328,8 +328,8 @@ async function saveFreightConfig() {
                     .from('freight_configs')
                     .insert([
                         {
-                            config_json: freightTables,
-                            updated_by: user.data.user.id
+                            config_data: freightTables,
+                            user_id: user.data.user.id
                         }
                     ]);
                 // Nota: Idealmente seria um UPSERT ou Update do ID existente, 
