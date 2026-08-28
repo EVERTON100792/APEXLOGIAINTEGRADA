@@ -626,12 +626,21 @@ function getVehicleConfigSafe(vehicleType) {
     if (vehicleType === 'especial') {
         return { minKg: 0, softMaxKg: 99999, softMaxCubage: 99999, hardMaxKg: 99999, hardMaxCubage: 99999 };
     }
-    // Check for admin override from Supabase (loaded into window._apexAdminVehicleConfig by admin.js)
+    const baseConfig = getVehicleConfig(vehicleType);
     const adminCfg = window._apexAdminVehicleConfig;
+    
     if (adminCfg && adminCfg[vehicleType]) {
-        return adminCfg[vehicleType];
+        const override = adminCfg[vehicleType];
+        // Merge them safely: if override is empty string, null, or NaN, use baseConfig
+        return {
+            minKg: parseFloat(override.minKg) || baseConfig.minKg,
+            softMaxKg: parseFloat(override.softMaxKg) || baseConfig.softMaxKg,
+            softMaxCubage: parseFloat(override.softMaxCubage) || baseConfig.softMaxCubage,
+            hardMaxKg: parseFloat(override.hardMaxKg) || baseConfig.hardMaxKg,
+            hardMaxCubage: parseFloat(override.hardMaxCubage) || baseConfig.hardMaxCubage
+        };
     }
-    return getVehicleConfig(vehicleType);
+    return baseConfig;
 }
 
 let saveStateTimeout = null;
@@ -4309,8 +4318,16 @@ function getSolutionEnergy(solution, vehicleType) {
     return leftoverWeight + loadPenalty + balancePenalty;
 }
 
+
 let thinkingInterval = null;
-function startThinkingText() {
+let hudInterval = null;
+let logInterval = null;
+
+function formatNumber(num) {
+    return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function startThinkingText(targetRouteWeight = null) {
     const phrases = [
         "Analisando combinações...",
         "Testando cenários de encaixe...",
@@ -4328,8 +4345,143 @@ function startThinkingText() {
         if (thinkingTextElement) thinkingTextElement.textContent = phrases[currentIndex];
         currentIndex = (currentIndex + 1) % phrases.length;
     }, 1500);
+
+    // --- HUD TELEMETRY ANIMATION ---
+    // Em processamento em lote, a tela não atualiza o badge de fundo até terminar.
+    // Então precisamos guardar a memória do peso entre as rotas do lote!
+    if (typeof window._simulatedTotalWeight === 'undefined' || window._simulatedTotalWeight === null) {
+        let totalWeight = 0;
+        // 1. Tentar pegar o valor real exibido na tela no badge azul!
+        try {
+            const badges = Array.from(document.querySelectorAll('.varejo-summary-panel .badge'));
+            if (badges.length > 0) {
+                const badge = badges[badges.length - 1];
+                if (badge && badge.textContent.includes('kg')) {
+                    let pStr = badge.textContent.replace(' kg', '').replace(/\./g, '').replace(',', '.');
+                    let pNum = parseFloat(pStr);
+                    if (!isNaN(pNum) && pNum > 0) totalWeight = pNum;
+                }
+            }
+        } catch(e) {}
+        
+        // 2. Se o DOM falhar, tenta pelas variáveis
+        if (totalWeight === 0) {
+            try {
+                let realOrders = [];
+                if (typeof pedidosGeraisAtuais !== 'undefined' && pedidosGeraisAtuais.length > 0) {
+                    realOrders = pedidosGeraisAtuais;
+                } else if (typeof planilhaData !== 'undefined' && planilhaData.length > 0) {
+                    realOrders = planilhaData;
+                }
+                if (realOrders.length > 0) {
+                    totalWeight = realOrders.reduce((sum, p) => sum + (p.Quilos_Saldo || 0), 0);
+                }
+            } catch(e) {}
+        }
+        
+        if (totalWeight === 0) totalWeight = 78716.16; // Fallback
+        window._simulatedTotalWeight = totalWeight;
+        window._initialTotalWeightHUD = totalWeight; // Memória absoluta para a barra de %
+    }
+    
+    let totalWeight = window._simulatedTotalWeight;
+    let currentRouteWeight = 0.00;
+    
+    // Se o alvo for enorme (ex: 8000kg numa Fiorino), significa que a rota tem muitos pedidos pendentes
+    // que o algoritmo vai quebrar em vários veículos. Mas para a UI, mostramos o limite total da rota sendo montado.
+
+    
+    const hudLeft = document.getElementById('hud-weight-left');
+    const hudRoute = document.getElementById('hud-weight-route');
+    const progLeft = document.getElementById('hud-progress-left');
+    const progRight = document.getElementById('hud-progress-right');
+    const termLog = document.getElementById('terminal-log-content');
+    
+    if (hudLeft) hudLeft.textContent = formatNumber(totalWeight) + ' kg';
+    if (hudRoute) hudRoute.textContent = '0,00 kg';
+    if (progLeft) progLeft.style.width = '100%';
+    if (progRight) progRight.style.width = '0%';
+    if (termLog) termLog.innerHTML = '<div>> Iniciando motor do algoritmo...</div>';
+
+    if (hudInterval) clearInterval(hudInterval);
+    hudInterval = setInterval(() => {
+        // Decrease total, increase route rapidly
+        const step = Math.random() * 120 + 30; // Jump menor para parecer mais real // Random jump between 50 and 500
+        if (totalWeight > step) {
+            totalWeight -= step;
+            currentRouteWeight += step;
+            
+            if (hudLeft) hudLeft.textContent = formatNumber(totalWeight) + ' kg';
+            if (hudRoute) hudRoute.textContent = formatNumber(currentRouteWeight) + ' kg';
+            
+            // Adjust bars (simulated visually)
+            // Adjust bars (simulated visually)
+            if (progLeft && progRight) {
+                // Se temos um alvo real (targetRouteWeight), limitamos o crescimento
+                if (targetRouteWeight !== null && targetRouteWeight > 0) {
+                    if (currentRouteWeight > targetRouteWeight) {
+                        // Reverte o passo que ultrapassou
+                        totalWeight += (currentRouteWeight - targetRouteWeight);
+                        currentRouteWeight = targetRouteWeight;
+                    }
+                }
+                window._simulatedTotalWeight = totalWeight; // Salva o estado para a próxima rota no lote!
+                
+                let limit = targetRouteWeight !== null && targetRouteWeight > 0 ? targetRouteWeight : 3000;
+                let currentPct = (currentRouteWeight / limit) * 100;
+                if (currentPct > 100 && targetRouteWeight === null) {
+                    // Fake reset if no target
+                    currentPct = 0;
+                } else if (currentPct > 100) {
+                    currentPct = 100; // Cap at 100%
+                }
+                progRight.style.width = currentPct + '%';
+                
+                // Left bar decreases based on the real percentage
+                if (totalWeight > 0) {
+                    
+                    let pctLeft = window._initialTotalWeightHUD > 0 ? (totalWeight / window._initialTotalWeightHUD) * 100 : 100;
+                    progLeft.style.width = pctLeft + '%';
+                }
+            }
+        }
+    }, 80);
+
+    // Terminal fast logs
+    const fakeLogs = [
+        "Lendo volume de pacotes...",
+        "Otimizando espaço do baú traseiro...",
+        "Carga pesada alocada no eixo central.",
+        "Calculando rota de entrega...",
+        "Ajustando cubagem geométrica.",
+        "Validando restrições de rodovia.",
+        "Sincronizando com banco de dados...",
+        "Compressão de dados concluída."
+    ];
+    
+    if (logInterval) clearInterval(logInterval);
+    logInterval = setInterval(() => {
+        if (termLog) {
+            const div = document.createElement('div');
+            const randomLog = fakeLogs[Math.floor(Math.random() * fakeLogs.length)];
+            div.innerText = "> [ALGORITMO] " + randomLog + " [OK]";
+            termLog.appendChild(div);
+            // Keep only last 4 lines
+            if (termLog.children.length > 4) {
+                termLog.removeChild(termLog.firstChild);
+            }
+        }
+    }, 450);
 }
-function stopThinkingText() { if (thinkingInterval) clearInterval(thinkingInterval); }
+
+function stopThinkingText() {
+    window._simulatedTotalWeight = null;
+    window._initialTotalWeightHUD = null; 
+    if (thinkingInterval) clearInterval(thinkingInterval); 
+    if (hudInterval) clearInterval(hudInterval);
+    if (logInterval) clearInterval(logInterval);
+}
+
 
 function calculateDisplaySobras(solution, vehicleType) {
     const config = getVehicleConfigSafe(vehicleType);
@@ -7506,7 +7658,8 @@ function shareRouteOnWhatsApp() {
     let message = `*Previsá£o de Rota - ${loadName}*\n\n`;
     message += `*Paradas:*\n`;
     stops.forEach((stop, index) => {
-        message += `${index + 1}. ${stop}\n`;
+        message += `${index + 1}. ${stop} 
+`;
     });
     message += `\n*Distá¢ncia Total:* ${distancia} km`;
     message += `\n*Tempo Estimado:* ${tempo}`;
@@ -9752,7 +9905,8 @@ async function montarCargasPrioritarias() {
     // Ordena as rotas usando o critério padrão do varejo
     const rotasOrdenadas = getSortedVarejoRoutes(rotasComPrioritarios);
 
-    const confirmMsg = `Encontrei ${pedidosPrioritariosDisponiveis.length} pedido(s) prioritário(s) distribuído(s) em ${rotasOrdenadas.length} rota(s):\n\nRotas: ${rotasOrdenadas.join(', ')}\n\nDeseja montar as cargas para essas rotas agora? O sistema tentará incluir os prioritários e completar a carga com outros pedidos da rota.`;
+    const confirmMsg = `Encontrei ${pedidosPrioritariosDisponiveis.length} pedido(s) prioritário(s) distribuído(s) em ${rotasOrdenadas.length} rota(s):\n\nRotas: ${rotasOrdenadas.join(', ')} 
+\nDeseja montar as cargas para essas rotas agora? O sistema tentará incluir os prioritários e completar a carga com outros pedidos da rota.`;
 
     if (!confirm(confirmMsg)) return;
 
@@ -10491,8 +10645,9 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
         newLoads: newLoads
     };
 
-    // 8. Abrir diretamente o relatório de impressão de previsão
-    executarImpressaoResumoAutoMontarEstilosa();
+    // Relatório disponível manualmente pelo botão "Imprimir Relatório"
+    // Removido: abertura automática ao final da montagem (o usuário decide quando imprimir)
+
 
     // NOVO: Verifica se restou algum prioritário pendente na lista de disponíveis
     const prioritariosRestantes = pedidosGeraisAtuais.filter(p =>
@@ -15062,6 +15217,10 @@ function executarImpressaoResumoAutoMontarEstilosa() {
     const pesoDiferencaFmt = (data.pesoTotalSobra || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
 
     const printWindow = window.open('', '_blank', 'width=850,height=750');
+    if (!printWindow) {
+        alert('Seu navegador bloqueou a janela de impressão. Por favor, permita pop-ups para este site.');
+        return;
+    }
     printWindow.document.open();
     printWindow.document.write(`
         <!DOCTYPE html>

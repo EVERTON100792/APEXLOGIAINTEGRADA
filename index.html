@@ -1,14 +1,14 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR" data-bs-theme="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ApexLog - Dashboard de Separaçáo de Cargas</title>
-    <!-- Ícone principal para a aba do navegador e atalhos -->
+    <title>ApexLog - Dashboard de SeparaÃ§Ã¡o de Cargas</title>
+    <!-- Ãcone principal para a aba do navegador e atalhos -->
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='grad1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%230A84FF'/><stop offset='100%25' stop-color='%235E5CE6'/></linearGradient></defs><rect width='90' height='90' x='5' y='5' rx='15' fill='url(%23grad1)'/><path d='M50 20 L25 80 L37 80 L45 60 L55 60 L63 80 L75 80 Z' fill='rgba(255,255,255,0.2)'/><path d='M50 25 L35 75 L42 75 L50 55 L58 75 L65 75 Z' fill='white'/></svg>">
-    <!-- Ícones adicionais para melhor integraçáo com o sistema (PWA / "Instalar como App") -->
+    <!-- Ãcones adicionais para melhor integraÃ§Ã¡o com o sistema (PWA / "Instalar como App") -->
     <link rel="apple-touch-icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><defs><linearGradient id='grad1' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%230A84FF'/><stop offset='100%25' stop-color='%235E5CE6'/></linearGradient></defs><rect width='90' height='90' x='5' y='5' rx='15' fill='url(%23grad1)'/><path d='M50 20 L25 80 L37 80 L45 60 L55 60 L63 80 L75 80 Z' fill='rgba(255,255,255,0.2)'/><path d='M50 25 L35 75 L42 75 L50 55 L58 75 L65 75 Z' fill='white'/></svg>">
     <meta name="apple-mobile-web-app-title" content="ApexLog">
@@ -31,12 +31,12 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
-    <!-- Bibliotecas para Geraá§á£o de PDF -->
+    <!-- Bibliotecas para GeraÃ¡Â§Ã¡Â£o de PDF -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="js/toll_logic.js?v=3.0.3"></script> <!-- Carregar lógica de pedágios ANTES do simulador -->
+    <script defer src="js/toll_logic.js?v=3.0.3"></script> <!-- Carregar lÃ³gica de pedÃ¡gios ANTES do simulador -->
     <script defer src="js/route_simulator.js"></script> <!-- Script do Novo Simulador -->
 
     <link rel="stylesheet" href="css/style.css?v=3.0.8">
@@ -274,7 +274,7 @@
     }
 </style>
 <style>
-    /* --- ESTILOS PARA NOTIFICAá‡á•ES TOAST --- */
+    /* --- ESTILOS PARA NOTIFICAÃ¡â€¡Ã¡â€¢ES TOAST --- */
     .toast-container {
         z-index: 1100;
         /* Acima dos modais */
@@ -335,7 +335,7 @@
         padding: 0.5rem;
     }
 
-    /* Scrollbar personalizada para o conteáºdo das abas */
+    /* Scrollbar personalizada para o conteÃ¡Âºdo das abas */
     #vehicleTabsContent::-webkit-scrollbar {
         width: 6px;
     }
@@ -354,7 +354,7 @@
         background-color: var(--dark-text-secondary);
     }
 
-    /* Ajuste de padding para o conteáºdo das abas */
+    /* Ajuste de padding para o conteÃ¡Âºdo das abas */
     .workspace-tab-pane {
         padding: 0.5rem 0.5rem 2rem 0.5rem;
     }
@@ -377,7 +377,7 @@
         border-color: var(--dark-primary-glow);
     }
 
-    /* Cabeá§alho Fixo para Tabelas do Banco de Pedidos */
+    /* CabeÃ¡Â§alho Fixo para Tabelas do Banco de Pedidos */
     .workspace-card .table-responsive {
         position: relative;
     }
@@ -407,7 +407,7 @@
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
 
-    /* Botá£o Flutuante de Montagens Especiais */
+    /* BotÃ¡Â£o Flutuante de Montagens Especiais */
     .btn-floating-special {
         width: 60px;
         height: 60px;
@@ -582,7 +582,7 @@
         perspective: 800px;
     }
 
-    /* Grade Holográfica de Fundo */
+    /* Grade HologrÃ¡fica de Fundo */
     .hologram-grid {
         position: absolute;
         inset: 0;
@@ -602,7 +602,7 @@
         align-items: flex-end;
     }
 
-    /* Plataforma de Carga (Chão) */
+    /* Plataforma de Carga (ChÃ£o) */
     .loading-dock {
         position: absolute;
         left: 0;
@@ -614,7 +614,7 @@
         border-radius: 2px;
     }
 
-    /* Caminhão Futurista */
+    /* CaminhÃ£o Futurista */
     .futuristic-truck {
         position: absolute;
         right: 20px;
@@ -626,7 +626,7 @@
         animation: truck-vibe 2s ease-in-out infinite alternate;
     }
 
-    /* Baú de Carga */
+    /* BaÃº de Carga */
     .truck-cargo {
         position: relative;
         width: 130px;
@@ -638,7 +638,7 @@
         box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.15);
     }
 
-    /* Grade Interna do Baú */
+    /* Grade Interna do BaÃº */
     .cargo-grid {
         position: absolute;
         inset: 0;
@@ -648,7 +648,7 @@
         background-size: 15px 15px;
     }
 
-    /* Laser Scanner do Baú */
+    /* Laser Scanner do BaÃº */
     .laser-scanner {
         position: absolute;
         top: 0;
@@ -659,7 +659,7 @@
         animation: laser-scan-horizontal 3s ease-in-out infinite;
     }
 
-    /* Caixas de Carga (Animação de Preenchimento) */
+    /* Caixas de Carga (AnimaÃ§Ã£o de Preenchimento) */
     .cargo-box {
         position: absolute;
         width: 25px;
@@ -677,7 +677,7 @@
     .box-c { left: 10px; bottom: 28px; animation: box-fill-c 6s ease-in-out infinite; }
     .box-d { left: 70px; bottom: 5px; animation: box-fill-d 6s ease-in-out infinite; }
 
-    /* Cabine do Caminhão */
+    /* Cabine do CaminhÃ£o */
     .truck-cabin {
         position: relative;
         width: 50px;
@@ -749,7 +749,7 @@
     .wheel-back-2 { left: 46px; }
     .wheel-front { right: 28px; }
 
-    /* Operador Holográfico */
+    /* Operador HologrÃ¡fico */
     .hologram-operator {
         position: absolute;
         left: 170px;
@@ -785,7 +785,7 @@
         animation: operator-head-bob 6s ease-in-out infinite;
     }
 
-    /* Braço do Operador */
+    /* BraÃ§o do Operador */
     .operator-arm {
         position: absolute;
         top: 34px;
@@ -837,7 +837,7 @@
     .pallet-box-2 { left: 30px; bottom: 12px; animation: pallet-box-disappear-2 6s ease-in-out infinite; }
     .pallet-box-3 { left: 18px; bottom: 27px; animation: pallet-box-disappear-3 6s ease-in-out infinite; }
 
-    /* Estilização Customizada do Modal para Visual Glassmorphism */
+    /* EstilizaÃ§Ã£o Customizada do Modal para Visual Glassmorphism */
     #processing-modal .modal-content {
         background: rgba(15, 23, 42, 0.85) !important;
         backdrop-filter: blur(20px) saturate(180%) !important;
@@ -850,7 +850,7 @@
         overflow: hidden;
     }
 
-    /* Customização Futurista da Barra de Progresso do Bootstrap */
+    /* CustomizaÃ§Ã£o Futurista da Barra de Progresso do Bootstrap */
     #processing-modal .progress {
         height: 10px !important;
         background: rgba(255, 255, 255, 0.04) !important;
@@ -1026,11 +1026,11 @@
 
 <body>
 
-    <!-- Script Module para Autenticaá§á£o -->
+    <!-- Script Module para AutenticaÃ¡Â§Ã¡Â£o -->
     <script type="module">
         import { logout as authLogout } from './js/auth.js';
 
-        // Expáµe a funá§á£o logout globalmente para ser usada em onclick
+        // ExpÃ¡Âµe a funÃ¡Â§Ã¡Â£o logout globalmente para ser usada em onclick
         window.logout = async function () {
             try {
                 await authLogout();
@@ -1110,7 +1110,7 @@
             </a>
             <a href="#reports-view" class="sidebar-link" onclick="activateView('reports-view', this)">
                 <i class="bi bi-file-earmark-pdf-fill"></i>
-                <span>Relatórios</span>
+                <span>RelatÃ³rios</span>
             </a>
             <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#freightModal"
                 onclick="updateFreightTableUI()">
@@ -1134,10 +1134,10 @@
                 <span>Gerador de E-mails</span>
             </a>
 
-            <!-- LINK RELATÓRIO MENSAL DE VAREJO -->
+            <!-- LINK RELATÃ“RIO MENSAL DE VAREJO -->
             <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#relatorioVarejoOffcanvas">
                 <i class="bi bi-bar-chart-steps text-warning"></i>
-                <span>Relatório Varejo SP/PR</span>
+                <span>RelatÃ³rio Varejo SP/PR</span>
             </a>
 
             <!-- LINK AGENDAMENTOS TRIZE (PLANILHA) -->
@@ -1152,7 +1152,7 @@
             <div class="sidebar-link-group">
                 <a href="#" class="sidebar-link" data-bs-toggle="collapse" data-bs-target="#analises-collapse">
                     <i class="bi bi-clipboard2-data-fill"></i>
-                    <span>Análises <i class="bi bi-chevron-down ms-auto"
+                    <span>AnÃ¡lises <i class="bi bi-chevron-down ms-auto"
                             style="font-size: 0.8rem; opacity: 0.5;"></i></span>
                 </a>
                 <div class="collapse ps-3" id="analises-collapse" data-bs-parent=".sidebar-nav">
@@ -1198,13 +1198,13 @@
                 <!-- Route Filter Container (Moved down as it's less used) -->
                 <div id="filtro-rota-container"
                     class="px-3 py-2 no-print sidebar-fade-element border-top border-secondary pt-3">
-                    <label class="form-label text-muted small mb-1" style="font-size: 0.7rem;">Filtro Rápido de
+                    <label class="form-label text-muted small mb-1" style="font-size: 0.7rem;">Filtro RÃ¡pido de
                         Rotas</label>
                     <div class="d-flex flex-column gap-1">
                         <select id="rotaInicioSelect"
                             class="form-select form-select-sm bg-dark text-light border-secondary"
                             style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
-                            <option value="">Início...</option>
+                            <option value="">InÃ­cio...</option>
                         </select>
                         <select id="rotaFimSelect"
                             class="form-select form-select-sm bg-dark text-light border-secondary"
@@ -1240,7 +1240,7 @@
                         U
                     </div>
                     <div class="ms-2 overflow-hidden">
-                        <div id="user-name-display" class="fw-bold small text-truncate">Usuário</div>
+                        <div id="user-name-display" class="fw-bold small text-truncate">UsuÃ¡rio</div>
                         <div class="text-xs text-muted" style="font-size: 0.65rem;">Conectado</div>
                     </div>
                     <i class="bi bi-three-dots-vertical ms-auto text-muted small"></i>
@@ -1251,7 +1251,7 @@
                         <hr class="dropdown-divider border-white-10">
                     </li>
                     <li><a class="dropdown-item rounded-2 small" href="#" data-bs-toggle="modal"
-                            data-bs-target="#configModal"><i class="bi bi-sliders me-2"></i>Configurações</a></li>
+                            data-bs-target="#configModal"><i class="bi bi-sliders me-2"></i>ConfiguraÃ§Ãµes</a></li>
                     <li><a class="dropdown-item rounded-2 small text-warning" href="#" data-bs-toggle="modal"
                             data-bs-target="#confirmClearModal"><i class="bi bi-eraser-fill me-2"></i>Limpar Dados</a>
                     </li>
@@ -1282,18 +1282,18 @@
         <!-- VIEW: RESUMO GERAL -->
         <!-- ======================================================================================= -->
         <div id="summary-view" class="main-view active-view">
-            <h1 class="h2 mb-4 animated-entry">Dashboard de Previsáo</h1>
-            <!-- p-4 e overflow-auto removidos, agora estáo em .main-view -->
+            <h1 class="h2 mb-4 animated-entry">Dashboard de PrevisÃ¡o</h1>
+            <!-- p-4 e overflow-auto removidos, agora estÃ¡o em .main-view -->
 
-            <!-- Container para o conteúdo do dashboard que aparece após o processamento -->
+            <!-- Container para o conteÃºdo do dashboard que aparece apÃ³s o processamento -->
             <div id="dashboard-content-container" style="display: none;">
                 <div class="row g-4 mb-4">
-                    <!-- Coluna Esquerda: Gráfico Principal -->
+                    <!-- Coluna Esquerda: GrÃ¡fico Principal -->
                     <div class="col-lg-8 animated-entry">
                         <div class="card h-100">
                             <div class="card-header d-flex justify-content-between align-items-center">
-                                <h3 class="h5 mb-0"><i class="bi bi-bar-chart-line-fill me-2"></i>Previsáo de
-                                    Veículos</h3>
+                                <h3 class="h5 mb-0"><i class="bi bi-bar-chart-line-fill me-2"></i>PrevisÃ¡o de
+                                    VeÃ­culos</h3>
                                 <span id="chart-subtitle"
                                     class="badge bg-dark border border-secondary text-secondary fw-normal"></span>
                             </div>
@@ -1344,8 +1344,8 @@
                     style="min-height: 70vh;"><i class="bi bi-cloud-arrow-up-fill"
                         style="font-size: 5rem; color: var(--dark-primary);"></i>
                     <h2 class="mt-4">Bem-vindo ao ApexLog</h2>
-                    <p class="lead text-muted">Para começar, carregue sua planilha de pedidos na barra lateral e
-                        clique em "Processar Cargas".<br>Seu dashboard de previsão será gerado aqui.</p>
+                    <p class="lead text-muted">Para comeÃ§ar, carregue sua planilha de pedidos na barra lateral e
+                        clique em "Processar Cargas".<br>Seu dashboard de previsÃ£o serÃ¡ gerado aqui.</p>
                 </div>
             </div>
         </div>
@@ -1370,13 +1370,13 @@
                                 </div>
                                 <button id="start-manual-routing-btn" class="btn btn-sm btn-outline-secondary"
                                     data-bs-toggle="modal" data-bs-target="#manualRoutingModal"
-                                    title="Roteirização Manual">
+                                    title="RoteirizaÃ§Ã£o Manual">
                                     <i class="bi bi-signpost-split-fill me-1"></i>Manual
                                 </button>
                             </div>
                         </div>
                         <div class="card-body p-0">
-                            <!-- Botões de Ações Centralizados no Card -->
+                            <!-- BotÃµes de AÃ§Ãµes Centralizados no Card -->
                             <div class="d-flex justify-content-center gap-3 p-3 border-bottom border-secondary border-opacity-10" style="background: rgba(255, 255, 255, 0.01);">
                                 <button class="btn btn-magic px-4 py-2.5 d-flex align-items-center gap-2 shadow" 
                                         onclick="abrirModalAutoMontar()" 
@@ -1388,7 +1388,7 @@
                                         onclick="executarImpressaoResumoAutoMontarEstilosa()" 
                                         style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.25);">
                                     <i class="bi bi-printer-fill text-warning fs-5"></i>
-                                    <span>IMPRIMIR PREVISÃO</span>
+                                    <span>IMPRIMIR PREVISÃƒO</span>
                                 </button>
                             </div>
                             <ul class="nav nav-tabs-modern" id="vehicleTabs" role="tablist">
@@ -1435,14 +1435,14 @@
                                 </li>
                                 <li class="nav-item" role="presentation"><button class="nav-link tab-roteirizados"
                                         data-bs-toggle="tab" data-bs-target="#roteirizados-tab-pane"
-                                        id="roteirizados-tab-btn"><i class="bi bi-map"></i>Roteirização Automática <span
+                                        id="roteirizados-tab-btn"><i class="bi bi-map"></i>RoteirizaÃ§Ã£o AutomÃ¡tica <span
                                             id="badge-roteirizados"
                                             class="badge bg-white text-danger ms-2 rounded-pill d-none">0</span></button>
                                 </li>
                                 <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab"
                                         data-bs-target="#montagens-especiais-tab-pane"
                                         style="color: var(--dark-accent) !important;"><i
-                                            class="bi bi-tools"></i>Roteirização Manual
+                                            class="bi bi-tools"></i>RoteirizaÃ§Ã£o Manual
                                         <span id="badge-montagens-especiais"
                                             class="badge bg-warning text-dark ms-2 rounded-pill d-none">0</span></button>
                                 </li>
@@ -1469,9 +1469,9 @@
                                     <div class="mb-3 no-print" id="botoes-fiorino">
                                         <div class="empty-state-premium">
                                             <i class="bi bi-box-seam empty-state-icon"></i>
-                                            <h5 class="text-light">Nenhuma rota de Fiorino disponível</h5>
+                                            <h5 class="text-light">Nenhuma rota de Fiorino disponÃ­vel</h5>
                                             <p class="text-muted small">Processe um arquivo na lateral esquerda para
-                                                começar.</p>
+                                                comeÃ§ar.</p>
                                         </div>
                                     </div>
                                     <hr class="no-print">
@@ -1481,10 +1481,10 @@
                                     <div
                                         class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
                                         <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
-                                            <strong>(Paraná)</strong> para montar as cargas de Van.
+                                            <strong>(ParanÃ¡)</strong> para montar as cargas de Van.
                                         </p>
                                         <div class="btn-group">
-                                            <!-- Botão de Exportar Sobras removido a pedido do usuário -->
+                                            <!-- BotÃ£o de Exportar Sobras removido a pedido do usuÃ¡rio -->
                                             <button class="btn btn-primary"
                                                 onclick="imprimirCargasGeneric('resultado-van-pr', 'Cargas de Van - PR')">
                                                 <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
@@ -1493,7 +1493,7 @@
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-van-pr">
                                         <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
-                                            <p>Nenhuma rota de Van (PR) disponível. Processe um arquivo para começar.
+                                            <p>Nenhuma rota de Van (PR) disponÃ­vel. Processe um arquivo para comeÃ§ar.
                                             </p>
                                         </div>
                                     </div>
@@ -1504,7 +1504,7 @@
                                     <div
                                         class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
                                         <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
-                                            <strong>(São Paulo)</strong> para montar as cargas de Van.
+                                            <strong>(SÃ£o Paulo)</strong> para montar as cargas de Van.
                                         </p>
                                         <div class="btn-group">
                                             <button class="btn btn-primary"
@@ -1515,7 +1515,7 @@
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-van-sp">
                                         <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
-                                            <p>Nenhuma rota de Van (SP) disponível. Processe um arquivo para começar.
+                                            <p>Nenhuma rota de Van (SP) disponÃ­vel. Processe um arquivo para comeÃ§ar.
                                             </p>
                                         </div>
                                     </div>
@@ -1538,7 +1538,7 @@
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-van-ms">
                                         <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
-                                            <p>Nenhuma rota de Van (MS) disponível. Processe um arquivo para começar.
+                                            <p>Nenhuma rota de Van (MS) disponÃ­vel. Processe um arquivo para comeÃ§ar.
                                             </p>
                                         </div>
                                     </div>
@@ -1584,7 +1584,7 @@
                                 <div class="tab-pane fade" id="cargas-fechadas-pr-tab-pane" role="tabpanel">
                                     <div id="resultado-cargas-fechadas-pr">
                                         <div class="empty-state"><i class="bi bi-building-fill-check"></i>
-                                            <p>Nenhuma Carga Fechada do Paraná¡ encontrada. Processe um arquivo.</p>
+                                            <p>Nenhuma Carga Fechada do ParanÃ¡Â¡ encontrada. Processe um arquivo.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1600,7 +1600,7 @@
                                     <div
                                         class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
                                         <p class="card-subtitle text-body-secondary small mb-0">Cargas geradas por
-                                            Roteirização Automática (Lista).</p>
+                                            RoteirizaÃ§Ã£o AutomÃ¡tica (Lista).</p>
                                         <button class="btn btn-sm btn-outline-light"
                                             onclick="imprimirCargasGeneric('resultado-roteirizados', 'Cargas Roteirizadas')"><i
                                                 class="bi bi-printer-fill me-1"></i>Imprimir Cargas</button>
@@ -1614,7 +1614,7 @@
                                 <div class="tab-pane fade" id="montagens-especiais-tab-pane" role="tabpanel">
                                     <div
                                         class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Cargas de Roteirização
+                                        <p class="card-subtitle text-body-secondary small mb-0">Cargas de RoteirizaÃ§Ã£o
                                             Manual.</p>
                                         <button class="btn btn-sm btn-outline-warning"
                                             onclick="imprimirCargasGeneric('resultado-montagens-especiais', 'Cargas Especiais')"><i
@@ -1635,25 +1635,25 @@
                                     <hr>
                                     <div id="resultado-funcionarios" class="mb-3">
                                         <div class="empty-state"><i class="bi bi-people-fill"></i>
-                                            <p>Nenhum pedido de funcioná¡rio encontrado.</p>
+                                            <p>Nenhum pedido de funcionÃ¡Â¡rio encontrado.</p>
                                         </div>
                                     </div>
                                     <hr>
                                     <div id="resultado-transferencias" class="mb-3">
                                         <div class="empty-state"><i class="bi bi-arrow-left-right"></i>
-                                            <p>Nenhum pedido de transferáªncia encontrado.</p>
+                                            <p>Nenhum pedido de transferÃ¡Âªncia encontrado.</p>
                                         </div>
                                     </div>
                                     <hr>
                                     <div id="resultado-exportacao" class="mb-3">
                                         <div class="empty-state"><i class="bi bi-box-arrow-up-right"></i>
-                                            <p>Nenhum pedido de exportação encontrado.</p>
+                                            <p>Nenhum pedido de exportaÃ§Ã£o encontrado.</p>
                                         </div>
                                     </div>
                                     <hr>
                                     <div id="resultado-marca-propria">
                                         <div class="empty-state"><i class="bi bi-tags-fill"></i>
-                                            <p>Nenhum pedido de Marca Prá³pria encontrado.</p>
+                                            <p>Nenhum pedido de Marca PrÃ¡Â³pria encontrado.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1668,11 +1668,11 @@
                             <h2 class="workspace-title"><i class="bi bi-database-check"></i>Banco de Pedidos</h2>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-outline-warning" onclick="montarCargasPrioritarias()"
-                                    title="Montar Prioritá¡rios">
+                                    title="Montar PrioritÃ¡Â¡rios">
                                     <i class="bi bi-lightning-charge-fill"></i>
                                 </button>
                                 <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal"
-                                    data-bs-target="#bulkPriorityModal" title="Colar Prioritá¡rios">
+                                    data-bs-target="#bulkPriorityModal" title="Colar PrioritÃ¡Â¡rios">
                                     <i class="bi bi-clipboard-plus"></i>
                                 </button>
                                 <div class="btn-group btn-group-sm" role="group">
@@ -1682,20 +1682,20 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioDisponiveisPDF()"><i
-                                                    class="bi bi-file-pdf me-2"></i>Relatá³rio de Fila de Pedidos
+                                                    class="bi bi-file-pdf me-2"></i>RelatÃ¡Â³rio de Fila de Pedidos
                                                 (Por Data) (PDF)</a></li>
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioDisponiveisExcel()"><i
-                                                    class="bi bi-file-spreadsheet me-2"></i>Relatá³rio de Fila de
+                                                    class="bi bi-file-spreadsheet me-2"></i>RelatÃ¡Â³rio de Fila de
                                                 Pedidos (Por Data) (Excel)</a></li>
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioCompletoPorRotaExcel()"><i
-                                                    class="bi bi-file-excel me-2"></i>Relatá³rio Completo de Pedidos
-                                                Disponá­veis (Por Rota) (Excel)</a></li>
+                                                    class="bi bi-file-excel me-2"></i>RelatÃ¡Â³rio Completo de Pedidos
+                                                DisponÃ¡Â­veis (Por Rota) (Excel)</a></li>
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioCompletoPorRotaPDF()"><i
-                                                    class="bi bi-file-earmark-pdf me-2"></i>Relatá³rio Completo de
-                                                Pedidos Disponá­veis (Por Rota) (PDF)</a></li>
+                                                    class="bi bi-file-earmark-pdf me-2"></i>RelatÃ¡Â³rio Completo de
+                                                Pedidos DisponÃ¡Â­veis (Por Rota) (PDF)</a></li>
                                     </ul>
                                 </div>
                             </div>
@@ -1721,7 +1721,7 @@
                             <ul class="nav nav-tabs-modern" id="pedidosDisponiveisTabs" role="tablist">
                                 <li class="nav-item" role="presentation"><button class="nav-link active"
                                         data-bs-toggle="tab" data-bs-target="#disponiveis-tab-pane"><i
-                                            class="bi bi-check-circle me-2"></i>Disponá­veis</button></li>
+                                            class="bi bi-check-circle me-2"></i>DisponÃ¡Â­veis</button></li>
                                 <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab"
                                         data-bs-target="#bloqueados-regra-tab-pane"><i
                                             class="bi bi-slash-circle me-2"></i>Bloqueados</button></li>
@@ -1764,7 +1764,7 @@
                                     <!-- FIM DA LEGENDA -->
                                     <div id="resultado-geral">
                                         <div class="empty-state"><i class="bi bi-file-earmark-excel"></i>
-                                            <p>Nenhum pedido de varejo disponá­vel.</p>
+                                            <p>Nenhum pedido de varejo disponÃ¡Â­vel.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1782,7 +1782,7 @@
             </div>
         </div>
 
-        <!-- Botá£o Flutuante para Montagens Especiais -->
+        <!-- BotÃ¡Â£o Flutuante para Montagens Especiais -->
         <button
             class="btn btn-primary shadow-lg position-fixed bottom-0 end-0 m-4 rounded-circle d-flex align-items-center justify-content-center no-print btn-floating-special"
             type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMontagens"
@@ -1810,7 +1810,7 @@
                     </div>
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label for="vendaAntecipadaInput" class="form-label small mb-0">Náºmeros dos
+                            <label for="vendaAntecipadaInput" class="form-label small mb-0">NÃ¡Âºmeros dos
                                 pedidos:</label>
                             <button class="btn btn-xs btn-outline-secondary"
                                 onclick="pasteToSpecialLoad('vendaAntecipadaInput')"><i
@@ -1832,7 +1832,7 @@
                     </div>
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label for="pedidosEspeciaisInput" class="form-label small mb-0">Náºmeros dos
+                            <label for="pedidosEspeciaisInput" class="form-label small mb-0">NÃ¡Âºmeros dos
                                 pedidos:</label>
                             <button class="btn btn-xs btn-outline-secondary"
                                 onclick="pasteToSpecialLoad('pedidosEspeciaisInput')"><i
@@ -1852,10 +1852,10 @@
         </div>
         </div>
         </div> <!-- Fechamento da div main-wrapper que envolve o Workspace -->
-        </div> <!-- Fechamento extra para seguraná§a -->
+        </div> <!-- Fechamento extra para seguranÃ¡Â§a -->
 
         <div id="pedidos-bloqueados-view" class="main-view">
-            <h1 class="h2 mb-4 animated-entry">Aná¡lise: Pedidos Bloqueados Manualmente</h1>
+            <h1 class="h2 mb-4 animated-entry">AnÃ¡Â¡lise: Pedidos Bloqueados Manualmente</h1>
             <div class="card border-danger animated-entry">
                 <div class="card-header bg-danger-subtle text-danger-emphasis">
                     <h2 class="card-title h5 mb-0"><i class="bi bi-slash-circle-fill me-2"></i>Pedidos Bloqueados
@@ -1868,11 +1868,11 @@
         </div>
 
         <div id="alteracao-rota-view" class="main-view">
-            <h1 class="h2 mb-4 animated-entry">Análise: Alteração de Rota</h1>
+            <h1 class="h2 mb-4 animated-entry">AnÃ¡lise: AlteraÃ§Ã£o de Rota</h1>
             <div class="card border-warning animated-entry">
                 <div class="card-header bg-warning-subtle text-warning-emphasis">
                     <h2 class="card-title h5 mb-0"><i class="bi bi-sign-turn-right-fill me-2"></i>Pedidos da Rota 1
-                        para Alteração</h2>
+                        para AlteraÃ§Ã£o</h2>
                 </div>
                 <div class="card-body">
                     <div id="resultado-rota1"></div>
@@ -1881,22 +1881,22 @@
         </div>
 
         <!-- ======================================================================================= -->
-        <!-- VIEW: RELATá“RIOS -->
+        <!-- VIEW: RELATÃ¡â€œRIOS -->
         <!-- ======================================================================================= -->
         <div id="reports-view" class="main-view">
-            <h1 class="h2 mb-4 animated-entry">Relatórios Gerenciais</h1>
+            <h1 class="h2 mb-4 animated-entry">RelatÃ³rios Gerenciais</h1>
             <div class="card animated-entry">
                 <div class="card-header">
-                    <h2 class="card-title h5 mb-0"><i class="bi bi-file-earmark-pdf-fill me-2"></i>Previsão de
-                        Expedição</h2>
+                    <h2 class="card-title h5 mb-0"><i class="bi bi-file-earmark-pdf-fill me-2"></i>PrevisÃ£o de
+                        ExpediÃ§Ã£o</h2>
                 </div>
                 <div class="card-body text-center">
-                    <p class="text-muted">Gere um relatório gerencial em PDF com a previsão de expedição baseada nos
+                    <p class="text-muted">Gere um relatÃ³rio gerencial em PDF com a previsÃ£o de expediÃ§Ã£o baseada nos
                         resultados atuais.</p>
-                    <p class="text-muted small">O relatório incluirá um resumo geral e o detalhamento das cargas de
+                    <p class="text-muted small">O relatÃ³rio incluirÃ¡ um resumo geral e o detalhamento das cargas de
                         varejo montadas.</p>
                     <button class="btn btn-primary btn-lg mt-2" onclick="gerarRelatorioPDF()">
-                        <i class="bi bi-download me-2"></i>Gerar Relatório PDF
+                        <i class="bi bi-download me-2"></i>Gerar RelatÃ³rio PDF
                     </button>
                 </div>
             </div>
@@ -1911,7 +1911,7 @@
                         <i class="bi bi-pin-map-fill me-2" style="-webkit-text-fill-color: #3b82f6;"></i>Simulador de
                         Rotas
                     </h2>
-                    <p class="text-muted mb-0">Simule trajetos e calcule custos de pedágio sem necessidade de carga.</p>
+                    <p class="text-muted mb-0">Simule trajetos e calcule custos de pedÃ¡gio sem necessidade de carga.</p>
                 </div>
             </div>
 
@@ -1919,7 +1919,7 @@
                 <!-- Painel de Controle -->
                 <div class="col-lg-4 mb-4">
                     <div class="kpi-card-modern h-100">
-                        <div class="kpi-label"><i class="bi bi-sliders"></i>Configuração da Rota</div>
+                        <div class="kpi-label"><i class="bi bi-sliders"></i>ConfiguraÃ§Ã£o da Rota</div>
 
                         <div class="mb-4">
                             <label class="form-label text-secondary small text-uppercase fw-bold">Rota</label>
@@ -1936,7 +1936,7 @@
                                     </div>
                                     <input type="text"
                                         class="form-control bg-dark text-light border-secondary hover-border-primary sim-input"
-                                        placeholder="Origem (Ex: Maringá, PR)" onchange="window.handleStopChange()">
+                                        placeholder="Origem (Ex: MaringÃ¡, PR)" onchange="window.handleStopChange()">
                                 </div>
 
                                 <!-- Destino (Inicial) -->
@@ -1959,7 +1959,7 @@
 
                         <button id="btn-simulate-route" class="btn btn-primary w-100 py-3 fw-bold btn-magic mb-4"
                             onclick="window.runRouteSimulation()">
-                            <i class="bi bi-magic me-2"></i>CALCULAR ROTA E PEDÁGIOS
+                            <i class="bi bi-magic me-2"></i>CALCULAR ROTA E PEDÃGIOS
                         </button>
 
                         <hr class="border-secondary my-4">
@@ -1967,7 +1967,7 @@
                         <div class="row g-3 text-center">
                             <div class="col-6">
                                 <div class="p-3 rounded bg-dark border border-secondary">
-                                    <small class="text-muted d-block mb-1">Distância</small>
+                                    <small class="text-muted d-block mb-1">DistÃ¢ncia</small>
                                     <div id="sim-distance" class="fs-4 fw-bold text-white">-- km</div>
                                 </div>
                             </div>
@@ -1980,7 +1980,7 @@
                             <div class="col-12">
                                 <div
                                     class="p-3 rounded bg-warning bg-opacity-10 border border-warning border-opacity-25">
-                                    <small class="text-warning d-block mb-1">Pedágios Ativos</small>
+                                    <small class="text-warning d-block mb-1">PedÃ¡gios Ativos</small>
                                     <div id="sim-toll-count" class="fs-3 fw-bold text-warning">0</div>
                                 </div>
                             </div>
@@ -1994,7 +1994,7 @@
                         <div id="simulator-map-container" style="height: 100%; min-height: 500px; background: #1a1a1a;">
                         </div>
 
-                        <!-- Overlay Lista de Pedágios (Draggable/Collapsible visualmente fixo a direita) -->
+                        <!-- Overlay Lista de PedÃ¡gios (Draggable/Collapsible visualmente fixo a direita) -->
                         <div class="position-absolute top-0 end-0 m-3 p-0"
                             style="z-index: 1000; width: 300px; max-height: calc(100% - 32px);">
                             <div class="card bg-dark border-secondary shadow-lg h-100"
@@ -2002,7 +2002,7 @@
                                 <div class="card-header border-secondary bg-transparent py-2">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="small fw-bold text-uppercase"><i
-                                                class="bi bi-list-check me-2"></i>Pedágios</span>
+                                                class="bi bi-list-check me-2"></i>PedÃ¡gios</span>
                                         <span class="badge bg-secondary">Estimativa</span>
                                     </div>
                                 </div>
@@ -2010,7 +2010,7 @@
                                     style="max-height: 400px;">
                                     <div class="text-center text-muted py-5 small">
                                         <i class="bi bi-map fs-1 d-block mb-2 opacity-25"></i>
-                                        A rota será exibida aqui
+                                        A rota serÃ¡ exibida aqui
                                     </div>
                                 </div>
                             </div>
@@ -2090,7 +2090,7 @@
             </style>
         </div>
 
-        <!-- Painel de Aá§áµes em Massa (inicialmente oculto) -->
+        <!-- Painel de AÃ¡Â§Ã¡Âµes em Massa (inicialmente oculto) -->
         <div id="bulk-actions-panel"
             class="card position-fixed bottom-0 start-50 translate-middle-x mb-3 shadow-lg no-print"
             style="display: none; z-index: 1050; width: auto;">
@@ -2120,29 +2120,29 @@
     <!-- </div> removed -->
 
     <!-- ======================================================================================= -->
-    <!-- NOVO: MODAL PARA VISUALIZAá‡áƒO DE ROTA NO MAPA -->
+    <!-- NOVO: MODAL PARA VISUALIZAÃ¡â€¡Ã¡Æ’O DE ROTA NO MAPA -->
     <!-- ======================================================================================= -->
     <div class="modal fade" id="mapModal" tabindex="-1">
         <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="mapModalTitle"><i class="bi bi-map-fill me-2"></i> Visualização de
+                    <h5 class="modal-title" id="mapModalTitle"><i class="bi bi-map-fill me-2"></i> VisualizaÃ§Ã£o de
                         Rota
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-0 d-flex" style="height: 75vh;">
-                    <!-- SIDEBAR DE EDIÇÃO DE ROTA (DARK MODE) -->
+                    <!-- SIDEBAR DE EDIÃ‡ÃƒO DE ROTA (DARK MODE) -->
                     <div id="route-sidebar" class="bg-dark text-white border-end border-secondary"
                         style="width: 350px; display: flex; flex-direction: column;">
                         <div
                             class="p-3 border-bottom border-secondary bg-dark d-flex justify-content-between align-items-center">
-                            <h6 class="mb-0 fw-bold text-white"><i class="bi bi-list-ol me-2"></i>Sequência</h6>
+                            <h6 class="mb-0 fw-bold text-white"><i class="bi bi-list-ol me-2"></i>SequÃªncia</h6>
                             <small class="text-secondary">Arraste para ordenar</small>
                         </div>
                         <div id="route-stops-list"
                             class="list-group list-group-flush overflow-auto flex-grow-1 custom-scrollbar">
-                            <!-- Items serão inseridos aqui via JS -->
+                            <!-- Items serÃ£o inseridos aqui via JS -->
                         </div>
                         <div class="p-2 border-top border-secondary bg-dark d-flex gap-2">
                             <button class="btn btn-outline-info w-50 btn-sm" onclick="optimizeRouteSequence()">
@@ -2169,7 +2169,7 @@
                         <div class="small fw-bold text-success"><i class="bi bi-basket-fill me-1"></i>Peso: <span
                                 id="map-peso">-- kg</span></div>
                         <div class="small fw-bold text-info"><i class="bi bi-box-seam-fill me-1"></i>Cubagem: <span
-                                id="map-cubagem">-- m³</span></div>
+                                id="map-cubagem">-- mÂ³</span></div>
                     </div>
 
                     <button type="button" class="btn btn-success" onclick="shareRouteOnWhatsApp()"><i
@@ -2180,12 +2180,12 @@
         </div>
     </div>
 
-    <!-- Modal de Roteirização Manual -->
+    <!-- Modal de RoteirizaÃ§Ã£o Manual -->
     <div class="modal fade" id="manualRoutingModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-signpost-split-fill me-2"></i>Roteirização Manual</h5>
+                    <h5 class="modal-title"><i class="bi bi-signpost-split-fill me-2"></i>RoteirizaÃ§Ã£o Manual</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -2193,16 +2193,16 @@
                         partindo e retornando para a Selmi.</p>
                     <div class="mb-3">
                         <label for="manualRoutingCities" class="form-label">Cidades (e estado por extenso, ex: Cascavel,
-                            Paraná):</label>
+                            ParanÃ¡):</label>
                         <textarea class="form-control" id="manualRoutingCities" rows="8"
-                            placeholder="Cascavel, Paraná¡&#10;Maringá¡, Paraná¡&#10;Sá£o Paulo, Sá£o Paulo"></textarea>
+                            placeholder="Cascavel, ParanÃ¡Â¡&#10;MaringÃ¡Â¡, ParanÃ¡Â¡&#10;SÃ¡Â£o Paulo, SÃ¡Â£o Paulo"></textarea>
                     </div>
                     <button class="btn btn-primary w-100" onclick="calculateManualRoute()">
                         <i class="bi bi-geo-alt-fill me-2"></i>Roteirizar
                     </button>
                     <hr>
                     <div id="manualRoutingResult">
-                        <p class="text-center text-muted">O resultado da roteirização aparecerá aqui.</p>
+                        <p class="text-center text-muted">O resultado da roteirizaÃ§Ã£o aparecerÃ¡ aqui.</p>
                     </div>
                 </div>
             </div>
@@ -2213,7 +2213,7 @@
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-sliders me-2"></i>Configurações & Ações Manuais</h5>
+                    <h5 class="modal-title"><i class="bi bi-sliders me-2"></i>ConfiguraÃ§Ãµes & AÃ§Ãµes Manuais</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -2222,18 +2222,18 @@
                             <div class="card h-100">
                                 <div class="card-header">
                                     <h2 class="card-title h5 mb-0"><i class="bi bi-cpu-fill me-2"></i>Algoritmo de
-                                        Otimização (Varejo)</h2>
+                                        OtimizaÃ§Ã£o (Varejo)</h2>
                                 </div>
                                 <div class="card-body">
-                                    <label for="optimizationLevelSelect" class="form-label">Nível de
-                                        Otimização:</label>
+                                    <label for="optimizationLevelSelect" class="form-label">NÃ­vel de
+                                        OtimizaÃ§Ã£o:</label>
                                     <select class="form-select" id="optimizationLevelSelect"
                                         onchange="updateOptimizationDescription()">
-                                        <option value="1">Nível 1: Rápido</option>
-                                        <option value="2" selected>Nível 2: Especialista</option>
+                                        <option value="1">NÃ­vel 1: RÃ¡pido</option>
+                                        <option value="2" selected>NÃ­vel 2: Especialista</option>
                                     </select>
                                     <div id="optimization-description" class="form-text mt-3 small">
-                                        <!-- A descrição será inserida aqui pelo JavaScript -->
+                                        <!-- A descriÃ§Ã£o serÃ¡ inserida aqui pelo JavaScript -->
                                     </div>
                                 </div>
                                 <div class="card-footer">
@@ -2242,8 +2242,8 @@
                                     <input type="text" class="form-control" id="graphhopperApiKey" value=""
                                         placeholder="Valhalla/OSM (Gratuito)">
                                     <div class="form-text small">
-                                        O sistema agora usa <strong>OpenStreetMap (Valhalla)</strong> por padrão. Não é
-                                        necessária chave de API para o uso normal.
+                                        O sistema agora usa <strong>OpenStreetMap (Valhalla)</strong> por padrÃ£o. NÃ£o Ã©
+                                        necessÃ¡ria chave de API para o uso normal.
                                     </div>
                                 </div>
                             </div>
@@ -2255,10 +2255,10 @@
                                         Manual</h2>
                                 </div>
                                 <div class="card-body d-flex flex-column">
-                                    <label for="bloquearPedidoInput" class="form-label">Número do Pedido a
+                                    <label for="bloquearPedidoInput" class="form-label">NÃºmero do Pedido a
                                         Bloquear:</label>
                                     <div class="input-group mb-3"><input type="text" class="form-control"
-                                            id="bloquearPedidoInput" placeholder="Digite o número..."><button
+                                            id="bloquearPedidoInput" placeholder="Digite o nÃºmero..."><button
                                             class="btn btn-outline-danger" type="button"
                                             onclick="bloquearPedido()">Bloquear</button></div>
                                     <label class="form-label mt-2">Pedidos Bloqueados:</label>
@@ -2280,7 +2280,7 @@
                     <div id="configStatus" class="status-message text-start"></div>
                     <div>
                         <button class="btn btn-success me-2" id="saveConfig"><i class="bi bi-check-circle-fill me-2"></i>Salvar
-                            Configurações</button>
+                            ConfiguraÃ§Ãµes</button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                     </div>
                 </div>
@@ -2299,7 +2299,7 @@
                 </div>
                 <div>
                     <h1 class="h3 mb-0 fw-bold text-white">Gerador de E-mails</h1>
-                    <p class="text-muted small mb-0">Templates profissionais e integrados para comunicação logística.
+                    <p class="text-muted small mb-0">Templates profissionais e integrados para comunicaÃ§Ã£o logÃ­stica.
                     </p>
                 </div>
             </div>
@@ -2336,7 +2336,7 @@
                                         class="bi bi-search"></i></span>
                                 <input type="text" id="searchGerenciarMotoristas"
                                     class="form-control bg-dark border-secondary text-light"
-                                    placeholder="Buscar motorista por nome ou código...">
+                                    placeholder="Buscar motorista por nome ou cÃ³digo...">
                             </div>
                         </div>
                         <!-- Lista de motoristas -->
@@ -2348,7 +2348,7 @@
                     </div>
                     <div class="modal-footer border-secondary justify-content-between">
                         <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Apenas motoristas cadastrados
-                            via "Novo Motorista" podem ser editados/excluídos.</small>
+                            via "Novo Motorista" podem ser editados/excluÃ­dos.</small>
                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Fechar</button>
                     </div>
                 </div>
@@ -2374,7 +2374,7 @@
                         </div>
                         <div class="row g-3">
                             <div class="col-6">
-                                <label class="form-label fw-bold small text-muted">Código LCONT</label>
+                                <label class="form-label fw-bold small text-muted">CÃ³digo LCONT</label>
                                 <input type="text" id="editarCodigoMotorista"
                                     class="form-control bg-dark border-secondary text-light" placeholder="Ex: 577">
                             </div>
@@ -2390,7 +2390,7 @@
                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
                         <button type="button" class="btn btn-warning btn-sm fw-bold"
                             onclick="window.confirmarEdicaoMotorista()">
-                            <i class="bi bi-check-lg me-1"></i>Salvar Alterações
+                            <i class="bi bi-check-lg me-1"></i>Salvar AlteraÃ§Ãµes
                         </button>
                     </div>
                 </div>
@@ -2403,27 +2403,27 @@
 
                     <!-- SELETOR DE MODOS -->
                     <div class="mode-switcher mb-4">
-                        <button id="modeCreditoBtn" class="btn btn-mode active">Crédito por KM</button>
+                        <button id="modeCreditoBtn" class="btn btn-mode active">CrÃ©dito por KM</button>
                         <button id="modePortariaBtn" class="btn btn-mode">Lib. Abastecimento</button>
                         <button id="modeTransbordoBtn" class="btn btn-mode">Transbordo</button>
                         <button id="modeRemonteBtn" class="btn btn-mode">Remonte</button>
                         <button id="modeAjusteRotaBtn" class="btn btn-mode">Ajuste de Rota</button>
                     </div>
 
-                    <!-- CAMPOS REUTILIZÁVEIS (DESTINATÁRIO/CC) -->
+                    <!-- CAMPOS REUTILIZÃVEIS (DESTINATÃRIO/CC) -->
                     <div id="generalEmailFields" class="mb-4 pb-3 border-bottom border-secondary-subtle">
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label for="emailDestinatario"
-                                    class="form-label text-muted small fw-bold">Destinatário(s) (separar por
-                                    vírgula):</label>
+                                    class="form-label text-muted small fw-bold">DestinatÃ¡rio(s) (separar por
+                                    vÃ­rgula):</label>
                                 <input type="text" id="emailDestinatario"
                                     class="form-control bg-dark border-secondary text-light" value="ana@empresa.com"
                                     placeholder="email@exemplo.com, outro@exemplo.com">
                             </div>
                             <div class="col-md-6">
                                 <label for="emailCopia" class="form-label text-muted small fw-bold">CC (em
-                                    cópia):</label>
+                                    cÃ³pia):</label>
                                 <input type="text" id="emailCopia"
                                     class="form-control bg-dark border-secondary text-light"
                                     placeholder="copia@exemplo.com">
@@ -2431,7 +2431,7 @@
                         </div>
                     </div>
 
-                    <!-- FORMULÁRIO 1: CRÉDITO -->
+                    <!-- FORMULÃRIO 1: CRÃ‰DITO -->
                     <div id="formCredito" class="generator-form fade-in">
                         <div class="mb-3">
                             <label for="motoristaCredito" class="form-label text-muted small fw-bold">Motorista (Busque
@@ -2460,16 +2460,16 @@
                                     class="form-control bg-dark border-secondary text-light" placeholder="Ex: 455">
                             </div>
                             <div class="col-md-4">
-                                <label for="autorizacaoSaida" class="form-label text-muted small fw-bold">Nº Saída
+                                <label for="autorizacaoSaida" class="form-label text-muted small fw-bold">NÂº SaÃ­da
                                     (Opcional):</label>
                                 <input type="number" id="autorizacaoSaida"
                                     class="form-control bg-dark border-secondary text-light" placeholder="Ex: 12345">
                             </div>
                             <div class="col-md-6">
                                 <label for="motivo" class="form-label text-muted small fw-bold">Motivo
-                                    Diferença:</label>
+                                    DiferenÃ§a:</label>
                                 <select id="motivo" class="form-select bg-dark border-secondary text-light">
-                                    <option value="de estrada de chão">Estrada de Chão</option>
+                                    <option value="de estrada de chÃ£o">Estrada de ChÃ£o</option>
                                     <option value="de distrito">Distrito</option>
                                 </select>
                             </div>
@@ -2495,12 +2495,12 @@
                         </div>
                     </div>
 
-                    <!-- FORMULÁRIO 2: PORTARIA -->
+                    <!-- FORMULÃRIO 2: PORTARIA -->
                     <div id="formPortaria" class="generator-form" style="display: none;">
                         <div class="row g-3 mb-4 border-bottom border-secondary-subtle pb-3">
                             <div class="col-md-6">
                                 <label for="emailDestinatarioPortaria"
-                                    class="form-label text-muted small fw-bold">Destinatário Portaria:</label>
+                                    class="form-label text-muted small fw-bold">DestinatÃ¡rio Portaria:</label>
                                 <input type="text" id="emailDestinatarioPortaria"
                                     class="form-control bg-dark border-secondary text-light"
                                     value="portaria@empresa.com" placeholder="portaria@exemplo.com">
@@ -2529,7 +2529,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="tipoVeiculo" class="form-label text-muted small fw-bold">Tipo
-                                    Veículo:</label>
+                                    VeÃ­culo:</label>
                                 <select id="tipoVeiculo" class="form-select bg-dark border-secondary text-light">
                                     <option value="VAN">VAN</option>
                                     <option value="FIORINO">FIORINO</option>
@@ -2548,7 +2548,7 @@
                         </div>
                     </div>
 
-                    <!-- FORMULÁRIO 3: TRANSBORDO -->
+                    <!-- FORMULÃRIO 3: TRANSBORDO -->
                     <div id="formTransbordo" class="generator-form" style="display: none;">
                         <!-- Modern Radio Group styled in css -->
                         <div class="form-group full-width mb-3">
@@ -2560,7 +2560,7 @@
                                     <span class="custom-radio"></span>
                                     <span class="option-text">
                                         <strong class="text-light">Pagamento Proporcional</strong>
-                                        <small>Divisão pelo número de entregas realizadas.</small>
+                                        <small>DivisÃ£o pelo nÃºmero de entregas realizadas.</small>
                                     </span>
                                 </label>
                                 <label class="radio-option">
@@ -2576,7 +2576,7 @@
 
                         <div class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label class="form-label text-muted small fw-bold text-danger">Original (Veículo c/
+                                <label class="form-label text-muted small fw-bold text-danger">Original (VeÃ­culo c/
                                     Avaria):</label>
                                 <div class="input-group mb-2">
                                     <span class="input-group-text bg-dark border-secondary text-danger"><i
@@ -2611,8 +2611,8 @@
                                     class="form-control bg-dark border-secondary text-light" placeholder="Ex: 350.00">
                             </div>
                             <div class="col-md-6">
-                                <label for="numeroSaidaTransbordo" class="form-label text-muted small fw-bold">Nº
-                                    Saída:</label>
+                                <label for="numeroSaidaTransbordo" class="form-label text-muted small fw-bold">NÂº
+                                    SaÃ­da:</label>
                                 <input type="number" id="numeroSaidaTransbordo"
                                     class="form-control bg-dark border-secondary text-light" placeholder="Ex: 67890">
                             </div>
@@ -2620,7 +2620,7 @@
 
                         <div id="camposProporcional" class="row g-3 mb-3">
                             <div class="col-md-6">
-                                <label for="totalEntregas" class="form-label text-muted small fw-bold">Nº Total de
+                                <label for="totalEntregas" class="form-label text-muted small fw-bold">NÂº Total de
                                     Entregas:</label>
                                 <input type="number" id="totalEntregas"
                                     class="form-control bg-dark border-secondary text-light" placeholder="Ex: 7">
@@ -2650,12 +2650,12 @@
                                 class="bi bi-envelope-paper-fill me-2"></i>Preparar E-mail</button>
                     </div>
 
-                    <!-- FORMULÁRIO 4: REMONTE -->
+                    <!-- FORMULÃRIO 4: REMONTE -->
                     <div id="formRemonte" class="generator-form" style="display: none;">
                         <div class="row g-3 mb-4 border-bottom border-secondary-subtle pb-3">
                             <div class="col-md-6">
                                 <label for="emailDestinatarioRemonte"
-                                    class="form-label text-muted small fw-bold">Destinatário Supervisão:</label>
+                                    class="form-label text-muted small fw-bold">DestinatÃ¡rio SupervisÃ£o:</label>
                                 <input type="text" id="emailDestinatarioRemonte"
                                     class="form-control bg-dark border-secondary text-light"
                                     value="patricia@empresa.com" placeholder="supervisor@exemplo.com">
@@ -2684,7 +2684,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label for="tipoVeiculoRemonte"
-                                    class="form-label text-muted small fw-bold">Veículo:</label>
+                                    class="form-label text-muted small fw-bold">VeÃ­culo:</label>
                                 <select id="tipoVeiculoRemonte" class="form-select bg-dark border-secondary text-light">
                                     <option value="VAN">VAN</option>
                                     <option value="FIORINO">FIORINO</option>
@@ -2709,7 +2709,7 @@
                                 <label for="nomeSupervisoraRemonte"
                                     class="form-label text-muted small fw-bold">Supervisora:</label>
                                 <input type="text" id="nomeSupervisoraRemonte"
-                                    class="form-control bg-dark border-secondary text-light" value="Patrícia">
+                                    class="form-control bg-dark border-secondary text-light" value="PatrÃ­cia">
                             </div>
                         </div>
                         <button id="gerarRemonteBtn"
@@ -2717,12 +2717,12 @@
                                 class="bi bi-envelope-paper-fill me-2"></i>Preparar E-mail</button>
                     </div>
 
-                    <!-- FORMULÁRIO 5: AJUSTE ROTA -->
+                    <!-- FORMULÃRIO 5: AJUSTE ROTA -->
                     <div id="formAjusteRota" class="generator-form" style="display: none;">
                         <div class="row g-3 mb-4 border-bottom border-secondary-subtle pb-3">
                             <div class="col-md-6">
                                 <label for="emailDestinatarioAjusteRota"
-                                    class="form-label text-muted small fw-bold">Destinatário Rota:</label>
+                                    class="form-label text-muted small fw-bold">DestinatÃ¡rio Rota:</label>
                                 <input type="text" id="emailDestinatarioAjusteRota"
                                     class="form-control bg-dark border-secondary text-light" value="mozao@empresa.com">
                             </div>
@@ -2743,7 +2743,7 @@
                                 <input type="text" class="rota-input form-control bg-dark border-secondary text-light"
                                     placeholder="Rota" style="max-width: 100px;">
                                 <input type="text" class="praca-input form-control bg-dark border-secondary text-light"
-                                    placeholder="Praça">
+                                    placeholder="PraÃ§a">
                                 <button class="btn btn-outline-danger btn-remover-linha" disabled><i
                                         class="bi bi-trash-fill"></i></button>
                             </div>
@@ -2763,7 +2763,7 @@
                         class="alert alert-success mt-4 mb-4 border-success-subtle bg-success-subtle text-success-emphasis"
                         style="display: none;">
                         <h6 class="alert-heading fw-bold"><i class="bi bi-clipboard2-check-fill me-2"></i>Copiado!</h6>
-                        <p class="mb-0 small">O conteúdo enriquecido foi copiado para a área de transferência. Basta
+                        <p class="mb-0 small">O conteÃºdo enriquecido foi copiado para a Ã¡rea de transferÃªncia. Basta
                             colar (CTRL+V) no seu cliente de e-mail.</p>
                         <div id="emailBodyParaCopiar" contenteditable="true" class="d-none"></div>
                     </div>
@@ -2789,14 +2789,14 @@
                     </div>
                     <p class="text-muted small mt-2 d-flex align-items-center"><i
                             class="bi bi-info-circle me-1"></i>Cole (Ctrl+V) aqui a sua assinatura incluindo
-                        imagens/logos do e-mail. Ela é salva automaticamente.</p>
+                        imagens/logos do e-mail. Ela Ã© salva automaticamente.</p>
 
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Modal de Seleção de Rotas para Auto Montar -->
+    <!-- Modal de SeleÃ§Ã£o de Rotas para Auto Montar -->
     <div class="modal fade" id="autoMontarModal" tabindex="-1" aria-labelledby="autoMontarModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content shadow-lg border border-secondary border-opacity-25" style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); border-radius: 16px;">
@@ -2809,17 +2809,17 @@
                 </div>
                 <div class="modal-body p-4" style="max-height: 60vh; overflow-y: auto;">
                     <p class="text-secondary small mb-3">
-                        Selecione as rotas que deseja montar automaticamente. O sistema processará cada rota sequencialmente seguindo as mesmas regras do painel individual e de prioritários.
+                        Selecione as rotas que deseja montar automaticamente. O sistema processarÃ¡ cada rota sequencialmente seguindo as mesmas regras do painel individual e de prioritÃ¡rios.
                     </p>
                     
-                    <!-- Barra de Ações Rápidas -->
+                    <!-- Barra de AÃ§Ãµes RÃ¡pidas -->
                     <div class="d-flex justify-content-between align-items-center mb-3 py-2 px-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10">
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllAutoMontar(true)">
                                 <i class="bi bi-check-all me-1"></i>Selecionar Todas
                             </button>
                             <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllAutoMontar(false)">
-                                <i class="bi bi-x-circle me-1"></i>Limpar Seleção
+                                <i class="bi bi-x-circle me-1"></i>Limpar SeleÃ§Ã£o
                             </button>
                         </div>
                         <span id="selected-routes-count" class="badge bg-secondary px-2 py-1 text-light font-monospace" style="font-size: 0.75rem;">
@@ -2867,7 +2867,7 @@
                     </div>
                     
                     <div id="summary-weight-balance" class="mt-4">
-                        <!-- Balanço de peso (Disponível, Montado, Sobra) via JS -->
+                        <!-- BalanÃ§o de peso (DisponÃ­vel, Montado, Sobra) via JS -->
                     </div>
 
                     <div id="summary-sobras-justificativas">
@@ -2884,25 +2884,25 @@
         </div>
     </div>
 
-    <!-- Modal de Confirmação de Priorização antes da Auto-Montagem -->
+    <!-- Modal de ConfirmaÃ§Ã£o de PriorizaÃ§Ã£o antes da Auto-Montagem -->
     <div class="modal fade" id="modalConfirmarPrioridade" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="background: rgba(20, 25, 40, 0.95); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);">
                 <div class="modal-header border-bottom border-secondary border-opacity-10">
-                    <h5 class="modal-title text-light"><i class="bi bi-star-fill text-warning me-2 animate-pulse"></i>Priorização de Pedidos</h5>
+                    <h5 class="modal-title text-light"><i class="bi bi-star-fill text-warning me-2 animate-pulse"></i>PriorizaÃ§Ã£o de Pedidos</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4 text-center">
                     <p class="text-light fs-5 mb-3">Gostaria de priorizar algum pedido de varejo antes de iniciar a montagem das rotas selecionadas?</p>
                     <p class="text-secondary small">
-                        Ao priorizar, os pedidos selecionados serão agrupados e alocados com preferência nas primeiras cargas geradas das suas respectivas rotas.
+                        Ao priorizar, os pedidos selecionados serÃ£o agrupados e alocados com preferÃªncia nas primeiras cargas geradas das suas respectivas rotas.
                     </p>
                 </div>
                 <div class="modal-footer border-top border-secondary border-opacity-10 d-flex justify-content-between p-3">
                     <button type="button" class="btn btn-outline-secondary px-3 text-light" data-bs-dismiss="modal">Cancelar</button>
                     <div class="d-flex gap-2">
                         <button type="button" class="btn btn-outline-info px-3" onclick="processarSemPriorizar()">
-                            Não, Iniciar Direto
+                            NÃ£o, Iniciar Direto
                         </button>
                         <button type="button" class="btn btn-magic px-3 py-2" onclick="abrirModalSelecaoPrioridades()">
                             <i class="bi bi-star-fill text-warning me-1"></i>Sim, Priorizar Pedidos
@@ -2913,19 +2913,19 @@
         </div>
     </div>
 
-    <!-- Modal de Seleção de Pedidos Prioritários -->
+    <!-- Modal de SeleÃ§Ã£o de Pedidos PrioritÃ¡rios -->
     <div class="modal fade" id="modalPriorizacaoAutomontar" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content" style="background: rgba(20, 25, 40, 0.98); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);">
                 <div class="modal-header border-bottom border-secondary border-opacity-10">
-                    <h5 class="modal-title text-light"><i class="bi bi-list-check text-info me-2"></i>Selecionar Pedidos Prioritários (Varejo)</h5>
+                    <h5 class="modal-title text-light"><i class="bi bi-list-check text-info me-2"></i>Selecionar Pedidos PrioritÃ¡rios (Varejo)</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
                     <div class="row align-items-center mb-3 g-2">
                         <div class="col-md-6">
                             <p class="text-secondary small mb-0">
-                                Pedidos disponíveis ordenados pela <strong>Predat (mais antiga para mais nova)</strong>. Marque as caixas para priorizar.
+                                Pedidos disponÃ­veis ordenados pela <strong>Predat (mais antiga para mais nova)</strong>. Marque as caixas para priorizar.
                             </p>
                         </div>
                         <div class="col-md-6 d-flex justify-content-end gap-2">
@@ -2936,12 +2936,12 @@
                         </div>
                     </div>
 
-                    <!-- Painel de Resumo de Seleção e Pesos -->
+                    <!-- Painel de Resumo de SeleÃ§Ã£o e Pesos -->
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10 gap-3">
                         <div class="d-flex align-items-center gap-4 text-light small">
                             <div>
                                 <i class="bi bi-collection-fill text-secondary me-1.5"></i>
-                                Total Disponível: <strong id="prio-total-pedidos" class="text-info font-monospace">0</strong> pedidos 
+                                Total DisponÃ­vel: <strong id="prio-total-pedidos" class="text-info font-monospace">0</strong> pedidos 
                                 (<strong id="prio-total-peso" class="text-info font-monospace">0,00</strong> kg)
                             </div>
                             <div class="border-start border-secondary border-opacity-20 ps-4">
@@ -2963,9 +2963,9 @@
                                     <th>Predata</th>
                                     <th>Data Pedido</th>
                                     <th>Rota</th>
-                                    <th>Cód. Cliente</th>
+                                    <th>CÃ³d. Cliente</th>
                                     <th>Nome Cliente</th>
-                                    <th>Nº Pedido</th>
+                                    <th>NÂº Pedido</th>
                                     <th>Tipo</th>
                                     <th>Peso (kg)</th>
                                     <th>Cidade</th>
@@ -2978,26 +2978,26 @@
                         </table>
                     </div>
 
-                    <!-- Opções de Regra de Auto-Montagem -->
+                    <!-- OpÃ§Ãµes de Regra de Auto-Montagem -->
                     <div class="p-3 rounded border border-info border-opacity-25" style="background: rgba(13, 202, 240, 0.03);">
                         <h6 class="text-info mb-2 small text-uppercase fw-bold"><i class="bi bi-gear-fill me-1"></i>Regra de Montagem para este lote</h6>
                         <div class="d-flex flex-column gap-2">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="regraMontagemLote" id="regraApenasPrioritarios" value="apenasPrioritarios" checked>
                                 <label class="form-check-label text-light small fw-bold" for="regraApenasPrioritarios">
-                                    Montar Somente os Prioritários
+                                    Montar Somente os PrioritÃ¡rios
                                 </label>
                                 <div class="text-secondary" style="font-size: 0.72rem; margin-left: 20px;">
-                                    Gera cargas prioritárias contendo os pedidos marcados. Pedidos normais da rota são incluídos apenas para preencher o veículo e completar a carga mínima. Cargas compostas apenas por pedidos comuns não serão criadas.
+                                    Gera cargas prioritÃ¡rias contendo os pedidos marcados. Pedidos normais da rota sÃ£o incluÃ­dos apenas para preencher o veÃ­culo e completar a carga mÃ­nima. Cargas compostas apenas por pedidos comuns nÃ£o serÃ£o criadas.
                                 </div>
                             </div>
                             <div class="form-check mt-1">
                                 <input class="form-check-input" type="radio" name="regraMontagemLote" id="regraCompletar" value="completar">
                                 <label class="form-check-label text-light small fw-bold" for="regraCompletar">
-                                    Prioritários + Completar
+                                    PrioritÃ¡rios + Completar
                                 </label>
                                 <div class="text-secondary" style="font-size: 0.72rem; margin-left: 20px;">
-                                    Gera todas as cargas possíveis para a rota de forma sequencial, priorizando a alocação dos pedidos marcados nas primeiras cargas geradas.
+                                    Gera todas as cargas possÃ­veis para a rota de forma sequencial, priorizando a alocaÃ§Ã£o dos pedidos marcados nas primeiras cargas geradas.
                                 </div>
                             </div>
                         </div>
@@ -3013,18 +3013,18 @@
         </div>
     </div>
 
-    <!-- Modal de Priorização em Massa -->
+    <!-- Modal de PriorizaÃ§Ã£o em Massa -->
     <div class="modal fade" id="bulkPriorityModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-star-fill text-warning me-2"></i>Priorização em Massa</h5>
+                    <h5 class="modal-title"><i class="bi bi-star-fill text-warning me-2"></i>PriorizaÃ§Ã£o em Massa</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">Cole abaixo os números dos pedidos que deseja priorizar (um por linha
+                    <p class="text-muted small">Cole abaixo os nÃºmeros dos pedidos que deseja priorizar (um por linha
                         ou
-                        separados por espaá§o/vá­rgula). Vocáª pode copiar esta lista do Relatá³rio Excel.</p>
+                        separados por espaÃ¡Â§o/vÃ¡Â­rgula). VocÃ¡Âª pode copiar esta lista do RelatÃ¡Â³rio Excel.</p>
                     <textarea class="form-control" id="bulkPriorityInput" rows="10"
                         placeholder="Ex: 12345&#10;67890&#10;11223"></textarea>
                 </div>
@@ -3037,14 +3037,14 @@
         </div>
     </div>
 
-    <!-- Modal de Roteirização e Montagem por Lista -->
+    <!-- Modal de RoteirizaÃ§Ã£o e Montagem por Lista -->
     <div class="modal fade" id="roteirizacaoModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
             <div class="modal-content" style="background: rgba(20, 25, 40, 0.98); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);">
                 <div class="modal-header border-bottom border-secondary border-opacity-10 py-3">
                     <h5 class="modal-title text-light fw-bold d-flex align-items-center">
                         <i class="bi bi-map-fill text-primary me-2 fs-4"></i>
-                        Roteirizar e Montar (Combinação de Rotas)
+                        Roteirizar e Montar (CombinaÃ§Ã£o de Rotas)
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
@@ -3052,7 +3052,7 @@
                     <div class="row align-items-center mb-3 g-2">
                         <div class="col-md-6">
                             <p class="text-secondary small mb-0">
-                                Selecione as rotas que deseja combinar na mesma montagem de cargas. O sistema consolidará os pedidos por geolocalização.
+                                Selecione as rotas que deseja combinar na mesma montagem de cargas. O sistema consolidarÃ¡ os pedidos por geolocalizaÃ§Ã£o.
                             </p>
                         </div>
                         <div class="col-md-6 d-flex justify-content-end gap-2">
@@ -3063,14 +3063,14 @@
                         </div>
                     </div>
 
-                    <!-- Barra de Ações Rápidas de Seleção -->
+                    <!-- Barra de AÃ§Ãµes RÃ¡pidas de SeleÃ§Ã£o -->
                     <div class="d-flex justify-content-between align-items-center mb-3 py-2 px-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10">
                         <div class="d-flex gap-2">
                             <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllRotasRoteirizar(true)">
                                 <i class="bi bi-check-all me-1"></i>Selecionar Todas
                             </button>
                             <button type="button" class="btn btn-sm btn-outline-light" onclick="toggleSelectAllRotasRoteirizar(false)">
-                                <i class="bi bi-x-circle me-1"></i>Limpar Seleção
+                                <i class="bi bi-x-circle me-1"></i>Limpar SeleÃ§Ã£o
                             </button>
                         </div>
                         <span id="roteiro-selected-routes-count" class="badge bg-secondary px-2 py-1 text-light font-monospace" style="font-size: 0.75rem;">
@@ -3078,12 +3078,12 @@
                         </span>
                     </div>
 
-                    <!-- Painel de Resumo de Seleção e Pesos -->
+                    <!-- Painel de Resumo de SeleÃ§Ã£o e Pesos -->
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 rounded bg-dark bg-opacity-20 border border-secondary border-opacity-10 gap-3">
                         <div class="d-flex align-items-center gap-4 text-light small">
                             <div>
                                 <i class="bi bi-collection-fill text-secondary me-1.5"></i>
-                                Total Disponível: <strong id="roteiro-total-rotas" class="text-info font-monospace">0</strong> rotas 
+                                Total DisponÃ­vel: <strong id="roteiro-total-rotas" class="text-info font-monospace">0</strong> rotas 
                                 (<strong id="roteiro-total-peso" class="text-info font-monospace">0,00</strong> kg)
                             </div>
                             <div class="border-start border-secondary border-opacity-20 ps-4">
@@ -3094,7 +3094,7 @@
                         </div>
                         <div class="form-check form-switch m-0">
                             <input class="form-check-input" type="checkbox" id="roteiroGeoCheck" checked>
-                            <label class="form-check-label text-light small fw-bold" for="roteiroGeoCheck">Usar Geolocalização (Agrupar cidades próximas)</label>
+                            <label class="form-check-label text-light small fw-bold" for="roteiroGeoCheck">Usar GeolocalizaÃ§Ã£o (Agrupar cidades prÃ³ximas)</label>
                         </div>
                     </div>
 
@@ -3127,7 +3127,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">Digite a meta de peso desejada para consolidar os pedidos da rota em uma carga do tipo Truck. O sistema selecionará os pedidos disponíveis sequencialmente (priorizando os mais antigos de pré-data) até atingir o peso informado:</p>
+                    <p class="text-muted small">Digite a meta de peso desejada para consolidar os pedidos da rota em uma carga do tipo Truck. O sistema selecionarÃ¡ os pedidos disponÃ­veis sequencialmente (priorizando os mais antigos de prÃ©-data) atÃ© atingir o peso informado:</p>
                     
                     <div class="card bg-dark-glass text-light border border-secondary rounded-3">
                         <div class="card-body">
@@ -3149,17 +3149,17 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-body text-center p-4">
-                    <!-- NOVA ANIMAÇÃO V12 - "FUTURISTIC CARGO LOADING SCENE" -->
+                    <!-- NOVA ANIMAÃ‡ÃƒO V12 - "FUTURISTIC CARGO LOADING SCENE" -->
                     <div class="loading-animation-container">
                         <div class="logistics-scene">
                             <!-- Plataforma/Dock de Carga -->
                             <div class="loading-dock"></div>
                             
-                            <!-- Caminhão Futurista -->
+                            <!-- CaminhÃ£o Futurista -->
                             <div class="futuristic-truck">
                                 <div class="truck-cargo">
                                     <div class="cargo-grid"></div>
-                                    <!-- Caixas que vão enchendo no baú -->
+                                    <!-- Caixas que vÃ£o enchendo no baÃº -->
                                     <div class="cargo-box box-a"></div>
                                     <div class="cargo-box box-b"></div>
                                     <div class="cargo-box box-c"></div>
@@ -3178,7 +3178,7 @@
                                 </div>
                             </div>
 
-                            <!-- Operador Holográfico / Pessoa Carregando -->
+                            <!-- Operador HologrÃ¡fico / Pessoa Carregando -->
                             <div class="hologram-operator">
                                 <div class="operator-body"></div>
                                 <div class="operator-head"></div>
@@ -3186,7 +3186,7 @@
                                 <div class="operator-package"></div>
                             </div>
 
-                            <!-- Palete de Caixas Disponíveis -->
+                            <!-- Palete de Caixas DisponÃ­veis -->
                             <div class="warehouse-pallet">
                                 <div class="pallet-box pallet-box-1"></div>
                                 <div class="pallet-box pallet-box-2"></div>
@@ -3212,7 +3212,7 @@
         </div>
     </div>
 
-    <!-- Modal de Confirmaá§á£o para Limpar Dados -->
+    <!-- Modal de ConfirmaÃ¡Â§Ã¡Â£o para Limpar Dados -->
     <div class="modal fade" id="confirmClearModal" tabindex="-1" aria-labelledby="confirmClearModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -3223,10 +3223,10 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Vocáª tem certeza que deseja limpar todos os dados?</p>
-                    <p class="text-danger fw-bold">Todo o progresso, incluindo cargas montadas e configuraá§áµes, será¡
+                    <p>VocÃ¡Âª tem certeza que deseja limpar todos os dados?</p>
+                    <p class="text-danger fw-bold">Todo o progresso, incluindo cargas montadas e configuraÃ¡Â§Ã¡Âµes, serÃ¡Â¡
                         permanentemente perdido.</p>
-                    <p class="text-muted small">Esta ação é equivalente a recarregar o sistema do zero.</p>
+                    <p class="text-muted small">Esta aÃ§Ã£o Ã© equivalente a recarregar o sistema do zero.</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -3237,7 +3237,7 @@
         </div>
     </div>
 
-    <!-- Container para as notificaá§áµes Toast -->
+    <!-- Container para as notificaÃ¡Â§Ã¡Âµes Toast -->
     <div class="toast-container position-fixed top-0 end-0 p-3"></div>
 
 
@@ -3247,7 +3247,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Tabela e Cálculo de Fretes</h5>
+                    <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Tabela e CÃ¡lculo de Fretes</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -3271,7 +3271,7 @@
                                 <table class="table table-striped table-hover align-middle">
                                     <thead class="table-dark">
                                         <tr>
-                                            <th>Veículo</th>
+                                            <th>VeÃ­culo</th>
                                             <th>Regra</th>
                                             <th>Valores</th>
                                         </tr>
@@ -3283,11 +3283,11 @@
                             </div>
                             <div class="alert alert-info mt-3 mb-0">
                                 <i class="bi bi-info-circle-fill me-2"></i>
-                                O cálculo é feito automaticamente com base na distância obtida pelo mapa.
+                                O cÃ¡lculo Ã© feito automaticamente com base na distÃ¢ncia obtida pelo mapa.
                             </div>
                         </div>
 
-                        <!-- Aba de Configuração -->
+                        <!-- Aba de ConfiguraÃ§Ã£o -->
                         <div class="tab-pane fade" id="freight-config-pane" role="tabpanel">
                             <form id="freightConfigForm">
                                 <div id="dynamic-freight-config-container">
@@ -3306,7 +3306,7 @@
         </div>
     </div>
 
-    <script src="js/script.js?v=3.0.15"></script>
+    <script src="js/script.js?v=3.0.28"></script>
     <script defer src="js/freight_logic.js?v=3.1.1"></script>
     <script defer src="js/email-generator.js?v=3.1.0"></script>
 
@@ -3330,7 +3330,7 @@
                         </div>
                         <div class="row g-3">
                             <div class="col-md-6 mb-3">
-                                <label for="novoCodigoMotorista" class="form-label small text-muted fw-bold">Código
+                                <label for="novoCodigoMotorista" class="form-label small text-muted fw-bold">CÃ³digo
                                     (LCONT00X)</label>
                                 <input type="number" class="form-control bg-dark border-secondary text-light"
                                     id="novoCodigoMotorista" required placeholder="Ex: 999">
@@ -3358,7 +3358,7 @@
         <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content text-bg-dark border-secondary">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title"><i class="bi bi-cloud-fill me-2"></i>Histórico Global de Sessões</h5>
+                    <h5 class="modal-title"><i class="bi bi-cloud-fill me-2"></i>HistÃ³rico Global de SessÃµes</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                         aria-label="Close"></button>
                 </div>
@@ -3375,14 +3375,14 @@
                                 title="Limpar Filtro"><i class="bi bi-x"></i></button>
                         </div>
                         <button class="btn btn-success btn-sm" onclick="openSaveSessionModal()"><i
-                                class="bi bi-plus-circle me-1"></i>Salvar Sessão Atual</button>
+                                class="bi bi-plus-circle me-1"></i>Salvar SessÃ£o Atual</button>
                     </div>
 
                     <!-- Unified List -->
                     <div class="card bg-dark border-secondary">
                         <div class="card-header bg-transparent border-secondary py-2">
                             <div class="d-flex justify-content-between">
-                                <span class="small text-uppercase fw-bold text-muted">Sessões Disponíveis</span>
+                                <span class="small text-uppercase fw-bold text-muted">SessÃµes DisponÃ­veis</span>
                                 <span class="badge bg-secondary" id="session-count-badge">0</span>
                             </div>
                         </div>
@@ -3392,13 +3392,13 @@
                             <!-- Loaded dynamically -->
                             <div class="text-center p-4 text-muted">
                                 <div class="spinner-border spinner-border-sm mb-2" role="status"></div>
-                                <p class="mb-0 small">Carregando histórico global...</p>
+                                <p class="mb-0 small">Carregando histÃ³rico global...</p>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary justify-content-start">
-                    <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Todas as sessões salvas são visíveis
+                    <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Todas as sessÃµes salvas sÃ£o visÃ­veis
                         para a equipe.</small>
                 </div>
             </div>
@@ -3412,15 +3412,15 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content text-bg-dark border-secondary">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Salvar Sessão na Nuvem</h5>
+                    <h5 class="modal-title">Salvar SessÃ£o na Nuvem</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                         aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="sessionNameInput" class="form-label">Nome da Sessão</label>
+                        <label for="sessionNameInput" class="form-label">Nome da SessÃ£o</label>
                         <input type="text" class="form-control bg-dark text-light border-secondary"
-                            id="sessionNameInput" placeholder="Ex: Cargas Manhá£ 22/01">
+                            id="sessionNameInput" placeholder="Ex: Cargas ManhÃ¡Â£ 22/01">
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -3436,7 +3436,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content text-bg-dark border-secondary">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Compartilhar Sessão</h5>
+                    <h5 class="modal-title">Compartilhar SessÃ£o</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
                         aria-label="Close"></button>
                 </div>
@@ -3444,10 +3444,10 @@
                     <input type="hidden" id="shareSessionId">
                     <p>Compartilhar "<span id="shareSessionName" class="fw-bold"></span>" com:</p>
                     <div class="mb-3">
-                        <label for="shareEmailInput" class="form-label">E-mail do Destinatário</label>
+                        <label for="shareEmailInput" class="form-label">E-mail do DestinatÃ¡rio</label>
                         <input type="email" class="form-control bg-dark text-light border-secondary"
                             id="shareEmailInput" placeholder="colega@selmi.com.br">
-                        <div class="form-text text-light">O usuário deve ter uma conta no sistema.</div>
+                        <div class="form-text text-light">O usuÃ¡rio deve ter uma conta no sistema.</div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -3461,15 +3461,15 @@
 
 
     <!-- Supabase JS Client -->
-    <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script> - Removido pois já é carregado no head -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script> - Removido pois jÃ¡ Ã© carregado no head -->
     <script type="module" src="js/init.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- OVERLAY DE CARREGAMENTO ÉPICO -->
+    <!-- OVERLAY DE CARREGAMENTO Ã‰PICO -->
     <div id="epic-loading-overlay"
         style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 9999; flex-direction: column; align-items: center; justify-content: center;">
         <div class="loader-content text-center">
 
-            <!-- Animação CSS Pura (Radar/Pulse) -->
+            <!-- AnimaÃ§Ã£o CSS Pura (Radar/Pulse) -->
             <div class="epic-radar mb-4">
                 <div class="radar-circle"></div>
                 <div class="radar-circle delay-1"></div>
@@ -3479,7 +3479,7 @@
             </div>
 
             <h2 class="text-white fw-bold mb-2">Calculando Rota Otimizada...</h2>
-            <p class="text-secondary" id="epic-loading-text">Analisando trajetos e pedágios</p>
+            <p class="text-secondary" id="epic-loading-text">Analisando trajetos e pedÃ¡gios</p>
         </div>
     </div>
 
@@ -3822,7 +3822,7 @@
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
             <div class="modal-content" style="background: rgba(15, 23, 42, 0.93) !important; backdrop-filter: blur(20px) saturate(180%) !important; -webkit-backdrop-filter: blur(20px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 20px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 40px rgba(245, 158, 11, 0.15) !important;">
                 
-                <!-- Cabeçalho -->
+                <!-- CabeÃ§alho -->
                 <div class="modal-header border-bottom border-secondary border-opacity-10 py-3" style="background: rgba(255, 255, 255, 0.01);">
                     <div class="d-flex align-items-center gap-2">
                         <i class="bi bi-calendar-check text-warning fs-4" style="filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));"></i>
@@ -3843,9 +3843,9 @@
                 <!-- Corpo do Modal -->
                 <div class="modal-body p-3">
                     
-                    <!-- Linha de Busca e Informações Básicas -->
+                    <!-- Linha de Busca e InformaÃ§Ãµes BÃ¡sicas -->
                     <div class="row g-3 mb-3 align-items-center">
-                        <!-- Busca Rápida -->
+                        <!-- Busca RÃ¡pida -->
                         <div class="col-md-7">
                             <div class="input-group input-group-sm rounded bg-dark bg-opacity-40 border border-secondary border-opacity-25 p-1 transition-all" style="border-radius: 8px !important;" id="trizeSearchContainer">
                                 <span class="input-group-text bg-transparent border-0 text-muted ps-2"><i class="bi bi-search"></i></span>
@@ -3858,7 +3858,7 @@
                         </div>
                     </div>
 
-                    <!-- Filtros por Tipo de Veículo (Abas Estilizadas) -->
+                    <!-- Filtros por Tipo de VeÃ­culo (Abas Estilizadas) -->
                     <div class="mb-3">
                         <div class="nav nav-pills gap-1 p-1 bg-dark bg-opacity-50 rounded-3 border border-secondary border-opacity-10" role="tablist">
                             <button class="nav-link py-1.5 px-3 rounded-2 text-muted fw-bold trize-filter-btn active" data-veiculo="TODOS" style="font-size: 0.75rem; transition: all 0.2s;">TODOS</button>
@@ -3876,7 +3876,7 @@
 
                 </div>
 
-                <!-- Rodapé -->
+                <!-- RodapÃ© -->
                 <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5" style="background: rgba(255, 255, 255, 0.01);">
                     <div class="w-100 d-flex align-items-center justify-content-between">
                         <span class="text-muted" style="font-size: 0.65rem;"><i class="bi bi-info-circle me-1"></i>Clique no motorista para abrir os detalhes de cadastro.</span>
@@ -3895,13 +3895,13 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content" style="background: rgba(15, 23, 42, 0.95) !important; backdrop-filter: blur(25px) saturate(180%) !important; -webkit-backdrop-filter: blur(25px) saturate(180%) !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; border-radius: 16px !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;">
                 
-                <!-- Cabeçalho -->
+                <!-- CabeÃ§alho -->
                 <div class="modal-header border-bottom border-secondary border-opacity-10 py-3" style="background: rgba(255, 255, 255, 0.01);">
                     <div class="d-flex align-items-center gap-2">
                         <i class="bi bi-person-plus text-warning fs-4" style="filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));"></i>
                         <div>
                             <h5 class="modal-title text-light fw-bold mb-0" id="novoMotoristaTrizeModalLabel" style="letter-spacing: -0.02em;">Cadastrar Motorista (Trize)</h5>
-                            <span class="text-muted" style="font-size: 0.7rem;">Adicione um motorista novo à base local e do sistema</span>
+                            <span class="text-muted" style="font-size: 0.7rem;">Adicione um motorista novo Ã  base local e do sistema</span>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white opacity-75 hover-opacity-100" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -3914,7 +3914,7 @@
                             <!-- Motorista (Nome) -->
                             <div class="col-12">
                                 <label for="trizeNovoMotorista" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Nome do Motorista *</label>
-                                <input type="text" id="trizeNovoMotorista" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: JOÃO DA SILVA" required style="border-radius: 6px;">
+                                <input type="text" id="trizeNovoMotorista" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: JOÃƒO DA SILVA" required style="border-radius: 6px;">
                             </div>
 
                             <!-- CPF e Placa -->
@@ -3927,9 +3927,9 @@
                                 <input type="text" id="trizeNovoPlaca" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="ABC1D23" required maxlength="8" style="border-radius: 6px;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');">
                             </div>
 
-                            <!-- Tipo de Veículo e Cidade -->
+                            <!-- Tipo de VeÃ­culo e Cidade -->
                             <div class="col-6">
-                                <label for="trizeNovoTipo" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Tipo de Veículo *</label>
+                                <label for="trizeNovoTipo" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Tipo de VeÃ­culo *</label>
                                 <select id="trizeNovoTipo" class="form-select form-select-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" required style="border-radius: 6px;">
                                     <option value="" disabled selected>Selecione...</option>
                                     <option value="FIORINO">FIORINO</option>
@@ -3943,19 +3943,19 @@
                                 <input type="text" id="trizeNovoCidade" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: LONDRINA" style="border-radius: 6px;">
                             </div>
 
-                            <!-- Proprietário -->
+                            <!-- ProprietÃ¡rio -->
                             <div class="col-12">
-                                <label for="trizeNovoProprietario" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Proprietário</label>
-                                <input type="text" id="trizeNovoProprietario" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="Se vazio, será igual ao motorista" style="border-radius: 6px;">
+                                <label for="trizeNovoProprietario" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">ProprietÃ¡rio</label>
+                                <input type="text" id="trizeNovoProprietario" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="Se vazio, serÃ¡ igual ao motorista" style="border-radius: 6px;">
                             </div>
 
-                            <!-- LCONT, Nº Motorista, Transportador -->
+                            <!-- LCONT, NÂº Motorista, Transportador -->
                             <div class="col-4">
                                 <label for="trizeNovoLcont" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">LCONT</label>
                                 <input type="text" id="trizeNovoLcont" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: 925" style="border-radius: 6px;">
                             </div>
                             <div class="col-4">
-                                <label for="trizeNovoNMotorista" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">Nº Motorista</label>
+                                <label for="trizeNovoNMotorista" class="form-label text-muted mb-1" style="font-size: 0.75rem; font-weight: 500;">NÂº Motorista</label>
                                 <input type="text" id="trizeNovoNMotorista" class="form-control form-control-sm bg-dark bg-opacity-50 border-secondary border-opacity-25 text-white" placeholder="EX: 925" style="border-radius: 6px;">
                             </div>
                             <div class="col-4">
@@ -3965,7 +3965,7 @@
                         </div>
                     </div>
 
-                    <!-- Rodapé -->
+                    <!-- RodapÃ© -->
                     <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5" style="background: rgba(255, 255, 255, 0.01);">
                         <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal" style="border-radius: 6px; font-size: 0.8rem;">Cancelar</button>
                         <button type="submit" class="btn btn-sm btn-warning px-4 text-dark fw-bold" style="border-radius: 6px; font-size: 0.8rem;">Salvar Cadastro</button>
@@ -4235,11 +4235,11 @@
                         <table class="acc-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 80px">CÃ³digo</th>
-                                    <th style="width: 150px">Nome PadrÃ£o</th>
+                                    <th style="width: 80px">CÃƒÂ³digo</th>
+                                    <th style="width: 150px">Nome PadrÃƒÂ£o</th>
                                     <th style="width: 250px">Nome Custom</th>
-                                    <th style="width: 120px">VeÃ­culo</th>
-                                    <th style="width: 100px">PosiÃ§Ã£o</th>
+                                    <th style="width: 120px">VeÃƒÂ­culo</th>
+                                    <th style="width: 100px">PosiÃƒÂ§ÃƒÂ£o</th>
                                 </tr>
                             </thead>
                             <tbody id="acc-rotas-tbody">
@@ -4466,7 +4466,7 @@
                     <!-- Observacoes de Clientes -->
                     <div class="acc-card">
                         <div class="acc-card-header-row">
-                            <h3 class="acc-card-title">Observações de Clientes</h3>
+                            <h3 class="acc-card-title">ObservaÃ§Ãµes de Clientes</h3>
                         </div>
                         <p class="acc-hint">Notas exibidas nos cards de carga.</p>
                         <div class="acc-form-group">
@@ -4475,7 +4475,7 @@
                             <textarea id="acc-obs-text" class="acc-textarea"
                                 placeholder="Observacao (ex: Entregar em paletes)" style="height:60px"></textarea>
                             <button class="acc-btn acc-btn-primary acc-mt-sm" style="width:100%"
-                                onclick="accSalvarObsCliente()">Salvar Observação</button>
+                                onclick="accSalvarObsCliente()">Salvar ObservaÃ§Ã£o</button>
                         </div>
                         <div class="acc-table-scroll acc-mt">
                             <table class="acc-table">
@@ -4530,7 +4530,7 @@
     </div>
     </div>
     </div>
-    <script src="js/admin.js"></script>
+    <script src="js/admin.js?v=3.0.9"></script>
     <!-- APEX_ADMIN_END -->
     <script src="js/trize-agendamentos.js"></script>
 </body>

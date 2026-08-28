@@ -518,7 +518,7 @@
             position: absolute;
             left: 70px;
             background: var(--dark-surface);
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1.2rem;
             border-radius: 6px;
             font-size: 0.85rem;
             white-space: nowrap;
@@ -649,11 +649,11 @@
             /* Default border */
             color: var(--dark-text-secondary);
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            padding: 0.5rem 1rem;
-            margin: 0 0.5rem 0.5rem 0;
+            padding: 0.6rem 1.2rem;
+            margin: 0 0.75rem 0.75rem 0;
             display: inline-flex;
             align-items: center;
             transition: all 0.2s ease-out;
@@ -1121,8 +1121,8 @@
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            font-size: 0.75rem;
-            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            padding: 0.6rem 1.2rem;
             transition: all 0.15s ease-out;
             border: 1px solid transparent;
             position: relative;
@@ -1274,7 +1274,7 @@
             /* Cabeçalho da tabela com a nova cor primária */
             background-color: var(--dark-surface-secondary);
             font-weight: 700;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             border-bottom: 1px solid var(--dark-border);
@@ -1301,7 +1301,7 @@
 
         /* NOVO: Efeito de brilho e fonte menor para a tabela de disponíveis */
         #resultado-geral .table tbody td {
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             /* Fonte ainda menor para compactar */
             padding: 0.3rem 0.5rem;
             /* Padding reduzido */
@@ -1320,7 +1320,7 @@
             border: none;
             border-radius: 8px;
             font-weight: 600;
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1.2rem;
             transition: all 0.3s ease;
         }
 
@@ -1579,7 +1579,7 @@
 
         #context-menu .dropdown-item {
             font-size: 0.85rem;
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1.2rem;
         }
 
         .print-only {
@@ -2591,7 +2591,7 @@
 
         .load-badge-id {
             background: rgba(0, 0, 0, 0.3);
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1.2rem;
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -2860,7 +2860,7 @@
         }
 
         .metric-value small {
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             font-weight: 500;
             color: var(--dark-text-secondary);
         }
@@ -4196,7 +4196,7 @@
         }
 
         .acc-pin-sub {
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             color: #f59e0b;
             opacity: 0.8;
             margin-bottom: 2.5rem;
@@ -4317,7 +4317,7 @@
             text-transform: uppercase;
             letter-spacing: 0.15em;
             cursor: pointer;
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1.2rem;
             transition: all 0.2s;
         }
 
@@ -4384,7 +4384,7 @@
         }
 
         .acc-subtitle {
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             color: #64748b;
             margin: 0;
         }
@@ -4541,7 +4541,7 @@
         }
 
         .acc-stat-label {
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             color: #64748b;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -4683,7 +4683,7 @@
         }
 
         .acc-btn-sm {
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             padding: 0.35rem 0.6rem;
         }
 
@@ -4742,7 +4742,7 @@
             background: #050c1a;
             border-radius: 4px;
             color: #f59e0b;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             padding: 0.1rem 0.3rem;
         }
 
@@ -4821,7 +4821,7 @@
 
         .acc-error-item {
             font-family: 'Courier New', monospace;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             color: #ef4444;
             border-bottom: 1px solid #0f2044;
             padding-bottom: 0.25rem;
@@ -4880,7 +4880,7 @@
             border: 1px solid #1e3a5f;
             border-radius: 20px;
             color: #94a3b8;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             padding: 0.2rem 0.6rem;
         }
 
@@ -4889,7 +4889,7 @@
             border: 1px solid #10b981;
             border-radius: 20px;
             color: #10b981;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             padding: 0.15rem 0.5rem;
         }
 
@@ -4898,7 +4898,7 @@
             border: 1px solid #ef4444;
             border-radius: 20px;
             color: #ef4444;
-            font-size: 0.75rem;
+            font-size: 0.85rem;
             padding: 0.15rem 0.5rem;
         }
 
@@ -5030,7 +5030,7 @@
     margin-bottom: 0.25rem;
 }
 .acc-pin-sub {
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     color: #64748b;
     margin-bottom: 1.5rem;
 }
@@ -5125,7 +5125,7 @@
     letter-spacing: 0.12em;
     margin: 0;
 }
-.acc-subtitle { font-size: 0.75rem; color: #64748b; margin: 0; }
+.acc-subtitle { font-size: 0.85rem; color: #64748b; margin: 0; }
 .acc-close-btn {
     background: none;
     border: 1px solid #ef4444;
@@ -5245,7 +5245,7 @@
 .acc-stat-icon { font-size: 1.75rem; margin-bottom: 0.5rem; }
 .acc-stat-value { font-size: 1.5rem; font-weight: 700; color: #f59e0b; margin-bottom: 0.25rem; font-family: 'Courier New', monospace; }
 .acc-stat-sm { font-size: 0.95rem; }
-.acc-stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
+.acc-stat-label { font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; }
 
 /* Forms */
 .acc-form-group { margin-bottom: 1rem; }
@@ -5307,7 +5307,7 @@
 .acc-btn-danger:hover { background: rgba(239,68,68,0.2); }
 .acc-btn-ghost { background: none; border-color: #334155; color: #64748b; }
 .acc-btn-ghost:hover { border-color: #94a3b8; color: #94a3b8; }
-.acc-btn-sm { font-size: 0.75rem; padding: 0.35rem 0.6rem; }
+.acc-btn-sm { font-size: 0.85rem; padding: 0.35rem 0.6rem; }
 
 /* Danger zone */
 .acc-danger-zone {
@@ -5335,7 +5335,7 @@
 }
 .acc-table td { border-bottom: 1px solid #0f2044; color: #94a3b8; padding: 0.5rem 0.75rem; }
 .acc-table tr:hover td { background: rgba(245,158,11,0.04); }
-.acc-table code { background: #050c1a; border-radius: 4px; color: #f59e0b; font-size: 0.75rem; padding: 0.1rem 0.3rem; }
+.acc-table code { background: #050c1a; border-radius: 4px; color: #f59e0b; font-size: 0.85rem; padding: 0.1rem 0.3rem; }
 
 /* Snapshot list */
 .acc-snapshot-container { display: flex; flex-direction: column; gap: 0.5rem; max-height: 220px; overflow-y: auto; }
@@ -5375,7 +5375,7 @@
 /* Health / Mono */
 .acc-mono { font-family: 'Courier New', monospace; font-size: 0.875rem; color: #f59e0b; margin: 0; }
 .acc-error-log { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.3rem; }
-.acc-error-item { font-family: 'Courier New', monospace; font-size: 0.75rem; color: #ef4444; border-bottom: 1px solid #0f2044; padding-bottom: 0.25rem; }
+.acc-error-item { font-family: 'Courier New', monospace; font-size: 0.85rem; color: #ef4444; border-bottom: 1px solid #0f2044; padding-bottom: 0.25rem; }
 
 /* Hint text */
 .acc-hint { font-size: 0.78rem; color: #64748b; margin-bottom: 0.75rem; }
@@ -5491,7 +5491,7 @@ tr.search-highlight > td, tr.search-highlight > th {
     color: #ffc107;
     padding: 2px 6px;
     border-radius: 4px;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     font-weight: 700;
 }
 
@@ -5710,3 +5710,9 @@ tr.search-highlight > td, tr.search-highlight > th {
 }
 
 
+
+/* UX Tweak: Disponiveis to Green */
+#pedidosDisponiveisTabs .nav-link[data-bs-target="#disponiveis-tab-pane"].active {
+    background: linear-gradient(135deg, var(--dark-accent-secondary), #059669) !important;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3) !important;
+}
