@@ -31,7 +31,7 @@
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
-    <!-- Bibliotecas para GeraÃ¡Â§Ã¡Â£o de PDF -->
+    <!-- Bibliotecas para Geração de PDF -->
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -274,7 +274,7 @@
     }
 </style>
 <style>
-    /* --- ESTILOS PARA NOTIFICAÃ¡â€¡Ã¡â€¢ES TOAST --- */
+    /* --- ESTILOS PARA NOTIFICAÇÕES TOAST --- */
     .toast-container {
         z-index: 1100;
         /* Acima dos modais */
@@ -335,7 +335,7 @@
         padding: 0.5rem;
     }
 
-    /* Scrollbar personalizada para o conteÃ¡Âºdo das abas */
+    /* Scrollbar personalizada para o conteúdo das abas */
     #vehicleTabsContent::-webkit-scrollbar {
         width: 6px;
     }
@@ -354,7 +354,7 @@
         background-color: var(--dark-text-secondary);
     }
 
-    /* Ajuste de padding para o conteÃ¡Âºdo das abas */
+    /* Ajuste de padding para o conteúdo das abas */
     .workspace-tab-pane {
         padding: 0.5rem 0.5rem 2rem 0.5rem;
     }
@@ -377,7 +377,7 @@
         border-color: var(--dark-primary-glow);
     }
 
-    /* CabeÃ¡Â§alho Fixo para Tabelas do Banco de Pedidos */
+    /* Cabeçalho Fixo para Tabelas do Banco de Pedidos */
     .workspace-card .table-responsive {
         position: relative;
     }
@@ -407,7 +407,7 @@
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
     }
 
-    /* BotÃ¡Â£o Flutuante de Montagens Especiais */
+    /* Botão Flutuante de Montagens Especiais */
     .btn-floating-special {
         width: 60px;
         height: 60px;
@@ -1026,11 +1026,11 @@
 
 <body>
 
-    <!-- Script Module para AutenticaÃ¡Â§Ã¡Â£o -->
+    <!-- Script Module para Autenticação -->
     <script type="module">
         import { logout as authLogout } from './js/auth.js';
 
-        // ExpÃ¡Âµe a funÃ¡Â§Ã¡Â£o logout globalmente para ser usada em onclick
+        // Expõe a função logout globalmente para ser usada em onclick
         window.logout = async function () {
             try {
                 await authLogout();
@@ -1115,14 +1115,14 @@
             <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#freightModal"
                 onclick="updateFreightTableUI()">
                 <i class="bi bi-cash-coin"></i>
-                <span>Tabela Fretes</span>
+                <span>Tabela de Fretes</span>
             </a>
 
             <!-- LINK SIMULADOR DE ROTAS (PREMIUM) -->
             <a href="#simulator-view" class="sidebar-link"
                 onclick="activateView('simulator-view', this); if (window.initSimulatorMap) window.initSimulatorMap();">
                 <i class="bi bi-pin-map-fill" style="color: #3b82f6;"></i>
-                <span>Simulador Rotas</span>
+                <span>Simulador de Rotas</span>
                 <span class="badge bg-primary ms-auto"
                     style="font-size: 0.6rem; box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);">NOVO</span>
             </a>
@@ -1137,13 +1137,13 @@
             <!-- LINK RELATÃ“RIO MENSAL DE VAREJO -->
             <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#relatorioVarejoOffcanvas">
                 <i class="bi bi-bar-chart-steps text-warning"></i>
-                <span>RelatÃ³rio Varejo SP/PR</span>
+                <span>Relatório de Varejo SP/PR</span>
             </a>
 
             <!-- LINK AGENDAMENTOS TRIZE (PLANILHA) -->
             <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#trizeAgendamentosModal">
                 <i class="bi bi-calendar-event text-warning" style="color: #f59e0b !important;"></i>
-                <span>Agendamentos Trize</span>
+                <span>Agendamentos</span>
                 <span class="badge bg-success ms-auto"
                     style="font-size: 0.55rem; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4); padding: 2px 4px;">PLANILHA</span>
             </a>
@@ -1164,7 +1164,7 @@
                     <a href="#alteracao-rota-view" class="sidebar-link"
                         onclick="activateView('alteracao-rota-view', this)" style="height: 40px;">
                         <i class="bi bi-sign-turn-right-fill" style="font-size: 1rem;"></i>
-                        <span style="font-size: 0.85rem;">Alt. Rota</span>
+                        <span style="font-size: 0.85rem;">Alteração de Rota</span>
                     </a>
                 </div>
 
@@ -1584,7 +1584,7 @@
                                 <div class="tab-pane fade" id="cargas-fechadas-pr-tab-pane" role="tabpanel">
                                     <div id="resultado-cargas-fechadas-pr">
                                         <div class="empty-state"><i class="bi bi-building-fill-check"></i>
-                                            <p>Nenhuma Carga Fechada do ParanÃ¡Â¡ encontrada. Processe um arquivo.</p>
+                                            <p>Nenhuma Carga Fechada do Paraná encontrada. Processe um arquivo.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1635,13 +1635,13 @@
                                     <hr>
                                     <div id="resultado-funcionarios" class="mb-3">
                                         <div class="empty-state"><i class="bi bi-people-fill"></i>
-                                            <p>Nenhum pedido de funcionÃ¡Â¡rio encontrado.</p>
+                                            <p>Nenhum pedido de funcionário encontrado.</p>
                                         </div>
                                     </div>
                                     <hr>
                                     <div id="resultado-transferencias" class="mb-3">
                                         <div class="empty-state"><i class="bi bi-arrow-left-right"></i>
-                                            <p>Nenhum pedido de transferÃ¡Âªncia encontrado.</p>
+                                            <p>Nenhum pedido de transferência encontrado.</p>
                                         </div>
                                     </div>
                                     <hr>
@@ -1653,7 +1653,7 @@
                                     <hr>
                                     <div id="resultado-marca-propria">
                                         <div class="empty-state"><i class="bi bi-tags-fill"></i>
-                                            <p>Nenhum pedido de Marca PrÃ¡Â³pria encontrado.</p>
+                                            <p>Nenhum pedido de Marca Própria encontrado.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1668,11 +1668,11 @@
                             <h2 class="workspace-title"><i class="bi bi-database-check"></i>Banco de Pedidos</h2>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-outline-warning" onclick="montarCargasPrioritarias()"
-                                    title="Montar PrioritÃ¡Â¡rios">
+                                    title="Montar Prioritários">
                                     <i class="bi bi-lightning-charge-fill"></i>
                                 </button>
                                 <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal"
-                                    data-bs-target="#bulkPriorityModal" title="Colar PrioritÃ¡Â¡rios">
+                                    data-bs-target="#bulkPriorityModal" title="Colar Prioritários">
                                     <i class="bi bi-clipboard-plus"></i>
                                 </button>
                                 <div class="btn-group btn-group-sm" role="group">
@@ -1682,20 +1682,20 @@
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioDisponiveisPDF()"><i
-                                                    class="bi bi-file-pdf me-2"></i>RelatÃ¡Â³rio de Fila de Pedidos
+                                                    class="bi bi-file-pdf me-2"></i>Relatório de Fila de Pedidos
                                                 (Por Data) (PDF)</a></li>
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioDisponiveisExcel()"><i
-                                                    class="bi bi-file-spreadsheet me-2"></i>RelatÃ¡Â³rio de Fila de
+                                                    class="bi bi-file-spreadsheet me-2"></i>Relatório de Fila de
                                                 Pedidos (Por Data) (Excel)</a></li>
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioCompletoPorRotaExcel()"><i
-                                                    class="bi bi-file-excel me-2"></i>RelatÃ¡Â³rio Completo de Pedidos
-                                                DisponÃ¡Â­veis (Por Rota) (Excel)</a></li>
+                                                    class="bi bi-file-excel me-2"></i>Relatório Completo de Pedidos
+                                                Disponíveis (Por Rota) (Excel)</a></li>
                                         <li><a class="dropdown-item" href="javascript:void(0)"
                                                 onclick="exportarRelatorioCompletoPorRotaPDF()"><i
-                                                    class="bi bi-file-earmark-pdf me-2"></i>RelatÃ¡Â³rio Completo de
-                                                Pedidos DisponÃ¡Â­veis (Por Rota) (PDF)</a></li>
+                                                    class="bi bi-file-earmark-pdf me-2"></i>Relatório Completo de
+                                                Pedidos Disponíveis (Por Rota) (PDF)</a></li>
                                     </ul>
                                 </div>
                             </div>
@@ -1721,7 +1721,7 @@
                             <ul class="nav nav-tabs-modern" id="pedidosDisponiveisTabs" role="tablist">
                                 <li class="nav-item" role="presentation"><button class="nav-link active"
                                         data-bs-toggle="tab" data-bs-target="#disponiveis-tab-pane"><i
-                                            class="bi bi-check-circle me-2"></i>DisponÃ¡Â­veis</button></li>
+                                            class="bi bi-check-circle me-2"></i>Disponíveis</button></li>
                                 <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab"
                                         data-bs-target="#bloqueados-regra-tab-pane"><i
                                             class="bi bi-slash-circle me-2"></i>Bloqueados</button></li>
@@ -1764,7 +1764,7 @@
                                     <!-- FIM DA LEGENDA -->
                                     <div id="resultado-geral">
                                         <div class="empty-state"><i class="bi bi-file-earmark-excel"></i>
-                                            <p>Nenhum pedido de varejo disponÃ¡Â­vel.</p>
+                                            <p>Nenhum pedido de varejo disponível.</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1782,7 +1782,7 @@
             </div>
         </div>
 
-        <!-- BotÃ¡Â£o Flutuante para Montagens Especiais -->
+        <!-- Botão Flutuante para Montagens Especiais -->
         <button
             class="btn btn-primary shadow-lg position-fixed bottom-0 end-0 m-4 rounded-circle d-flex align-items-center justify-content-center no-print btn-floating-special"
             type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvasMontagens"
@@ -1810,7 +1810,7 @@
                     </div>
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label for="vendaAntecipadaInput" class="form-label small mb-0">NÃ¡Âºmeros dos
+                            <label for="vendaAntecipadaInput" class="form-label small mb-0">Números dos
                                 pedidos:</label>
                             <button class="btn btn-xs btn-outline-secondary"
                                 onclick="pasteToSpecialLoad('vendaAntecipadaInput')"><i
@@ -1832,7 +1832,7 @@
                     </div>
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <label for="pedidosEspeciaisInput" class="form-label small mb-0">NÃ¡Âºmeros dos
+                            <label for="pedidosEspeciaisInput" class="form-label small mb-0">Números dos
                                 pedidos:</label>
                             <button class="btn btn-xs btn-outline-secondary"
                                 onclick="pasteToSpecialLoad('pedidosEspeciaisInput')"><i
@@ -1852,10 +1852,10 @@
         </div>
         </div>
         </div> <!-- Fechamento da div main-wrapper que envolve o Workspace -->
-        </div> <!-- Fechamento extra para seguranÃ¡Â§a -->
+        </div> <!-- Fechamento extra para segurança -->
 
         <div id="pedidos-bloqueados-view" class="main-view">
-            <h1 class="h2 mb-4 animated-entry">AnÃ¡Â¡lise: Pedidos Bloqueados Manualmente</h1>
+            <h1 class="h2 mb-4 animated-entry">Análise: Pedidos Bloqueados Manualmente</h1>
             <div class="card border-danger animated-entry">
                 <div class="card-header bg-danger-subtle text-danger-emphasis">
                     <h2 class="card-title h5 mb-0"><i class="bi bi-slash-circle-fill me-2"></i>Pedidos Bloqueados
@@ -1881,7 +1881,7 @@
         </div>
 
         <!-- ======================================================================================= -->
-        <!-- VIEW: RELATÃ¡â€œRIOS -->
+        <!-- VIEW: RELATÓRIOS -->
         <!-- ======================================================================================= -->
         <div id="reports-view" class="main-view">
             <h1 class="h2 mb-4 animated-entry">RelatÃ³rios Gerenciais</h1>
@@ -2090,7 +2090,7 @@
             </style>
         </div>
 
-        <!-- Painel de AÃ¡Â§Ã¡Âµes em Massa (inicialmente oculto) -->
+        <!-- Painel de Ações em Massa (inicialmente oculto) -->
         <div id="bulk-actions-panel"
             class="card position-fixed bottom-0 start-50 translate-middle-x mb-3 shadow-lg no-print"
             style="display: none; z-index: 1050; width: auto;">
@@ -2120,7 +2120,7 @@
     <!-- </div> removed -->
 
     <!-- ======================================================================================= -->
-    <!-- NOVO: MODAL PARA VISUALIZAÃ¡â€¡Ã¡Æ’O DE ROTA NO MAPA -->
+    <!-- NOVO: MODAL PARA VISUALIZAÇÃO DE ROTA NO MAPA -->
     <!-- ======================================================================================= -->
     <div class="modal fade" id="mapModal" tabindex="-1">
         <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -2195,7 +2195,7 @@
                         <label for="manualRoutingCities" class="form-label">Cidades (e estado por extenso, ex: Cascavel,
                             ParanÃ¡):</label>
                         <textarea class="form-control" id="manualRoutingCities" rows="8"
-                            placeholder="Cascavel, ParanÃ¡Â¡&#10;MaringÃ¡Â¡, ParanÃ¡Â¡&#10;SÃ¡Â£o Paulo, SÃ¡Â£o Paulo"></textarea>
+                            placeholder="Cascavel, Paraná&#10;Maringá, Paraná&#10;São Paulo, São Paulo"></textarea>
                     </div>
                     <button class="btn btn-primary w-100" onclick="calculateManualRoute()">
                         <i class="bi bi-geo-alt-fill me-2"></i>Roteirizar
@@ -3024,7 +3024,7 @@
                 <div class="modal-body">
                     <p class="text-muted small">Cole abaixo os nÃºmeros dos pedidos que deseja priorizar (um por linha
                         ou
-                        separados por espaÃ¡Â§o/vÃ¡Â­rgula). VocÃ¡Âª pode copiar esta lista do RelatÃ¡Â³rio Excel.</p>
+                        separados por espaço/vírgula). Você pode copiar esta lista do Relatório Excel.</p>
                     <textarea class="form-control" id="bulkPriorityInput" rows="10"
                         placeholder="Ex: 12345&#10;67890&#10;11223"></textarea>
                 </div>
@@ -3212,7 +3212,7 @@
         </div>
     </div>
 
-    <!-- Modal de ConfirmaÃ¡Â§Ã¡Â£o para Limpar Dados -->
+    <!-- Modal de Confirmação para Limpar Dados -->
     <div class="modal fade" id="confirmClearModal" tabindex="-1" aria-labelledby="confirmClearModalLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -3223,8 +3223,8 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p>VocÃ¡Âª tem certeza que deseja limpar todos os dados?</p>
-                    <p class="text-danger fw-bold">Todo o progresso, incluindo cargas montadas e configuraÃ¡Â§Ã¡Âµes, serÃ¡Â¡
+                    <p>Você tem certeza que deseja limpar todos os dados?</p>
+                    <p class="text-danger fw-bold">Todo o progresso, incluindo cargas montadas e configurações, será
                         permanentemente perdido.</p>
                     <p class="text-muted small">Esta aÃ§Ã£o Ã© equivalente a recarregar o sistema do zero.</p>
                 </div>
@@ -3237,7 +3237,7 @@
         </div>
     </div>
 
-    <!-- Container para as notificaÃ¡Â§Ã¡Âµes Toast -->
+    <!-- Container para as notificações Toast -->
     <div class="toast-container position-fixed top-0 end-0 p-3"></div>
 
 
@@ -3420,7 +3420,7 @@
                     <div class="mb-3">
                         <label for="sessionNameInput" class="form-label">Nome da SessÃ£o</label>
                         <input type="text" class="form-control bg-dark text-light border-secondary"
-                            id="sessionNameInput" placeholder="Ex: Cargas ManhÃ¡Â£ 22/01">
+                            id="sessionNameInput" placeholder="Ex: Cargas Manhã 22/01">
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -3827,7 +3827,7 @@
                     <div class="d-flex align-items-center gap-2">
                         <i class="bi bi-calendar-check text-warning fs-4" style="filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));"></i>
                         <div>
-                            <h5 class="modal-title text-light fw-bold mb-0" id="trizeAgendamentosModalLabel" style="letter-spacing: -0.02em;">Agendamentos Trize</h5>
+                            <h5 class="modal-title text-light fw-bold mb-0" id="trizeAgendamentosModalLabel" style="letter-spacing: -0.02em;">Agendamentos</h5>
                             <span class="text-muted" style="font-size: 0.7rem;">Base de dados de motoristas para cadastro externo</span>
                         </div>
                     </div>
@@ -4235,11 +4235,11 @@
                         <table class="acc-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 80px">CÃƒÂ³digo</th>
-                                    <th style="width: 150px">Nome PadrÃƒÂ£o</th>
+                                    <th style="width: 80px">Código</th>
+                                    <th style="width: 150px">Nome Padrão</th>
                                     <th style="width: 250px">Nome Custom</th>
-                                    <th style="width: 120px">VeÃƒÂ­culo</th>
-                                    <th style="width: 100px">PosiÃƒÂ§ÃƒÂ£o</th>
+                                    <th style="width: 120px">Veículo</th>
+                                    <th style="width: 100px">Posição</th>
                                 </tr>
                             </thead>
                             <tbody id="acc-rotas-tbody">

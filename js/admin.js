@@ -158,7 +158,7 @@
         if (!cc) return;
         cc.classList.remove('visible');
 
-        // Finaliza a sessÃ£o ao fechar no X
+        // Finaliza a sessão ao fechar no X
         localStorage.removeItem('apexAdminUnlocked');
         localStorage.removeItem('apexAdminSessionTime');
         adminUnlocked = false;
@@ -229,12 +229,12 @@
     window.accLimparPeriodo = async function () {
         const mes = document.getElementById('acc-mes').value;
         const ano = document.getElementById('acc-ano').value;
-        if (!mes || !ano) { showAdminAlert('Selecione mÃªs e ano.', 'warning'); return; }
+        if (!mes || !ano) { showAdminAlert('Selecione mês e ano.', 'warning'); return; }
 
         const inicio = `${ano}-${mes.padStart(2, '0')}-01`;
         const fim = new Date(ano, parseInt(mes), 0).toISOString().split('T')[0];
 
-        if (!confirm(`Apagar TODOS os pedidos de ${mes}/${ano}? Esta aÃ§Ã£o nÃ£o pode ser desfeita.`)) return;
+        if (!confirm(`Apagar TODOS os pedidos de ${mes}/${ano}? Esta ação não pode ser desfeita.`)) return;
 
         const sb = window.supabaseClient || window.supabase;
 
@@ -247,7 +247,7 @@
         if (error) { showAdminAlert('Erro ao apagar: ' + error.message, 'danger'); return; }
 
         const countDeleted = deleted ? deleted.length : 0;
-        await logAction(`Limpar por perÃ­odo ${mes}/${ano}`, countDeleted);
+        await logAction(`Limpar por período ${mes}/${ano}`, countDeleted);
 
         // Refresh all Admin tabs
         await loadDbStats();
@@ -304,7 +304,7 @@
 
     window.accLimparRota = async function () {
         const rota = document.getElementById('acc-rota-input').value.trim();
-        if (!rota) { showAdminAlert('Digite o cÃ³digo da rota.', 'warning'); return; }
+        if (!rota) { showAdminAlert('Digite o código da rota.', 'warning'); return; }
         if (!confirm(`Apagar pedidos da rota ${rota}?`)) return;
 
         const sb = window.supabaseClient || window.supabase;
@@ -621,11 +621,9 @@
         showAdminAlert('✅ Limites de peso salvos no banco de dados com sucesso!', 'success');
         
         // NOVO: Aplica na interface imediatamente se houver planilha processada usando update in-place
-        if (typeof planilhaData !== 'undefined' && planilhaData.length > 0) {
-            if (typeof reaplicarRegrasPainelInterno === 'function') {
-                reaplicarRegrasPainelInterno();
-            }
-        }
+        if (typeof reaplicarRegrasPainelInterno === 'function') {
+        reaplicarRegrasPainelInterno();
+    }
     };
 
     window.accSalvarModulos = async function () {
@@ -883,7 +881,8 @@
     }
 
     window.accAdicionarAgendamento = async function () {
-        const code = document.getElementById('acc-ag-code').value.trim();
+        let code = document.getElementById('acc-ag-code').value.trim();
+    if (typeof normalizeClientId === 'function') { code = normalizeClientId(code); } else { code = code.replace(/^0+/, ''); }
         const val = document.getElementById('acc-ag-val').value;
         if (!code) { showAdminAlert('Digite o codigo do cliente.', 'warning'); return; }
         const overrides = window._apexAgendamentoOverrides || {};
@@ -906,11 +905,9 @@
         showAdminAlert('Agendamento atualizado.', 'success');
 
         // NOVO: Aplica na interface imediatamente se houver planilha processada usando update in-place
-        if (typeof planilhaData !== 'undefined' && planilhaData.length > 0) {
-             if (typeof reaplicarRegrasPainelInterno === 'function') {
-                 reaplicarRegrasPainelInterno();
-             }
-        }
+        if (typeof reaplicarRegrasPainelInterno === 'function') {
+        reaplicarRegrasPainelInterno();
+    }
     };
 
     window.accRemoverAgendamento = async function (code) {
@@ -929,11 +926,9 @@
         showAdminAlert('Override removido.', 'success');
 
         // NOVO: Aplica na interface imediatamente se houver planilha processada usando update in-place
-        if (typeof planilhaData !== 'undefined' && planilhaData.length > 0) {
-             if (typeof reaplicarRegrasPainelInterno === 'function') {
-                 reaplicarRegrasPainelInterno();
-             }
-        }
+        if (typeof reaplicarRegrasPainelInterno === 'function') {
+        reaplicarRegrasPainelInterno();
+    }
     };
 
     // -- Client Observations --
