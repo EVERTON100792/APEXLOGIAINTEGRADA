@@ -2319,10 +2319,10 @@ function processar() {
             gruposPorCFGlobais = {};
             pedidosComCFNumericoIsolado = [];
 
-            // Adiciona os pedidos TBL ESPECIAL SEM CF ao grupo de cargas fechadas globais
+            // Adiciona os pedidos TBL CARRETA SEM CF ao grupo de cargas fechadas globais
             pedidosCarretaSemCF = pedidosParaProcessamentoGeral.filter(p => {
                 const coluna5Upper = String(p.Coluna5 || '').toUpperCase();
-                return (coluna5Upper.includes('TBL ESPECIAL') || coluna5Upper.includes('TBL ESP CARRETA')) && !isNumeric(p.CF);
+                return coluna5Upper.includes('CARRETA') && !isNumeric(p.CF);
             });
             const pedidosCarretaSemCFIds = new Set(pedidosCarretaSemCF.map(p => p.Num_Pedido));
             pedidosParaProcessamentoGeral = pedidosParaProcessamentoGeral.filter(p => !pedidosCarretaSemCFIds.has(p.Num_Pedido));
