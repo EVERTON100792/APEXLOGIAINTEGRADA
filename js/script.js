@@ -5224,59 +5224,54 @@ window.reaplicarRegrasPainelInterno = function() {
     });
 
     // ========================================================================
-    // TOCO AUTOMÁTICO AO CLICAR (pós-montagem da rota)
-    // Os pedidos de varejo (sem CF numérico/tag/bloqueio) ficam nos Disponíveis e,
-    // ao clicar no botão da rota, as sobras que atendem à regra de peso/cubagem do
-    // Toco são montadas automaticamente em uma carga Toco (mesma regra de peso da
-    // antiga pré-separação por peso — só muda o momento: agora no clique).
+    // AUTO-MONTAGEM DE TOCO: Funciona sempre, independente do modo
+    // Pedidos de varejo (sem CF numérico/tag/bloqueio) com peso de toco são montados automaticamente.
     // ========================================================================
-    if (!onlyPriority) {
-        const tocoCfgAuto = getVehicleConfigSafe('toco');
-        const tocoMinAuto = tocoCfgAuto.minKg || 5000;
-        const tocoMaxAuto = tocoCfgAuto.softMaxKg || 8500;
-        const tocoCubAuto = tocoCfgAuto.softMaxCubage || 30.0;
-        const gruposTocoAutomatico = [];
-        const sobrasRestantes = [];
-        finalLeftoverGroups.forEach(group => {
-            const p0 = group.pedidos[0];
-            const temTagEspecial = group.pedidos.some(p => {
-                const c5 = String(p.Coluna5 || '').toUpperCase();
-                return c5.includes('TBL FUNCIONARIO') || c5.includes('TABELA TRANSFER') || c5.includes('TRANSF. TODESCH') || c5.includes('INSTITUCIONAL') || c5.includes('TBL EXPORTACAO') || c5.includes('MOINHO') || c5.includes('MARCA PROPRIA') || c5.includes('TBL ESP CARRETA') || c5.includes('TRUCK') || c5.includes('CARRETA');
-            });
-            const bloqValor = p0 ? p0['BLOQ.'] : null;
-            const ehVarejoToco = p0 && !isNumeric(String(p0.CF || '')) && !temTagEspecial && !(bloqValor != null && String(bloqValor).trim());
-            if (ehVarejoToco && group.totalKg >= tocoMinAuto && group.totalKg <= tocoMaxAuto && group.totalCubagem <= tocoCubAuto) {
-                gruposTocoAutomatico.push(group);
-            } else {
-                sobrasRestantes.push(group);
-            }
+    const tocoCfgAuto = getVehicleConfigSafe('toco');
+    const tocoMinAuto = tocoCfgAuto.minKg || 5000;
+    const tocoMaxAuto = tocoCfgAuto.softMaxKg || 8500;
+    const tocoCubAuto = tocoCfgAuto.softMaxCubage || 30.0;
+    const gruposTocoAutomatico = [];
+    const sobrasRestantes = [];
+    finalLeftoverGroups.forEach(group => {
+        const p0 = group.pedidos[0];
+        const temTagEspecial = group.pedidos.some(p => {
+            const c5 = String(p.Coluna5 || '').toUpperCase();
+            return c5.includes('TBL FUNCIONARIO') || c5.includes('TABELA TRANSFER') || c5.includes('TRANSF. TODESCH') || c5.includes('INSTITUCIONAL') || c5.includes('TBL EXPORTACAO') || c5.includes('MOINHO') || c5.includes('MARCA PROPRIA') || c5.includes('TBL ESPECIAL') || c5.includes('TBL ESP CARRETA') || c5.includes('TRUCK') || c5.includes('CARRETA');
         });
-        finalLeftoverGroups = sobrasRestantes;
-        const loadsTocoAutomatico = gruposTocoAutomatico.map((group, i) => {
-            const tocoNumero = 'T' + (finalValidLoads.length + i + 1);
-            const tocoId = `toco-auto-${Date.now()}-${i}`;
-            const loadToco = {
-                id: tocoId,
-                pedidos: group.pedidos,
-                totalKg: group.totalKg,
-                totalCubagem: group.totalCubagem,
-                density: group.totalCubagem > 0 ? group.totalKg / group.totalCubagem : Infinity,
-                vehicleType: 'toco',
-                numero: tocoNumero,
-                routesKey: routesKey,
-                isSpecial: group.pedidos.some(isSpecialClient)
-            };
-            activeLoads[tocoId] = loadToco;
-            if (typeof refreshLoadFreight === 'function') refreshLoadFreight(tocoId);
-            return loadToco;
-        });
-        finalValidLoads.push(...loadsTocoAutomatico);
-        if (loadsTocoAutomatico.length > 0) {
-            const tocoAutoIds = new Set(loadsTocoAutomatico.flatMap(load => load.pedidos.map(p => p.Num_Pedido)));
-            pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !tocoAutoIds.has(p.Num_Pedido));
-            if (typeof showToast === 'function') {
-                showToast(`🚚 ${loadsTocoAutomatico.length} carga(s) Toco montada(s) automaticamente para a rota ${title}.`, 'success');
-            }
+        const bloqValor = p0 ? p0['BLOQ.'] : null;
+        const ehVarejoToco = p0 && !isNumeric(String(p0.CF || '')) && !temTagEspecial && !(bloqValor != null && String(bloqValor).trim());
+        if (ehVarejoToco && group.totalKg >= tocoMinAuto && group.totalKg <= tocoMaxAuto && group.totalCubagem <= tocoCubAuto) {
+            gruposTocoAutomatico.push(group);
+        } else {
+            sobrasRestantes.push(group);
+        }
+    });
+    finalLeftoverGroups = sobrasRestantes;
+    const loadsTocoAutomatico = gruposTocoAutomatico.map((group, i) => {
+        const tocoNumero = 'T' + (finalValidLoads.length + i + 1);
+        const tocoId = `toco-auto-${Date.now()}-${i}`;
+        const loadToco = {
+            id: tocoId,
+            pedidos: group.pedidos,
+            totalKg: group.totalKg,
+            totalCubagem: group.totalCubagem,
+            density: group.totalCubagem > 0 ? group.totalKg / group.totalCubagem : Infinity,
+            vehicleType: 'toco',
+            numero: tocoNumero,
+            routesKey: routesKey,
+            isSpecial: group.pedidos.some(isSpecialClient)
+        };
+        activeLoads[tocoId] = loadToco;
+        if (typeof refreshLoadFreight === 'function') refreshLoadFreight(tocoId);
+        return loadToco;
+    });
+    finalValidLoads.push(...loadsTocoAutomatico);
+    if (loadsTocoAutomatico.length > 0) {
+        const tocoAutoIds = new Set(loadsTocoAutomatico.flatMap(load => load.pedidos.map(p => p.Num_Pedido)));
+        pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !tocoAutoIds.has(p.Num_Pedido));
+        if (typeof showToast === 'function') {
+            showToast(`🚚 ${loadsTocoAutomatico.length} carga(s) Toco montada(s) automaticamente para a rota ${title}.`, 'success');
         }
     }
 
