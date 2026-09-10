@@ -2322,28 +2322,34 @@ function processar() {
             // Adiciona os pedidos TBL CARRETA SEM CF ao grupo de cargas fechadas globais
             pedidosCarretaSemCF = pedidosParaProcessamentoGeral.filter(p => {
                 const coluna5Upper = String(p.Coluna5 || '').toUpperCase();
-                return coluna5Upper.includes('CARRETA') && !isNumeric(p.CF);
+                return (coluna5Upper.includes('CARRETA') || coluna5Upper.includes('FOB ESPECIAL')) && !isNumeric(p.CF);
             });
             const pedidosCarretaSemCFIds = new Set(pedidosCarretaSemCF.map(p => p.Num_Pedido));
             pedidosParaProcessamentoGeral = pedidosParaProcessamentoGeral.filter(p => !pedidosCarretaSemCFIds.has(p.Num_Pedido));
 
 
             pedidosParaProcessamentoGeral.forEach(p => {
-                if (isNumeric(p.CF)) { // CF numérico (fora do PR) -> Carga Fechada Resto BR
+                const codRotaStr = String(p.Cod_Rota || '').trim();
+
+                if (isNumeric(p.CF)) { // CF numérico (fora do PR) → Carga Fechada Resto BR
                     const cf = String(p.CF).trim();
                     if (!gruposPorCFGlobais[cf]) gruposPorCFGlobais[cf] = { pedidos: [], totalKg: 0, totalCubagem: 0 };
                     gruposPorCFGlobais[cf].pedidos.push(p);
                     gruposPorCFGlobais[cf].totalKg += p.Quilos_Saldo;
                     gruposPorCFGlobais[cf].totalCubagem += p.Cubagem;
-                } else {
-                    if (clientesComBloqueio.has(normalizeClientId(p.Cliente))) { // Cliente com bloqueio -> Bloqueados por Regra
-                        pedidosComCFNumericoIsolado.push(p);
-                    } else { // O que sobra é Varejo
-                        const codRotaStr = String(p.Cod_Rota || '').trim();
-                        if (codRotaStr !== '2' && codRotaStr !== '2000') {
-                            pedidosParaProcessamentoVarejo.push(p);
-                        }
-                    }
+                } else if (codRotaStr === '2' || codRotaStr === '2000') {
+                    // Rota 2 e 2000 não são varejo → vai para BR Fechado agrupado pelo Cliente
+                    const chaveRota2000 = `ROTA-${codRotaStr}-${String(p.Cliente || 'SEM-CLIENTE').trim()}`;
+                    if (!gruposPorCFGlobais[chaveRota2000]) gruposPorCFGlobais[chaveRota2000] = { pedidos: [], totalKg: 0, totalCubagem: 0 };
+                    gruposPorCFGlobais[chaveRota2000].pedidos.push(p);
+                    gruposPorCFGlobais[chaveRota2000].totalKg += p.Quilos_Saldo;
+                    gruposPorCFGlobais[chaveRota2000].totalCubagem += p.Cubagem;
+                } else if (clientesComBloqueio.has(normalizeClientId(p.Cliente))) { 
+                    // Cliente com bloqueio → Bloqueados por Regra
+                    pedidosComCFNumericoIsolado.push(p);
+                } else { 
+                    // O que sobra é Varejo
+                    pedidosParaProcessamentoVarejo.push(p);
                 }
             });
 
@@ -2415,18 +2421,23 @@ function processar() {
  * Esta função é crucial para manter a UI sincronizada após operações de arrastar e soltar.
  */
 function getLoadTabDestination(load) {
-    if (load.vehicleType === 'toco' || load.id.startsWith('roteiro-')) {
+    // Tocos ESTÁTICOS da planilha: IDs como 'toco-CF123' (não 'toco-auto-...')
+    // Tocos AUTO-MONTADOS: IDs como 'toco-auto-1234567890-0' - devem ir para aba VAN
+    const isStaticToco = load.id.startsWith('toco-') && !load.id.startsWith('toco-auto-');
+    if (isStaticToco || load.id.startsWith('roteiro-')) {
         return { tabVehicleType: 'toco', region: 'SP', containerId: 'resultado-toco' };
     }
 
     let tabVehicleType = load.vehicleType;
+    // Tocos auto-montados são exibidos na aba VAN (SP/PR/MS) junto com as demais cargas da rota
+    if (tabVehicleType === 'toco') tabVehicleType = 'van';
     let region = 'SP'; // Default para Van SP
 
     if (load.routesKey) {
         const firstRoute = load.routesKey.split(',')[0];
         const routeConfig = rotaVeiculoMap[firstRoute];
         if (routeConfig) {
-            tabVehicleType = routeConfig.type;
+            tabVehicleType = routeConfig.type === 'toco' ? 'van' : routeConfig.type;
             
             if (tabVehicleType === 'van' || tabVehicleType === 'tresQuartos') {
                 const isPR = routeConfig.title.startsWith('Rota 1') || firstRoute.startsWith('1');
@@ -2477,6 +2488,7 @@ function renderActiveLoadCards() {
         fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
         van: { name: 'Van', colorClass: 'bg-van', textColor: 'text-white', icon: 'bi-truck-front-fill' },
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
+        toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
         truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
         especial: { name: 'Especial', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-clipboard-check-fill' }
     };
@@ -2495,8 +2507,8 @@ function renderActiveLoadCards() {
 
     for (const loadId in activeLoads) {
         const load = activeLoads[loadId];
-        // Ignora cargas 'Toco' e roteirizadas por lista
-        if (load.vehicleType === 'toco' || load.id.startsWith('roteiro-')) continue;
+        // Ignora cargas roteirizadas (os tocos auto-montados PRECISAM ser processados aqui)
+        if (load.id.startsWith('roteiro-')) continue;
 
         // Se houver um filtro de rota ativa, e esta carga não pertencer a ela, ignoramos
         if (activeRouteKey && load.routesKey !== activeRouteKey) continue;
@@ -2633,7 +2645,9 @@ function updateTabCounts() {
     const roteirizadosLoads = Object.values(activeLoads).filter(l => l.id.startsWith('roteiro-'));
 
     Object.values(activeLoads).forEach(l => {
-        if (l.vehicleType === 'toco' || l.id.startsWith('roteiro-')) return;
+        // Tocos AUTO-MONTADOS (ex: toco-auto-...) devem entrar na contagem da aba VAN
+        const isStaticToco = l.id.startsWith('toco-') && !l.id.startsWith('toco-auto-');
+        if (isStaticToco || l.id.startsWith('roteiro-')) return;
         
         const { containerId } = getLoadTabDestination(l);
         if (containerId === 'resultado-fiorino-geral') fiorinoLoads.push(l);
@@ -5237,7 +5251,7 @@ window.reaplicarRegrasPainelInterno = function() {
         const p0 = group.pedidos[0];
         const temTagEspecial = group.pedidos.some(p => {
             const c5 = String(p.Coluna5 || '').toUpperCase();
-            return c5.includes('TBL FUNCIONARIO') || c5.includes('TABELA TRANSFER') || c5.includes('TRANSF. TODESCH') || c5.includes('INSTITUCIONAL') || c5.includes('TBL EXPORTACAO') || c5.includes('MOINHO') || c5.includes('MARCA PROPRIA') || c5.includes('TBL ESPECIAL') || c5.includes('TBL ESP CARRETA') || c5.includes('TRUCK') || c5.includes('CARRETA');
+            return c5.includes('TBL FUNCIONARIO') || c5.includes('TABELA TRANSFER') || c5.includes('TRANSF. TODESCH') || c5.includes('INSTITUCIONAL') || c5.includes('TBL EXPORTACAO') || c5.includes('MOINHO') || c5.includes('MARCA PROPRIA') || c5.includes('TBL ESP CARRETA') || c5.includes('TRUCK') || c5.includes('CARRETA') || c5.includes('FOB ESPECIAL');
         });
         const bloqValor = p0 ? p0['BLOQ.'] : null;
         const ehVarejoToco = p0 && !isNumeric(String(p0.CF || '')) && !temTagEspecial && !(bloqValor != null && String(bloqValor).trim());
@@ -8088,7 +8102,18 @@ if (!div) { console.warn('displayCargasFechadasRestBrasil: div nao encontrada no
         const totalCubagemFormatado = grupo.totalCubagem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const rotas = [...new Set(grupo.pedidos.map(p => p.Cod_Rota))].filter(Boolean).join(', ');
         const collapseId = `collapseCargasFechadasRestBr-${index}`;
-        const displayName = isNumeric(key) ? `CF: ${key}` : key;
+        let displayName;
+        if (isNumeric(key)) {
+            displayName = `CF: ${key}`;
+        } else if (key.startsWith('ROTA-')) {
+            // Formato: ROTA-2000-218580 → "NOME CLIENTE - CIDADE"
+            const primeiroPedido = grupo.pedidos[0];
+            const nomeCliente = String(primeiroPedido?.Nome_Cliente || '').toUpperCase().trim();
+            const cidade = String(primeiroPedido?.Cidade || '').toUpperCase().trim();
+            displayName = cidade ? `${nomeCliente} - ${cidade}` : nomeCliente;
+        } else {
+            displayName = key;
+        }
 
         accordionHtml += `
                     <div class="accordion-item">
@@ -13711,6 +13736,7 @@ function searchLoadByShortId(shortId) {
         // 1. Checa tipos explícitos primeiro
         if (targetLoad.vehicleType === 'fiorino') tabId = 'fiorino-tab-pane';
         else if (targetLoad.vehicleType === 'van') tabId = 'van-tab-pane';
+        else if (targetLoad.vehicleType === 'toco' && targetLoadId.startsWith('toco-auto-')) tabId = 'van-tab-pane';
         else if (targetLoad.vehicleType === 'toco') tabId = 'toco-tab-pane';
         else if (targetLoad.vehicleType === 'tresQuartos' || targetLoad.vehicleType === '3/4') tabId = 'tres-quartos-tab-pane';
 
