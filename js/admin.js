@@ -1276,13 +1276,7 @@
             });
         }
 
-        // Watch container areas where load cards may appear (cargas, mesa de trabalho, montagens especiais, etc.)
-        const obsObserver = new MutationObserver(() => applyClientObservations());
-        const targetContainerToWatch = document.getElementById('cargas-tab-content') || document.body;
-        if (targetContainerToWatch) {
-            obsObserver.observe(targetContainerToWatch, { childList: true, subtree: true });
-        }
-        // Also expose it so admin panel can trigger re-apply after saving
+        // Expose function so admin panel or other scripts can trigger re-apply after saving/removing
         window._apexApplyClientObservations = window._apexApplyClientObservations || applyClientObservations;
     });
 

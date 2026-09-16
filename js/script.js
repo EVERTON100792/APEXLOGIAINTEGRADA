@@ -15266,54 +15266,70 @@ function exportarRelatorioVarejoExcel(periodo, filtroUF = 'GERAL') {
  * APEX BUSINESS RULES BRIDGE: Sincronização de Observações de Clientes
  * Esta função varre os cards de carga e injeta as observações cadastradas no Admin.
  */
+let _isApplyingClientObs = false;
 window._apexApplyClientObservations = function () {
-    const obsMap = window._apexClientObservations || window.clientObservations || {};
-    if (!obsMap || typeof obsMap !== 'object') return;
+    if (_isApplyingClientObs) return;
+    _isApplyingClientObs = true;
+    try {
+        const obsMap = window._apexClientObservations || window.clientObservations || {};
+        if (!obsMap || typeof obsMap !== 'object') return;
 
-    const obsBlocks = document.querySelectorAll('.apex-obs-block, [id^="apex-obs-"]');
-    obsBlocks.forEach(obsBlock => {
-        const clientIdsStr = obsBlock.dataset.clients || "";
-        const clientIds = clientIdsStr.split(',').map(id => id.trim()).filter(Boolean);
-        if (clientIds.length === 0) return;
+        const obsBlocks = document.querySelectorAll('.apex-obs-block, [id^="apex-obs-"]');
+        obsBlocks.forEach(obsBlock => {
+            const clientIdsStr = obsBlock.dataset.clients || "";
+            const clientIds = clientIdsStr.split(',').map(id => id.trim()).filter(Boolean);
+            if (clientIds.length === 0) return;
 
-        const renderedCodes = new Set();
-        const badges = [];
+            const renderedCodes = new Set();
+            const badges = [];
 
-        clientIds.forEach(cid => {
-            const raw = String(cid).trim();
-            const norm = typeof normalizeClientId === 'function' ? normalizeClientId(raw) : raw.replace(/^0+/, '');
-            const codeKey = norm || raw;
-            if (renderedCodes.has(codeKey)) return;
+            clientIds.forEach(cid => {
+                const raw = String(cid).trim();
+                const norm = typeof normalizeClientId === 'function' ? normalizeClientId(raw) : raw.replace(/^0+/, '');
+                const codeKey = norm || raw;
+                if (renderedCodes.has(codeKey)) return;
 
-            let obsText = obsMap[raw] || obsMap[norm];
-            if (!obsText) {
-                for (const [k, v] of Object.entries(obsMap)) {
-                    const normK = typeof normalizeClientId === 'function' ? normalizeClientId(k) : String(k).trim().replace(/^0+/, '');
-                    if (normK === norm) {
-                        obsText = v;
-                        break;
+                let obsText = obsMap[raw] || obsMap[norm];
+                if (!obsText) {
+                    for (const [k, v] of Object.entries(obsMap)) {
+                        const normK = typeof normalizeClientId === 'function' ? normalizeClientId(k) : String(k).trim().replace(/^0+/, '');
+                        if (normK === norm) {
+                            obsText = v;
+                            break;
+                        }
                     }
                 }
-            }
 
-            if (obsText) {
-                renderedCodes.add(codeKey);
-                badges.push(
-                    `<div class="apex-client-obs-badge"><i class="bi bi-info-circle-fill me-1"></i><strong>Cod ${codeKey}:</strong> ${obsText}</div>`
-                );
+                if (obsText) {
+                    renderedCodes.add(codeKey);
+                    badges.push(
+                        `<div class="apex-client-obs-badge"><i class="bi bi-info-circle-fill me-1"></i><strong>Cod ${codeKey}:</strong> ${obsText}</div>`
+                    );
+                }
+            });
+
+            const newHtml = badges.join('');
+            if (badges.length > 0) {
+                if (obsBlock.innerHTML !== newHtml) {
+                    obsBlock.innerHTML = newHtml;
+                }
+                if (obsBlock.style.display !== 'flex') {
+                    obsBlock.style.display = 'flex';
+                }
+                obsBlock.dataset.apexObsApplied = '1';
+            } else {
+                if (obsBlock.innerHTML !== '') {
+                    obsBlock.innerHTML = '';
+                }
+                if (obsBlock.style.display !== 'none') {
+                    obsBlock.style.display = 'none';
+                }
+                delete obsBlock.dataset.apexObsApplied;
             }
         });
-
-        if (badges.length > 0) {
-            obsBlock.innerHTML = badges.join('');
-            obsBlock.style.display = 'flex';
-            obsBlock.dataset.apexObsApplied = '1';
-        } else {
-            obsBlock.innerHTML = '';
-            obsBlock.style.display = 'none';
-            delete obsBlock.dataset.apexObsApplied;
-        }
-    });
+    } finally {
+        _isApplyingClientObs = false;
+    }
 };
 
 // Injeta o gatilho automático no renderAllUI para garantir que as observações sejam aplicadas após cada renderização
