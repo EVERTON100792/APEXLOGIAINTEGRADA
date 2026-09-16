@@ -1061,6 +1061,16 @@
                 .select('config_value').eq('config_key', 'vehicle_config').single();
             if (vcData?.config_value) {
                 window._apexAdminVehicleConfig = vcData.config_value;
+                const vehicles = ['fiorino', 'van', 'tresQuartos', 'toco'];
+                vehicles.forEach(v => {
+                    const cfg = vcData.config_value[v] || {};
+                    const el = (id) => document.getElementById(`acc-vc-${v}-${id}`);
+                    if (el('minKg') && cfg.minKg) el('minKg').value = cfg.minKg;
+                    if (el('softMax') && cfg.softMaxKg) el('softMax').value = cfg.softMaxKg;
+                    if (el('hardMax') && cfg.hardMaxKg) el('hardMax').value = cfg.hardMaxKg;
+                    if (el('cubage') && (cfg.softMaxCubage || cfg.cubage)) el('cubage').value = cfg.softMaxCubage || cfg.cubage;
+                    if (el('hardCubage') && (cfg.hardMaxCubage || cfg.hardCubage)) el('hardCubage').value = cfg.hardMaxCubage || cfg.hardCubage;
+                });
             }
 
             // 2. Route overrides → apply to rotaVeiculoMap when it's ready

@@ -209,12 +209,26 @@ function getVehicleConfig(vehicleType, configs) {
     const configType = typeMap[vehicleType];
     if (!configType) return null;
 
+    const defs = {
+        fiorino: { minKg: 600, softMaxKg: 650, hardMaxKg: 700, cubage: 3.5, hardCubage: 4.5 },
+        van: { minKg: 1300, softMaxKg: 1400, hardMaxKg: 1550, cubage: 9.5, hardCubage: 12.0 },
+        tresQuartos: { minKg: 3000, softMaxKg: 3500, hardMaxKg: 4000, cubage: 18.0, hardCubage: 22.0 },
+        toco: { minKg: 5000, softMaxKg: 5500, hardMaxKg: 6000, cubage: 30.0, hardCubage: 35.0 }
+    };
+    const def = defs[configType] || defs.van;
+
+    const minKg = Number(configs && configs[`${configType}MinCapacity`]) || def.minKg;
+    const softMaxKg = Number(configs && configs[`${configType}MaxCapacity`]) || def.softMaxKg;
+    const softMaxCubagem = Number(configs && configs[`${configType}Cubage`]) || def.cubage;
+    const hardMaxKg = Number(configs && configs[`${configType}HardMaxCapacity`]) || softMaxKg || def.hardMaxKg;
+    const hardMaxCubage = Number(configs && configs[`${configType}HardCubage`]) || softMaxCubagem || def.hardCubage;
+
     return {
-        minKg: configs[`${configType}MinCapacity`],
-        softMaxKg: configs[`${configType}MaxCapacity`],
-        softMaxCubagem: configs[`${configType}Cubage`],
-        hardMaxKg: configs[`${configType}HardMaxCapacity`] || configs[`${configType}MaxCapacity`],
-        hardMaxCubage: configs[`${configType}HardCubage`] || configs[`${configType}Cubage`]
+        minKg,
+        softMaxKg,
+        softMaxCubagem,
+        hardMaxKg,
+        hardMaxCubage
     };
 }
 
@@ -263,6 +277,23 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
     }
 
     if (groupToAdd.pedidos.some(p => p.Agendamento === 'Sim') && load.pedidos.some(p => p.Agendamento === 'Sim')) return false;
+
+    // REGRA DE COERÊNCIA GEOGRÁFICA / DISTÂNCIA ENTRE CIDADES
+    if (load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
+        const maxDistKm = (effectiveVehicleType === 'fiorino' ? 70 : (effectiveVehicleType === 'van' ? 120 : (effectiveVehicleType === 'tresQuartos' ? 150 : 180)));
+        for (const p1 of load.pedidos) {
+            const c1 = p1._coords;
+            for (const p2 of groupToAdd.pedidos) {
+                const c2 = p2._coords;
+                if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
+                    const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
+                    if (dist > maxDistKm) return false;
+                } else if (p1.UF && p2.UF && String(p1.UF).trim().toUpperCase() !== String(p2.UF).trim().toUpperCase()) {
+                    return false;
+                }
+            }
+        }
+    }
 
     return true;
 }
