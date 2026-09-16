@@ -943,26 +943,91 @@
     function renderObs(obs) {
         const tbody = document.getElementById('acc-obs-tbody');
         if (!tbody) return;
-        const entries = Object.entries(obs);
+        const entries = Object.entries(obs || {});
         if (entries.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Nenhuma observacao cadastrada.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#64748b;padding:1rem">Nenhuma observação cadastrada.</td></tr>';
             return;
         }
-        tbody.innerHTML = entries.map(([code, text]) => `
-            <tr>
-                <td><code>${code}</code></td>
-                <td style="font-size:0.83rem;color:#cbd5e1">${text}</td>
-                <td><button class="acc-btn acc-btn-danger acc-btn-sm" onclick="accRemoverObs('${code}')">Remover</button></td>
-            </tr>`).join('');
+        tbody.innerHTML = entries.map(([code, text]) => {
+            const cleanCode = String(code).trim().replace(/^0+/, '') || code;
+            return `
+            <tr style="cursor: pointer;" onclick="accCarregarObsForm('${code}')" title="Clique para carregar no formulário">
+                <td style="width: 70px; vertical-align: middle;"><code>${cleanCode}</code></td>
+                <td style="vertical-align: middle; word-break: break-word; white-space: normal; font-size: 0.82rem; color: #cbd5e1; line-height: 1.3;">${text}</td>
+                <td style="width: 95px; text-align: center; vertical-align: middle; white-space: nowrap;" onclick="event.stopPropagation()">
+                    <button type="button" class="acc-btn acc-btn-danger acc-btn-sm" style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0.3rem 0.6rem; font-size: 0.78rem;" onclick="accRemoverObs('${code}')" title="Excluir observação do cliente ${cleanCode}">
+                        <i class="bi bi-trash-fill"></i> Excluir
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
     }
 
+    window.accCarregarObsForm = function (code) {
+        const obs = window._apexClientObservations || window.clientObservations || {};
+        const cleanCode = String(code).trim().replace(/^0+/, '') || code;
+        const text = obs[code] || obs[cleanCode] || '';
+        const inputCode = document.getElementById('acc-obs-code');
+        const inputText = document.getElementById('acc-obs-text');
+        if (inputCode) inputCode.value = cleanCode;
+        if (inputText) inputText.value = text;
+        inputCode?.focus();
+    };
+
+    window.accFiltrarObs = function (termo) {
+        const obs = window._apexClientObservations || window.clientObservations || {};
+        if (!termo || !termo.trim()) {
+            renderObs(obs);
+            return;
+        }
+        const q = termo.trim().toUpperCase();
+        const filtered = {};
+        for (const [code, text] of Object.entries(obs)) {
+            const cleanCode = String(code).replace(/^0+/, '');
+            if (code.toUpperCase().includes(q) || cleanCode.toUpperCase().includes(q) || String(text).toUpperCase().includes(q)) {
+                filtered[code] = text;
+            }
+        }
+        renderObs(filtered);
+    };
+
+    window.accExcluirObsPorFormulario = async function () {
+        const rawCode = document.getElementById('acc-obs-code')?.value.trim();
+        if (!rawCode) {
+            showAdminAlert('Digite ou selecione o código do cliente para excluir.', 'warning');
+            return;
+        }
+        const cleanCode = rawCode.replace(/^0+/, '') || rawCode;
+        const obs = window._apexClientObservations || window.clientObservations || {};
+
+        let matchedKey = null;
+        if (obs[rawCode]) matchedKey = rawCode;
+        else if (obs[cleanCode]) matchedKey = cleanCode;
+        else {
+            for (const k of Object.keys(obs)) {
+                if (k.replace(/^0+/, '') === cleanCode) {
+                    matchedKey = k;
+                    break;
+                }
+            }
+        }
+
+        if (!matchedKey) {
+            showAdminAlert(`Nenhuma observação encontrada para o cliente ${rawCode}.`, 'warning');
+            return;
+        }
+
+        await window.accRemoverObs(matchedKey);
+    };
+
     window.accSalvarObsCliente = async function () {
-        const code = document.getElementById('acc-obs-code').value.trim();
+        const rawCode = document.getElementById('acc-obs-code').value.trim();
         const text = document.getElementById('acc-obs-text').value.trim();
-        if (!code || !text) { showAdminAlert('Preencha o codigo e a observacao.', 'warning'); return; }
+        if (!rawCode || !text) { showAdminAlert('Preencha o codigo e a observacao.', 'warning'); return; }
+        const cleanCode = rawCode.replace(/^0+/, '') || rawCode;
         const sb = window.supabaseClient || window.supabase;
         const obs = window._apexClientObservations || {};
-        obs[code] = text;
+        obs[cleanCode] = text;
         const { error } = await sb.from('apex_admin_config').update({ config_value: obs, updated_at: new Date().toISOString() }).eq('config_key', 'client_observations');
         if (error) { showAdminAlert('Erro: ' + error.message, 'danger'); return; }
         window._apexClientObservations = obs;
@@ -973,35 +1038,65 @@
         renderObs(obs);
         
         // Aplica na interface imediatamente in-place
-        if (typeof reaplicarRegrasPainelInterno === 'function') {
-            reaplicarRegrasPainelInterno();
-        } else if (window._apexApplyClientObservations) {
+        if (typeof window._apexApplyClientObservations === 'function') {
             window._apexApplyClientObservations();
         }
+        if (typeof reaplicarRegrasPainelInterno === 'function') {
+            reaplicarRegrasPainelInterno();
+        }
 
-        await logAction('Salvar obs cliente: ' + code, 0);
+        await logAction('Salvar obs cliente: ' + cleanCode, 0);
         showAdminAlert('Observacao salva. Interface atualizada.', 'success');
     };
 
     window.accRemoverObs = async function (code) {
+        if (!code) return;
+        const cleanCode = String(code).trim().replace(/^0+/, '') || code;
+        if (!confirm(`Deseja realmente excluir a observação do cliente ${cleanCode}?`)) {
+            return;
+        }
+
         const sb = window.supabaseClient || window.supabase;
+        if (!sb) {
+            showAdminAlert('Erro: Conexão com Supabase não inicializada.', 'danger');
+            return;
+        }
         const obs = window._apexClientObservations || {};
         delete obs[code];
-        await sb.from('apex_admin_config').update({ config_value: obs, updated_at: new Date().toISOString() }).eq('config_key', 'client_observations');
+        if (cleanCode) delete obs[cleanCode];
+        for (const k of Object.keys(obs)) {
+            if (k.replace(/^0+/, '') === cleanCode) delete obs[k];
+        }
+
+        const { error } = await sb.from('apex_admin_config').update({ config_value: obs, updated_at: new Date().toISOString() }).eq('config_key', 'client_observations');
+        if (error) {
+            showAdminAlert('Erro ao excluir no Supabase: ' + error.message, 'danger');
+            return;
+        }
+
         window._apexClientObservations = obs;
         window.clientObservations = obs; // Sincroniza variável global principal
         
+        // Limpa inputs se eram do mesmo cliente
+        const inputCode = document.getElementById('acc-obs-code');
+        if (inputCode && (inputCode.value.trim() === code || inputCode.value.trim().replace(/^0+/, '') === cleanCode)) {
+            inputCode.value = '';
+            const inputText = document.getElementById('acc-obs-text');
+            if (inputText) inputText.value = '';
+        }
+
         renderObs(obs);
         
         // Aplica na interface imediatamente in-place
-        if (typeof reaplicarRegrasPainelInterno === 'function') {
-            reaplicarRegrasPainelInterno();
-        } else if (window._apexApplyClientObservations) {
+        if (typeof window._apexApplyClientObservations === 'function') {
             window._apexApplyClientObservations();
         }
+        if (typeof reaplicarRegrasPainelInterno === 'function') {
+            reaplicarRegrasPainelInterno();
+        }
 
-        await logAction('Remover obs cliente: ' + code, 0);
-        showAdminAlert('Observacao removida.', 'success');
+        await logAction('Remover obs cliente: ' + cleanCode, 0);
+        showAdminAlert(`Observação do cliente ${cleanCode} excluída com sucesso!`, 'success');
     };
 
     async function logAction(action, recordsAffected = 0) {
@@ -1129,6 +1224,10 @@
                 .select('config_value').eq('config_key', 'client_observations').single();
             if (coData?.config_value && typeof coData.config_value === 'object') {
                 window._apexClientObservations = coData.config_value;
+                window.clientObservations = coData.config_value;
+                if (typeof window._apexApplyClientObservations === 'function') {
+                    window._apexApplyClientObservations();
+                }
             }
         } catch (e) {
             // Silent fail — admin preload is non-critical
@@ -1136,34 +1235,55 @@
 
         // MutationObserver: applies client observation notes whenever new load cards appear
         function applyClientObservations() {
-            const obs = window._apexClientObservations || {};
-            if (Object.keys(obs).length === 0) return;
-            document.querySelectorAll('[id^="apex-obs-"]').forEach(div => {
-                if (div.dataset.apexObsApplied) return;
-                // Read client codes embedded at render time via data-clients attribute
-                const clientCodes = [...new Set((div.dataset.clients || '').split(',').filter(Boolean))];
-                const notes = clientCodes.filter(c => obs[c]).map(c =>
-                    `<div class="apex-client-obs-badge"><i class="bi bi-info-circle-fill me-1"></i><strong>Cod ${c}:</strong> ${obs[c]}</div>`
-                ).join('');
-                if (notes) {
-                    div.innerHTML = notes;
-                    div.style.display = 'block';
+            if (typeof window._apexApplyClientObservations === 'function') {
+                window._apexApplyClientObservations();
+                return;
+            }
+            const obs = window._apexClientObservations || window.clientObservations || {};
+            if (!obs || Object.keys(obs).length === 0) return;
+            document.querySelectorAll('.apex-obs-block, [id^="apex-obs-"]').forEach(div => {
+                const clientCodes = [...new Set((div.dataset.clients || '').split(',').map(s => s.trim()).filter(Boolean))];
+                const renderedCodes = new Set();
+                const notes = [];
+
+                clientCodes.forEach(c => {
+                    const norm = c.replace(/^0+/, '');
+                    let text = obs[c] || obs[norm];
+                    if (!text) {
+                        for (const [k, v] of Object.entries(obs)) {
+                            if (k.replace(/^0+/, '') === norm) {
+                                text = v;
+                                break;
+                            }
+                        }
+                    }
+                    const codeDisplay = norm || c;
+                    if (text && !renderedCodes.has(codeDisplay)) {
+                        renderedCodes.add(codeDisplay);
+                        notes.push(`<div class="apex-client-obs-badge"><i class="bi bi-info-circle-fill me-1"></i><strong>Cod ${codeDisplay}:</strong> ${text}</div>`);
+                    }
+                });
+
+                if (notes.length > 0) {
+                    div.innerHTML = notes.join('');
+                    div.style.display = 'flex';
+                    div.dataset.apexObsApplied = '1';
+                } else {
+                    div.innerHTML = '';
+                    div.style.display = 'none';
+                    delete div.dataset.apexObsApplied;
                 }
-                div.dataset.apexObsApplied = '1';
             });
         }
 
-        // Watch all resultado containers for new cards
-        const resultContainers = document.querySelectorAll(
-            '#botoes-fiorino, #botoes-van, #botoes-34, #resultado-toco, ' +
-            '#resultado-fiorino-geral, #resultado-van-geral, #resultado-34-geral'
-        );
+        // Watch container areas where load cards may appear (cargas, mesa de trabalho, montagens especiais, etc.)
         const obsObserver = new MutationObserver(() => applyClientObservations());
-        resultContainers.forEach(el => {
-            if (el) obsObserver.observe(el, { childList: true, subtree: true });
-        });
+        const targetContainerToWatch = document.getElementById('cargas-tab-content') || document.body;
+        if (targetContainerToWatch) {
+            obsObserver.observe(targetContainerToWatch, { childList: true, subtree: true });
+        }
         // Also expose it so admin panel can trigger re-apply after saving
-        window._apexApplyClientObservations = applyClientObservations;
+        window._apexApplyClientObservations = window._apexApplyClientObservations || applyClientObservations;
     });
 
     // ─── Expose global API for other scripts ──────────────────────────────────

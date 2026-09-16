@@ -456,6 +456,10 @@ async function loadRouteOverrides() {
         // 6. Apply Client Observations
         if (configs['client_observations']) {
             window.clientObservations = configs['client_observations'];
+            window._apexClientObservations = configs['client_observations'];
+            if (typeof window._apexApplyClientObservations === 'function') {
+                window._apexApplyClientObservations();
+            }
         }
 
         console.log("Regras de negócio carregadas com sucesso.");
@@ -4024,6 +4028,33 @@ function createPrintWindow(title, bodyContent) {
                     font-size: 7pt !important;
                     font-weight: 700 !important;
                 }
+                .apex-obs-block {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 3px !important;
+                    margin-top: 6px !important;
+                    margin-bottom: 6px !important;
+                    page-break-inside: avoid !important;
+                }
+                .apex-client-obs-badge {
+                    display: flex !important;
+                    align-items: center !important;
+                    background: #fffbeb !important;
+                    border: 1px solid #f59e0b !important;
+                    border-left: 3px solid #d97706 !important;
+                    border-radius: 4px !important;
+                    color: #78350f !important;
+                    font-size: 8pt !important;
+                    padding: 2px 6px !important;
+                    font-weight: 500 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                .apex-client-obs-badge strong {
+                    color: #92400e !important;
+                    margin-right: 4px !important;
+                    font-weight: 700 !important;
+                }
             </style>
             <script>
                 function fixTableHeaders() {
@@ -4946,6 +4977,9 @@ window.reaplicarRegrasPainelInterno = function() {
         (rotaVeiculoMap[r] && rotaVeiculoMap[r].title && rotaVeiculoMap[r].title.includes('São Paulo'))
     );
     let pedidosRota = pedidosGeraisAtuais.filter(p => routes.includes(String(p.Cod_Rota)));
+    pedidosRota.forEach(p => {
+        if (!p._coords) p._coords = getCityCoordinatesSafe(p.Cidade, p.UF);
+    });
 
     const clientGroupsMap = pedidosRota.reduce((acc, pedido) => {
         const clienteId = normalizeClientId(pedido.Cliente);
@@ -5836,16 +5870,25 @@ function promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers) {
         return { refinedLoads, remainingLeftovers };
     }
 
-    // Agrupa as sobras por rota para processar de forma isolada
+    // Agrupa as sobras por rota (respeitando rotas combinadas irmãs, ex: 11501/11502/11511)
+    const processedRouteGroups = new Set();
     const rotasSobras = [...new Set(remainingLeftovers.flatMap(g => g.pedidos.map(p => String(p.Cod_Rota))))];
 
     for (const rota of rotasSobras) {
-        const leftoversDaRota = remainingLeftovers.filter(g => g.pedidos.some(p => String(p.Cod_Rota) === rota));
+        const cfgRota = window.rotaVeiculoMap?.[rota];
+        const rotasDoGrupo = (cfgRota?.combined && Array.isArray(cfgRota.combined))
+            ? [rota, ...cfgRota.combined.map(r => String(r))]
+            : [rota];
+        const groupKey = [...new Set(rotasDoGrupo)].sort().join(',');
+        if (processedRouteGroups.has(groupKey)) continue;
+        processedRouteGroups.add(groupKey);
+
+        const leftoversDaRota = remainingLeftovers.filter(g => g.pedidos.some(p => rotasDoGrupo.includes(String(p.Cod_Rota))));
         const pesoTotalLeftovers = leftoversDaRota.reduce((sum, g) => sum + g.totalKg, 0);
 
-        // Encontra as cargas válidas criadas para essa rota
+        // Encontra as cargas válidas criadas para essa rota ou seu grupo combinado
         const cargasDaRota = refinedLoads.filter(load => 
-            load.pedidos.some(p => String(p.Cod_Rota) === rota)
+            load.pedidos.some(p => rotasDoGrupo.includes(String(p.Cod_Rota)))
         );
 
         if (cargasDaRota.length === 0) continue;
@@ -6364,6 +6407,46 @@ function renderLoadCard(load, vehicleType, vInfo) {
     const isCollapsed = load.collapsed || false;
     const collapseClass = isCollapsed ? 'card-collapsed' : '';
 
+    // APEX Client Observation Notes (Super Usuário)
+    const clientObsMap = window._apexClientObservations || window.clientObservations || {};
+    const clientObsBadges = [];
+    const seenObsClients = new Set();
+
+    if (load.pedidos && Array.isArray(load.pedidos) && Object.keys(clientObsMap).length > 0) {
+        load.pedidos.forEach(p => {
+            const rawCode = String(p.Cliente || '').trim();
+            const normCode = typeof normalizeClientId === 'function' ? normalizeClientId(rawCode) : rawCode.replace(/^0+/, '');
+            if (!rawCode && !normCode) return;
+
+            const clientKey = normCode || rawCode;
+            if (seenObsClients.has(clientKey)) return;
+
+            let obsText = clientObsMap[rawCode] || clientObsMap[normCode];
+            if (!obsText) {
+                for (const [k, v] of Object.entries(clientObsMap)) {
+                    const normK = typeof normalizeClientId === 'function' ? normalizeClientId(k) : String(k).trim().replace(/^0+/, '');
+                    if (normK === normCode) {
+                        obsText = v;
+                        break;
+                    }
+                }
+            }
+
+            if (obsText) {
+                seenObsClients.add(clientKey);
+                clientObsBadges.push(
+                    `<div class="apex-client-obs-badge"><i class="bi bi-info-circle-fill me-1"></i><strong>Cod ${clientKey}:</strong> ${obsText}</div>`
+                );
+            }
+        });
+    }
+
+    const obsContentHtml = clientObsBadges.join('');
+    const obsStyle = obsContentHtml ? 'display: flex;' : 'display: none;';
+    const obsAppliedAttr = obsContentHtml ? ' data-apex-obs-applied="1"' : '';
+    const clientsData = (load.pedidos || []).map(p => String(p.Cliente || '').trim()).join(',');
+    const apexObsBlockHtml = `<div id="apex-obs-${load.id}" class="apex-obs-block" data-clients="${clientsData}"${obsAppliedAttr} style="${obsStyle}">${obsContentHtml}</div>`;
+
     return `
         <div id="${load.id}" 
              class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''} ${manyOrdersClass} ${collapseClass}" 
@@ -6448,7 +6531,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 </div>
 
                 <!-- APEX Client Observation Notes -->
-                <div id="apex-obs-${load.id}" class="apex-obs-block" data-clients="${load.pedidos.map(p => String(p.Cliente || '').trim()).join(',')}" style="display:none"></div>
+                ${apexObsBlockHtml}
                 <div class="text-end mt-2 me-2 mb-1" style="font-size: 0.7rem; opacity: 0.6;">
                     ID: ${load.id}
                 </div>
@@ -8451,6 +8534,9 @@ function finalizeManualLoad() {
     // Gera o HTML do card e o insere no container correto
     const newCardHTML = renderLoadCard(newLoad, vehicleType, vehicleInfo[vehicleType]);
     resultContainer.insertAdjacentHTML('beforeend', newCardHTML);
+    if (typeof window._apexApplyClientObservations === 'function') {
+        window._apexApplyClientObservations();
+    }
 
     // MELHORIA: Em vez de fechar o painel, reinicia-o para permitir a criação de outra carga em sequência.
     const currentVehicleType = document.getElementById('manualVehicleType').value;
@@ -9199,6 +9285,9 @@ function montarCargaPredefinida(inputId, resultadoId, processedSet, nomeCarga) {
                 const emptyState = targetContainer.querySelector('.empty-state');
                 if (emptyState) emptyState.style.display = 'none';
             }
+        }
+        if (typeof window._apexApplyClientObservations === 'function') {
+            window._apexApplyClientObservations();
         }
 
         // AUDIT LOG
@@ -10148,6 +10237,22 @@ const BRAZIL_CITIES_COORDS = {
     'CAPANEMA': { lat: -25.6683, lng: -53.8111 },
     'CHOPINZINHO': { lat: -25.8569, lng: -52.5236 },
     'CORONEL VIVIDA': { lat: -25.9789, lng: -52.5678 },
+    'PALMAS': { lat: -26.4839, lng: -51.9889 },
+    'LARANJEIRAS DO SUL': { lat: -25.4081, lng: -52.4161 },
+    'ENEAS MARQUES': { lat: -25.9406, lng: -53.1611 },
+    'ITAPEJARA D OESTE': { lat: -25.9611, lng: -52.8153 },
+    'ITAPEJARA DOESTE': { lat: -25.9611, lng: -52.8153 },
+    'NOVA ESPERANCA DO SUDOESTE': { lat: -25.8986, lng: -53.2625 },
+    'PALMITAL': { lat: -24.8939, lng: -52.2036 },
+    'SANTA IZABEL DO OESTE': { lat: -25.8239, lng: -53.4839 },
+    'PEROLA D OESTE': { lat: -25.8267, lng: -53.7408 },
+    'PEROLA DOESTE': { lat: -25.8267, lng: -53.7408 },
+    'VIRMOND': { lat: -25.5847, lng: -52.1978 },
+    'SAO JORGE D OESTE': { lat: -25.7119, lng: -52.9169 },
+    'SAO JORGE DOESTE': { lat: -25.7119, lng: -52.9169 },
+    'SAO JOAO': { lat: -25.8242, lng: -52.7292 },
+    'CANTAGALO': { lat: -25.3742, lng: -52.1242 },
+    'CANDOI': { lat: -25.5683, lng: -52.0369 },
     'CORNELIO PROCOPIO': { lat: -23.1811, lng: -50.6467 },
     'SANTA MARIANA': { lat: -23.1492, lng: -50.5186 },
     'BANDEIRANTES': { lat: -23.1097, lng: -50.3667 },
@@ -11636,12 +11741,13 @@ async function processarRoteirizacaoLista(somenteSelecionadas = false) {
 
                         for (const p2 of candidateGroup.pedidos) {
                             const c2 = p2._coords;
-                            const r2 = String(p2.Cod_Rota || '').trim();
+                            const rotasCombinadas115 = ['11501', '11502', '11511'];
+                            const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
                             const ehRotaCombinadaOuMesma = (r1 && r2 && r1 === r2) ||
                                 (cfg1?.combined && cfg1.combined.includes(r2)) ||
                                 (window.rotaVeiculoMap?.[r2]?.combined && window.rotaVeiculoMap[r2].combined.includes(r1));
 
-                            const effectiveMax = ehRotaCombinadaOuMesma ? (maxDist * 1.25) : maxDist;
+                            const effectiveMax = ehGrupo115 ? 230 : (ehRotaCombinadaOuMesma ? (maxDist * 1.25) : maxDist);
 
                             if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
                                 const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
@@ -11749,7 +11855,10 @@ async function processarRoteirizacaoLista(somenteSelecionadas = false) {
                     });
 
                     if (seedCity.coords && candCity.coords) {
-                        const effectiveMaxDist = temAfinidadeDeRotas ? (maxClusterDist * 1.25) : maxClusterDist;
+                        const rotasCombinadas115 = ['11501', '11502', '11511'];
+                        const ehGrupo115 = seedCity.pedidos.some(p1 => rotasCombinadas115.includes(String(p1.Cod_Rota || '').trim())) &&
+                                           candCity.pedidos.some(p2 => rotasCombinadas115.includes(String(p2.Cod_Rota || '').trim()));
+                        const effectiveMaxDist = ehGrupo115 ? 230 : (temAfinidadeDeRotas ? (maxClusterDist * 1.25) : maxClusterDist);
                         canJoin = currentCluster.cities.every(c => {
                             if (!c.coords) return temAfinidadeDeRotas;
                             const d = calculateDistance(c.coords.lat, c.coords.lng, candCity.coords.lat, candCity.coords.lng);
@@ -15158,44 +15267,51 @@ function exportarRelatorioVarejoExcel(periodo, filtroUF = 'GERAL') {
  * Esta função varre os cards de carga e injeta as observações cadastradas no Admin.
  */
 window._apexApplyClientObservations = function () {
-    console.log("Applying client observations to UI cards...");
-    const obsMap = window.clientObservations || window._apexClientObservations || {};
-    const cards = document.querySelectorAll('.premium-load-card');
+    const obsMap = window._apexClientObservations || window.clientObservations || {};
+    if (!obsMap || typeof obsMap !== 'object') return;
 
-    cards.forEach(card => {
-        const loadId = card.dataset.loadId;
-        const obsBlock = document.getElementById(`apex-obs-${loadId}`);
-        if (!obsBlock) return;
-
+    const obsBlocks = document.querySelectorAll('.apex-obs-block, [id^="apex-obs-"]');
+    obsBlocks.forEach(obsBlock => {
         const clientIdsStr = obsBlock.dataset.clients || "";
-        const clientIds = clientIdsStr.split(',').filter(id => id);
+        const clientIds = clientIdsStr.split(',').map(id => id.trim()).filter(Boolean);
+        if (clientIds.length === 0) return;
 
-        let html = '';
-        const foundObs = [];
+        const renderedCodes = new Set();
+        const badges = [];
 
         clientIds.forEach(cid => {
-            const normalizedCid = String(cid).trim();
-            if (obsMap[normalizedCid]) {
-                foundObs.push({ id: normalizedCid, text: obsMap[normalizedCid] });
+            const raw = String(cid).trim();
+            const norm = typeof normalizeClientId === 'function' ? normalizeClientId(raw) : raw.replace(/^0+/, '');
+            const codeKey = norm || raw;
+            if (renderedCodes.has(codeKey)) return;
+
+            let obsText = obsMap[raw] || obsMap[norm];
+            if (!obsText) {
+                for (const [k, v] of Object.entries(obsMap)) {
+                    const normK = typeof normalizeClientId === 'function' ? normalizeClientId(k) : String(k).trim().replace(/^0+/, '');
+                    if (normK === norm) {
+                        obsText = v;
+                        break;
+                    }
+                }
+            }
+
+            if (obsText) {
+                renderedCodes.add(codeKey);
+                badges.push(
+                    `<div class="apex-client-obs-badge"><i class="bi bi-info-circle-fill me-1"></i><strong>Cod ${codeKey}:</strong> ${obsText}</div>`
+                );
             }
         });
 
-        if (foundObs.length > 0) {
-            html = `
-                <div class="apex-client-obs-wrapper" style="margin-top: 10px; padding: 8px; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 4px; text-align: left;">
-                    <strong style="display:block; font-size: 0.75rem; color: #10b981; margin-bottom: 4px; text-transform: uppercase;">Observações de Clientes:</strong>
-                    ${foundObs.map(o => `
-                        <div style="font-size: 0.82rem; color: #cbd5e1; margin-bottom: 4px;">
-                            <span style="color: #6ee7b7; font-weight: bold;">[${o.id}]</span> ${o.text}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-            obsBlock.innerHTML = html;
-            obsBlock.style.display = 'block';
+        if (badges.length > 0) {
+            obsBlock.innerHTML = badges.join('');
+            obsBlock.style.display = 'flex';
+            obsBlock.dataset.apexObsApplied = '1';
         } else {
             obsBlock.innerHTML = '';
             obsBlock.style.display = 'none';
+            delete obsBlock.dataset.apexObsApplied;
         }
     });
 };

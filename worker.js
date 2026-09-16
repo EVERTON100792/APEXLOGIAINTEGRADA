@@ -281,13 +281,18 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
     // REGRA DE COERÊNCIA GEOGRÁFICA / DISTÂNCIA ENTRE CIDADES
     if (load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
         const maxDistKm = (effectiveVehicleType === 'fiorino' ? 70 : (effectiveVehicleType === 'van' ? 120 : (effectiveVehicleType === 'tresQuartos' ? 150 : 180)));
+        const rotasCombinadas115 = ['11501', '11502', '11511'];
         for (const p1 of load.pedidos) {
             const c1 = p1._coords;
+            const r1 = String(p1.Cod_Rota || '').trim();
             for (const p2 of groupToAdd.pedidos) {
                 const c2 = p2._coords;
+                const r2 = String(p2.Cod_Rota || '').trim();
+                const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
+                const limitKm = ehGrupo115 ? 230 : maxDistKm;
                 if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
                     const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
-                    if (dist > maxDistKm) return false;
+                    if (dist > limitKm) return false;
                 } else if (p1.UF && p2.UF && String(p1.UF).trim().toUpperCase() !== String(p2.UF).trim().toUpperCase()) {
                     return false;
                 }

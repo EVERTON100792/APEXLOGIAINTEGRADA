@@ -4732,6 +4732,7 @@
             border-bottom: 1px solid #0f2044;
             color: #94a3b8;
             padding: 0.5rem 0.75rem;
+            word-break: break-word;
         }
 
         .acc-table tr:hover td {
@@ -4932,6 +4933,34 @@
         .apex-client-obs-badge strong {
             color: #fbbf24;
             margin-right: 0.25rem;
+        }
+
+        @media print {
+            .apex-obs-block {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 3px !important;
+                margin-top: 6px !important;
+                margin-bottom: 6px !important;
+                page-break-inside: avoid !important;
+            }
+            .apex-client-obs-badge {
+                background: #fffbeb !important;
+                border: 1px solid #f59e0b !important;
+                border-left: 3px solid #d97706 !important;
+                border-radius: 4px !important;
+                color: #78350f !important;
+                font-size: 8pt !important;
+                padding: 2px 6px !important;
+                font-weight: 500 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .apex-client-obs-badge strong {
+                color: #92400e !important;
+                margin-right: 4px !important;
+                font-weight: 700 !important;
+            }
         }
 
         /* Capacity Bar */
@@ -5333,7 +5362,7 @@
     text-align: left;
     text-transform: uppercase;
 }
-.acc-table td { border-bottom: 1px solid #0f2044; color: #94a3b8; padding: 0.5rem 0.75rem; }
+.acc-table td { border-bottom: 1px solid #0f2044; color: #94a3b8; padding: 0.5rem 0.75rem; word-break: break-word; }
 .acc-table tr:hover td { background: rgba(245,158,11,0.04); }
 .acc-table code { background: #050c1a; border-radius: 4px; color: #f59e0b; font-size: 0.85rem; padding: 0.1rem 0.3rem; }
 
