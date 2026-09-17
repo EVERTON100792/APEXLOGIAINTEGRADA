@@ -10576,6 +10576,48 @@ async function getCityCoordinates(cidade, uf) {
     return null;
 }
 
+/**
+ * Validação de compatibilidade geográfica estrita entre uma carga e um novo grupo de pedidos.
+ * Garante que nenhuma entrega fique em pontas opostas do mapa (alta precisão).
+ */
+function isGeographicallyCompatible(load, groupToAdd, vehicleType) {
+    if (!load || !load.pedidos || load.pedidos.length === 0) return true;
+    if (!groupToAdd || !groupToAdd.pedidos || groupToAdd.pedidos.length === 0) return true;
+
+    const vType = load.vehicleType || vehicleType || 'van';
+    const maxDistKm = (vType === 'fiorino' ? 50 : (vType === 'van' ? 75 : (vType === 'tresQuartos' ? 100 : 130)));
+    const rotasCombinadas115 = ['11501', '11502', '11511'];
+
+    for (const p1 of load.pedidos) {
+        const c1 = p1._coords || getCityCoordinatesSafe(p1.Cidade, p1.UF);
+        const r1 = String(p1.Cod_Rota || '').trim();
+        const uf1 = String(p1.UF || '').trim().toUpperCase();
+        const cid1 = normalizeCityName(p1.Cidade);
+
+        for (const p2 of groupToAdd.pedidos) {
+            const c2 = p2._coords || getCityCoordinatesSafe(p2.Cidade, p2.UF);
+            const r2 = String(p2.Cod_Rota || '').trim();
+            const uf2 = String(p2.UF || '').trim().toUpperCase();
+            const cid2 = normalizeCityName(p2.Cidade);
+
+            // Bloqueia junção entre estados diferentes
+            if (uf1 && uf2 && uf1 !== uf2) return false;
+
+            const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
+            const limitKm = ehGrupo115 ? 120 : maxDistKm;
+
+            if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
+                const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
+                if (dist > limitKm) return false;
+            } else {
+                // Sem coordenadas conhecidas: SÓ permite se for a mesmíssima cidade
+                if (cid1 !== cid2) return false;
+            }
+        }
+    }
+    return true;
+}
+
 function processarPriorizacaoEmMassa() {
     const input = document.getElementById('bulkPriorityInput');
     if (!input) return;
@@ -11546,10 +11588,585 @@ async function montarTodasAsRotas() {
 
 }
 
-async function processarRoteirizacaoLista(somenteSelecionadas = false) {
-    const useGeo = document.getElementById('roteiroGeoCheck').checked;
+// ================================================================================================
+// MOTOR DE ALTA PRECISÃO: MONTAGEM DE SOBRAS GEOGRÁFICAS / JUNÇÃO DE ROTAS
+// ================================================================================================
 
-    // 1. Coleta quais rotas foram selecionadas (suporta valores combinados com vírgula)
+async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options = {}) {
+    const {
+        progressBar = null,
+        statusText = null,
+        thinkingText = null,
+        detailsText = null,
+        isAutoMontarChain = false
+    } = options;
+
+    if (!pedidosParaProcessar || pedidosParaProcessar.length === 0) {
+        return { createdLoads: [], remainingLeftovers: [] };
+    }
+
+    // 1. Mapear cidades e garantir coordenadas seguras
+    pedidosParaProcessar.forEach(p => {
+        p._coords = p._coords || getCityCoordinatesSafe(p.Cidade, p.UF);
+    });
+
+    // 2. Classificar por categoria de veículo (respeitando regras do Super Usuário)
+    const buckets = { fiorino: [], van: [], tresQuartos: [], toco: [] };
+    const currentSpecialFiorinoMap = window.rotasEspeciaisFiorino || (typeof rotasEspeciaisFiorino !== 'undefined' ? rotasEspeciaisFiorino : {});
+
+    pedidosParaProcessar.forEach(p => {
+        const rota = String(p.Cod_Rota || '').trim();
+        let vType = getRouteVehicleCategory(rota);
+
+        // Regra do Painel do Super Usuário: Cidades Permitidas Fiorino por Rota
+        if (vType === 'fiorino' && currentSpecialFiorinoMap[rota]) {
+            const cidadesPermitidas = currentSpecialFiorinoMap[rota];
+            const normCidade = normalizeCityName(p.Cidade);
+            const ehPermitida = Array.isArray(cidadesPermitidas) && cidadesPermitidas.some(c => normalizeCityName(c) === normCidade);
+            if (!ehPermitida) {
+                vType = 'van'; // Não permitida para Fiorino vai para Van
+            }
+        }
+
+        if (buckets[vType]) buckets[vType].push(p);
+        else buckets.van.push(p);
+    });
+
+    // 3. Limites efetivos dos veículos lidos do Super Usuário
+    const getEffectiveVehicleLimits = (vType) => {
+        const defs = {
+            fiorino: { minKg: 600, softMaxKg: 650, hardMaxKg: 700, cubage: 3.5, hardCubage: 4.5 },
+            van: { minKg: 1300, softMaxKg: 1400, hardMaxKg: 1550, cubage: 9.5, hardCubage: 12.0 },
+            tresQuartos: { minKg: 3000, softMaxKg: 3500, hardMaxKg: 4000, cubage: 18.0, hardCubage: 22.0 },
+            toco: { minKg: 5000, softMaxKg: 5500, hardMaxKg: 6000, cubage: 30.0, hardCubage: 35.0 }
+        };
+        const def = defs[vType] || defs.van;
+
+        const elMin = document.getElementById(`acc-vc-${vType}-minKg`);
+        const elSoft = document.getElementById(`acc-vc-${vType}-softMax`);
+        const elHard = document.getElementById(`acc-vc-${vType}-hardMax`);
+        const elCub = document.getElementById(`acc-vc-${vType}-cubage`);
+        const elHardCub = document.getElementById(`acc-vc-${vType}-hardCubage`);
+
+        const domMin = elMin && elMin.value !== '' ? parseFloat(elMin.value) : null;
+        const domSoft = elSoft && elSoft.value !== '' ? parseFloat(elSoft.value) : null;
+        const domHard = elHard && elHard.value !== '' ? parseFloat(elHard.value) : null;
+        const domCub = elCub && elCub.value !== '' ? parseFloat(elCub.value) : null;
+        const domHardCub = elHardCub && elHardCub.value !== '' ? parseFloat(elHardCub.value) : null;
+
+        const adminCfg = (window._apexAdminVehicleConfig && window._apexAdminVehicleConfig[vType]) ? window._apexAdminVehicleConfig[vType] : null;
+
+        const minKg = (domMin !== null && !isNaN(domMin) && domMin > 0) ? domMin :
+                      (adminCfg && parseFloat(adminCfg.minKg) > 0 ? parseFloat(adminCfg.minKg) : def.minKg);
+        const softMaxKg = (domSoft !== null && !isNaN(domSoft) && domSoft > 0) ? domSoft :
+                         (adminCfg && parseFloat(adminCfg.softMaxKg) > 0 ? parseFloat(adminCfg.softMaxKg) : def.softMaxKg);
+        const hardMaxKg = (domHard !== null && !isNaN(domHard) && domHard > 0) ? domHard :
+                         (adminCfg && parseFloat(adminCfg.hardMaxKg) > 0 ? parseFloat(adminCfg.hardMaxKg) : def.hardMaxKg);
+        const cubage = (domCub !== null && !isNaN(domCub) && domCub > 0) ? domCub :
+                       (adminCfg && parseFloat(adminCfg.softMaxCubage || adminCfg.cubage) > 0 ? parseFloat(adminCfg.softMaxCubage || adminCfg.cubage) : def.cubage);
+        const hardMaxCubage = (domHardCub !== null && !isNaN(domHardCub) && domHardCub > 0) ? domHardCub :
+                           (adminCfg && parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) > 0 ? parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) : def.hardCubage);
+
+        return { minKg, softMaxKg, softMaxCubage: cubage, cubage, hardMaxKg, hardMaxCubage, hardCubage: hardMaxCubage };
+    };
+
+    const vehicleConfigs = {
+        fiorinoMinCapacity: getEffectiveVehicleLimits('fiorino').minKg,
+        fiorinoMaxCapacity: getEffectiveVehicleLimits('fiorino').softMaxKg,
+        fiorinoCubage: getEffectiveVehicleLimits('fiorino').cubage,
+        fiorinoHardMaxCapacity: getEffectiveVehicleLimits('fiorino').hardMaxKg,
+        fiorinoHardCubage: getEffectiveVehicleLimits('fiorino').hardMaxCubage,
+
+        vanMinCapacity: getEffectiveVehicleLimits('van').minKg,
+        vanMaxCapacity: getEffectiveVehicleLimits('van').softMaxKg,
+        vanCubage: getEffectiveVehicleLimits('van').cubage,
+        vanHardMaxCapacity: getEffectiveVehicleLimits('van').hardMaxKg,
+        vanHardCubage: getEffectiveVehicleLimits('van').hardMaxCubage,
+
+        tresQuartosMinCapacity: getEffectiveVehicleLimits('tresQuartos').minKg,
+        tresQuartosMaxCapacity: getEffectiveVehicleLimits('tresQuartos').softMaxKg,
+        tresQuartosCubage: getEffectiveVehicleLimits('tresQuartos').cubage,
+        tresQuartosHardMaxCapacity: getEffectiveVehicleLimits('tresQuartos').hardMaxKg,
+        tresQuartosHardCubage: getEffectiveVehicleLimits('tresQuartos').hardMaxCubage,
+
+        tocoMinCapacity: getEffectiveVehicleLimits('toco').minKg,
+        tocoMaxCapacity: getEffectiveVehicleLimits('toco').softMaxKg,
+        tocoCubage: getEffectiveVehicleLimits('toco').cubage,
+        tocoHardMaxCapacity: getEffectiveVehicleLimits('toco').hardMaxKg,
+        tocoHardCubage: getEffectiveVehicleLimits('toco').hardMaxCubage
+    };
+
+    // 4. Consolidação estrita de sobras vizinhas remanescentes
+    const consolidarSobrasEstritas = (leftoverGroups, vType) => {
+        if (!leftoverGroups || leftoverGroups.length === 0) {
+            return { loads: [], remainingLeftovers: [] };
+        }
+
+        const cfg = getEffectiveVehicleLimits(vType);
+        const maxDist = vType === 'fiorino' ? 50 : (vType === 'van' ? 75 : (vType === 'tresQuartos' ? 100 : 130));
+        const rotasCombinadas115 = ['11501', '11502', '11511'];
+
+        const unplaced = deepClone(leftoverGroups);
+        unplaced.sort((a, b) => {
+            if (a.oldestDate && b.oldestDate) {
+                return new Date(a.oldestDate) - new Date(b.oldestDate);
+            }
+            return b.totalKg - a.totalKg;
+        });
+
+        const newLoads = [];
+        const usedIndices = new Set();
+
+        for (let i = 0; i < unplaced.length; i++) {
+            if (usedIndices.has(i)) continue;
+            const seedGroup = unplaced[i];
+
+            if (seedGroup.totalKg > cfg.hardMaxKg || seedGroup.totalCubagem > cfg.hardMaxCubage) {
+                continue;
+            }
+
+            const candidateLoad = {
+                pedidos: [...seedGroup.pedidos],
+                totalKg: seedGroup.totalKg,
+                totalCubagem: seedGroup.totalCubagem,
+                vehicleType: vType,
+                usedHardLimit: false
+            };
+            const currentGroupIndices = [i];
+
+            for (let j = i + 1; j < unplaced.length; j++) {
+                if (usedIndices.has(j)) continue;
+                const candidateGroup = unplaced[j];
+
+                if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
+                if ((candidateLoad.totalCubagem + candidateGroup.totalCubagem) > cfg.hardMaxCubage) continue;
+                if (!isMoveValid(candidateLoad, candidateGroup, vType)) continue;
+
+                let isCloseToAll = true;
+                for (const p1 of candidateLoad.pedidos) {
+                    const c1 = p1._coords || getCityCoordinatesSafe(p1.Cidade, p1.UF);
+                    const r1 = String(p1.Cod_Rota || '').trim();
+                    const uf1 = String(p1.UF || '').trim().toUpperCase();
+                    const cid1 = normalizeCityName(p1.Cidade);
+
+                    for (const p2 of candidateGroup.pedidos) {
+                        const c2 = p2._coords || getCityCoordinatesSafe(p2.Cidade, p2.UF);
+                        const r2 = String(p2.Cod_Rota || '').trim();
+                        const uf2 = String(p2.UF || '').trim().toUpperCase();
+                        const cid2 = normalizeCityName(p2.Cidade);
+
+                        if (uf1 && uf2 && uf1 !== uf2) {
+                            isCloseToAll = false;
+                            break;
+                        }
+
+                        const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
+                        const effectiveMax = ehGrupo115 ? 120 : maxDist;
+
+                        if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
+                            const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
+                            if (dist > effectiveMax) {
+                                isCloseToAll = false;
+                                break;
+                            }
+                        } else {
+                            if (cid1 !== cid2) {
+                                isCloseToAll = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!isCloseToAll) break;
+                }
+
+                if (isCloseToAll) {
+                    candidateLoad.pedidos.push(...candidateGroup.pedidos);
+                    candidateLoad.totalKg += candidateGroup.totalKg;
+                    candidateLoad.totalCubagem += candidateGroup.totalCubagem;
+                    currentGroupIndices.push(j);
+
+                    if (candidateLoad.totalKg >= cfg.softMaxKg) break;
+                }
+            }
+
+            // Trava de fechamento: DEVE atingir o mínimo E respeitar os tetos
+            if (candidateLoad.totalKg >= cfg.minKg && candidateLoad.totalKg <= cfg.hardMaxKg && candidateLoad.totalCubagem <= cfg.hardMaxCubage) {
+                candidateLoad.usedHardLimit = (candidateLoad.totalKg > cfg.softMaxKg || candidateLoad.totalCubagem > cfg.cubage);
+                newLoads.push(candidateLoad);
+                currentGroupIndices.forEach(idx => usedIndices.add(idx));
+            }
+        }
+
+        const remainingLeftovers = unplaced.filter((_, idx) => !usedIndices.has(idx));
+        return { loads: newLoads, remainingLeftovers };
+    };
+
+    // 5. Otimização por estágio com clusterização de alta precisão
+    const optimizeSobrasStage = async (orders, type) => {
+        if (!orders || orders.length === 0) return { loads: [], leftovers: [] };
+        const cfg = getEffectiveVehicleLimits(type);
+
+        const stageCitiesMap = {};
+        orders.forEach(p => {
+            const normC = normalizeCityName(p.Cidade);
+            const key = `${normC} - ${(p.UF || '').trim().toUpperCase()}`;
+            if (!stageCitiesMap[key]) {
+                stageCitiesMap[key] = {
+                    key: key,
+                    cidade: normC,
+                    uf: (p.UF || '').trim().toUpperCase(),
+                    coords: p._coords || getCityCoordinatesSafe(p.Cidade, p.UF),
+                    pedidos: []
+                };
+            }
+            stageCitiesMap[key].pedidos.push(p);
+        });
+
+        // Diâmetro máximo fechado estrito
+        const maxClusterDist = (type === 'fiorino' ? 50 : (type === 'van' ? 75 : (type === 'tresQuartos' ? 100 : 130)));
+        const rotasCombinadas115 = ['11501', '11502', '11511'];
+        const clusters = [];
+        const assignedCities = new Set();
+        const cityKeys = Object.keys(stageCitiesMap);
+
+        cityKeys.sort((a, b) => {
+            const pesoA = stageCitiesMap[a].pedidos.reduce((s, p) => s + (p.Quilos_Saldo || 0), 0);
+            const pesoB = stageCitiesMap[b].pedidos.reduce((s, p) => s + (p.Quilos_Saldo || 0), 0);
+            return pesoB - pesoA;
+        });
+
+        for (const seedKey of cityKeys) {
+            if (assignedCities.has(seedKey)) continue;
+            const seedCity = stageCitiesMap[seedKey];
+            const currentCluster = {
+                cities: [seedCity],
+                pedidos: [...seedCity.pedidos]
+            };
+            assignedCities.add(seedKey);
+
+            for (const candidateKey of cityKeys) {
+                if (assignedCities.has(candidateKey)) continue;
+                const candCity = stageCitiesMap[candidateKey];
+
+                if (seedCity.uf && candCity.uf && seedCity.uf !== candCity.uf) continue;
+
+                let canJoin = false;
+                if (seedCity.coords && candCity.coords) {
+                    const ehGrupo115 = seedCity.pedidos.some(p1 => rotasCombinadas115.includes(String(p1.Cod_Rota || '').trim())) &&
+                                       candCity.pedidos.some(p2 => rotasCombinadas115.includes(String(p2.Cod_Rota || '').trim()));
+                    const effectiveMaxDist = ehGrupo115 ? 120 : maxClusterDist;
+
+                    canJoin = currentCluster.cities.every(c => {
+                        if (!c.coords) return false;
+                        const d = calculateDistance(c.coords.lat, c.coords.lng, candCity.coords.lat, candCity.coords.lng);
+                        return d <= effectiveMaxDist;
+                    });
+
+                    if (canJoin && currentCluster.cities.length > 1) {
+                        const lats = currentCluster.cities.map(c => c.coords.lat);
+                        const lngs = currentCluster.cities.map(c => c.coords.lng);
+                        const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length;
+                        const avgLng = lngs.reduce((a, b) => a + b, 0) / lngs.length;
+                        const dCentroid = calculateDistance(avgLat, avgLng, candCity.coords.lat, candCity.coords.lng);
+                        if (dCentroid > (effectiveMaxDist * 0.7)) {
+                            canJoin = false;
+                        }
+                    }
+                } else {
+                    canJoin = (seedCity.cidade === candCity.cidade);
+                }
+
+                if (canJoin) {
+                    currentCluster.cities.push(candCity);
+                    currentCluster.pedidos.push(...candCity.pedidos);
+                    assignedCities.add(candidateKey);
+                }
+            }
+            clusters.push(currentCluster);
+        }
+
+        const promises = clusters.map(cluster => {
+            const rawClientGroups = {};
+            cluster.pedidos.forEach(p => {
+                const cId = normalizeClientId(p.Cliente);
+                if (!rawClientGroups[cId]) rawClientGroups[cId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) };
+                rawClientGroups[cId].pedidos.push(p);
+                rawClientGroups[cId].totalKg += (Number(p.Quilos_Saldo) || 0);
+                rawClientGroups[cId].totalCubagem += (Number(p.Cubagem) || 0);
+            });
+
+            const packableGroups = [];
+            const immediateLeftovers = [];
+
+            Object.values(rawClientGroups).forEach(grp => {
+                if (grp.totalKg <= cfg.hardMaxKg && grp.totalCubagem <= cfg.hardMaxCubage) {
+                    packableGroups.push(grp);
+                } else {
+                    if (grp.pedidos.length > 1) {
+                        let currentSub = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: grp.isSpecial };
+                        grp.pedidos.forEach(p => {
+                            const pKg = Number(p.Quilos_Saldo) || 0;
+                            const pCub = Number(p.Cubagem) || 0;
+                            if (pKg > cfg.hardMaxKg || pCub > cfg.hardMaxCubage) {
+                                immediateLeftovers.push({ pedidos: [p], totalKg: pKg, totalCubagem: pCub, isSpecial: grp.isSpecial });
+                            } else if ((currentSub.totalKg + pKg) <= cfg.hardMaxKg && (currentSub.totalCubagem + pCub) <= cfg.hardMaxCubage) {
+                                currentSub.pedidos.push(p);
+                                currentSub.totalKg += pKg;
+                                currentSub.totalCubagem += pCub;
+                            } else {
+                                if (currentSub.pedidos.length > 0) packableGroups.push(currentSub);
+                                currentSub = { pedidos: [p], totalKg: pKg, totalCubagem: pCub, isSpecial: grp.isSpecial };
+                            }
+                        });
+                        if (currentSub.pedidos.length > 0) packableGroups.push(currentSub);
+                    } else {
+                        immediateLeftovers.push(grp);
+                    }
+                }
+            });
+
+            packableGroups.forEach(group => {
+                group.oldestDate = group.pedidos.reduce((oldest, p) => {
+                    let pDate = p.Dat_Ped;
+                    if (!pDate || (pDate instanceof Date && isNaN(pDate.getTime()))) {
+                        pDate = p.Predat;
+                    }
+                    if (pDate) {
+                        const dateObj = pDate instanceof Date ? pDate : new Date(pDate);
+                        if (!isNaN(dateObj.getTime())) {
+                            if (!oldest || dateObj < oldest) return dateObj;
+                        }
+                    }
+                    return oldest;
+                }, null);
+            });
+
+            if (packableGroups.length === 0) {
+                return Promise.resolve({ cluster, result: { loads: [], leftovers: immediateLeftovers } });
+            }
+
+            const processingWorker = new Worker('worker.js');
+            processingWorker.postMessage({
+                command: 'start-optimization',
+                packableGroups: packableGroups,
+                vehicleType: type,
+                optimizationLevel: '2',
+                configs: vehicleConfigs,
+                pedidosPrioritarios: pedidosPrioritarios,
+                pedidosRecall: pedidosRecall
+            });
+
+            return new Promise((resolve, reject) => {
+                processingWorker.onmessage = (e) => {
+                    if (e.data.status === 'complete') {
+                        processingWorker.terminate();
+                        const res = e.data.result || { loads: [], leftovers: [] };
+                        if (immediateLeftovers.length > 0) {
+                            res.leftovers = [...(res.leftovers || []), ...immediateLeftovers];
+                        }
+                        resolve({ cluster, result: res });
+                    } else if (e.data.status === 'error') {
+                        processingWorker.terminate();
+                        reject(new Error(e.data.message));
+                    }
+                };
+                processingWorker.onerror = (e) => {
+                    processingWorker.terminate();
+                    reject(new Error(e.message));
+                };
+            });
+        });
+
+        const results = await Promise.all(promises);
+
+        const stageLoads = [];
+        let stageLeftovers = [];
+
+        for (const { cluster, result } of results) {
+            const clusterLoads = result.loads || [];
+            clusterLoads.forEach(l => l.vehicleType = type);
+            let clusterLeftovers = result.leftovers || [];
+
+            let lIdx = 0;
+            while (lIdx < clusterLeftovers.length) {
+                const lGrp = clusterLeftovers[lIdx];
+                let placed = false;
+                for (const load of clusterLoads) {
+                    if ((load.totalKg + lGrp.totalKg) <= cfg.hardMaxKg &&
+                        (load.totalCubagem + lGrp.totalCubagem) <= cfg.hardMaxCubage &&
+                        isMoveValid(load, lGrp, type) &&
+                        isGeographicallyCompatible(load, lGrp, type)) {
+                        load.pedidos.push(...lGrp.pedidos);
+                        load.totalKg += lGrp.totalKg;
+                        load.totalCubagem += lGrp.totalCubagem;
+                        load.usedHardLimit = (load.totalKg > cfg.softMaxKg || load.totalCubagem > cfg.cubage);
+                        placed = true;
+                        break;
+                    }
+                }
+                if (placed) {
+                    clusterLeftovers.splice(lIdx, 1);
+                } else {
+                    lIdx++;
+                }
+            }
+
+            stageLoads.push(...clusterLoads);
+            stageLeftovers.push(...clusterLeftovers);
+        }
+
+        if (stageLeftovers.length > 0) {
+            const consolidation = consolidarSobrasEstritas(stageLeftovers, type);
+            if (consolidation.loads.length > 0) {
+                consolidation.loads.forEach(l => l.vehicleType = type);
+                stageLoads.push(...consolidation.loads);
+                stageLeftovers = consolidation.remainingLeftovers;
+            }
+        }
+
+        return { loads: stageLoads, leftovers: stageLeftovers };
+    };
+
+    // 6. Execução sequencial por categorias
+    const allCreatedLoads = [];
+    const allFinalLeftovers = [];
+
+    const categories = [
+        { key: 'fiorino', name: 'Fiorino', progressPct: '30%' },
+        { key: 'van', name: 'Van', progressPct: '60%' },
+        { key: 'tresQuartos', name: '3/4', progressPct: '80%' },
+        { key: 'toco', name: 'Toco', progressPct: '95%' }
+    ];
+
+    for (const cat of categories) {
+        if (buckets[cat.key] && buckets[cat.key].length > 0) {
+            if (progressBar) progressBar.style.width = cat.progressPct;
+            if (thinkingText) thinkingText.textContent = `Otimizando sobras para ${cat.name}...`;
+            if (detailsText) detailsText.textContent = `Processando ${buckets[cat.key].length} pedido(s) de ${cat.name}...`;
+
+            const res = await optimizeSobrasStage(buckets[cat.key], cat.key);
+            allCreatedLoads.push(...res.loads.map(l => ({ ...l, vehicleType: cat.key })));
+            allFinalLeftovers.push(...res.leftovers.flatMap(g => g.pedidos));
+        }
+    }
+
+    // 7. Sequenciamento TSP partindo de Rolândia/Selmi
+    allCreatedLoads.forEach(load => {
+        if (!load.pedidos || load.pedidos.length <= 1) return;
+        const depot = { lat: -23.31461, lng: -51.36963 };
+        const cityMap = {};
+        load.pedidos.forEach(p => {
+            const cKey = normalizeCityName(p.Cidade) || 'OUTROS';
+            if (!cityMap[cKey]) cityMap[cKey] = { pedidos: [], coords: p._coords || getCityCoordinatesSafe(p.Cidade, p.UF) };
+            cityMap[cKey].pedidos.push(p);
+        });
+
+        const unvisited = Object.keys(cityMap);
+        let currentPos = depot;
+        const sortedCityKeys = [];
+
+        while (unvisited.length > 0) {
+            let bestIdx = 0;
+            let minDist = Infinity;
+            for (let i = 0; i < unvisited.length; i++) {
+                const cCoords = cityMap[unvisited[i]].coords;
+                if (cCoords && typeof cCoords.lat === 'number') {
+                    const d = calculateDistance(currentPos.lat, currentPos.lng, cCoords.lat, cCoords.lng);
+                    if (d < minDist) {
+                        minDist = d;
+                        bestIdx = i;
+                    }
+                }
+            }
+            const chosen = unvisited[bestIdx];
+            sortedCityKeys.push(chosen);
+            if (cityMap[chosen].coords) currentPos = cityMap[chosen].coords;
+            unvisited.splice(bestIdx, 1);
+        }
+
+        const sortedOrders = [];
+        sortedCityKeys.forEach(k => {
+            cityMap[k].pedidos.sort((a, b) => (a.Nome_Cliente || '').localeCompare(b.Nome_Cliente || ''));
+            sortedOrders.push(...cityMap[k].pedidos);
+        });
+        load.pedidos = sortedOrders;
+    });
+
+    // 8. Auditoria Final Rígida (Pente Fino)
+    const validatedLoads = [];
+    for (const load of allCreatedLoads) {
+        const cfg = getEffectiveVehicleLimits(load.vehicleType);
+
+        load.totalKg = load.pedidos.reduce((sum, p) => sum + (Number(p.Quilos_Saldo) || 0), 0);
+        load.totalCubagem = load.pedidos.reduce((sum, p) => sum + (Number(p.Cubagem) || 0), 0);
+
+        while (load.pedidos.length > 1 && (load.totalKg > cfg.hardMaxKg || load.totalCubagem > cfg.hardMaxCubage)) {
+            const removedOrder = load.pedidos.pop();
+            load.totalKg -= (Number(removedOrder.Quilos_Saldo) || 0);
+            load.totalCubagem -= (Number(removedOrder.Cubagem) || 0);
+            allFinalLeftovers.push(removedOrder);
+        }
+
+        if (load.totalKg >= cfg.minKg && load.totalKg <= cfg.hardMaxKg && load.totalCubagem <= cfg.hardMaxCubage) {
+            load.usedHardLimit = (load.totalKg > cfg.softMaxKg || load.totalCubagem > cfg.cubage);
+            validatedLoads.push(load);
+        } else {
+            console.warn(`[Sobras Geográficas] Carga ${load.vehicleType} descartada por não atingir peso mínimo (${load.totalKg.toFixed(2)}kg < ${cfg.minKg}kg). Pedidos preservados como sobra.`);
+            allFinalLeftovers.push(...load.pedidos);
+        }
+    }
+
+    // 9. Registrar e renderizar as cargas na aba Cargas Automáticas (Junção de Rotas)
+    const vehicleInfo = {
+        fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
+        van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
+        tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
+        toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' }
+    };
+
+    const roteirizadosContainer = document.getElementById('resultado-roteirizados');
+    const usedOrderIds = new Set();
+
+    validatedLoads.forEach((load, idx) => {
+        const timestamp = Date.now().toString().slice(-4);
+        const randomSuf = Math.floor(Math.random() * 100);
+        load.numero = `CJ-${timestamp}-${idx + 1}`;
+        load.id = `roteiro-${Date.now()}-${randomSuf}-${idx}`;
+        load.isSobrasJuncao = true;
+        load.isRoteiroLoad = true;
+
+        const citiesInLoad = [...new Set(load.pedidos.map(p => p.Cidade).filter(Boolean))];
+        load.observation = `Junção Automática de Rotas (${citiesInLoad.slice(0, 3).join(', ')}${citiesInLoad.length > 3 ? '...' : ''})`;
+
+        activeLoads[load.id] = load;
+        load.pedidos.forEach(p => usedOrderIds.add(String(p.Num_Pedido)));
+
+        if (roteirizadosContainer) {
+            const emptyEl = roteirizadosContainer.querySelector('.empty-state');
+            if (emptyEl) emptyEl.remove();
+
+            const vMeta = vehicleInfo[load.vehicleType] || vehicleInfo['van'];
+            const cardHtml = renderLoadCard(load, load.vehicleType, vMeta);
+            roteirizadosContainer.insertAdjacentHTML('beforeend', cardHtml);
+        }
+
+        if (typeof refreshLoadFreight === 'function') {
+            refreshLoadFreight(load.id);
+        }
+    });
+
+    // 10. Atualiza os pedidos gerais e sobras removendo os que foram alocados
+    if (usedOrderIds.size > 0) {
+        pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !usedOrderIds.has(String(p.Num_Pedido)));
+        if (Array.isArray(window.currentLeftoversForPrinting)) {
+            window.currentLeftoversForPrinting = window.currentLeftoversForPrinting.filter(p => !usedOrderIds.has(String(p.Num_Pedido)));
+        }
+    }
+
+    return { createdLoads: validatedLoads, remainingLeftovers: allFinalLeftovers };
+}
+
+async function processarRoteirizacaoLista(somenteSelecionadas = false) {
     let rotasSelecionadas = [];
     if (somenteSelecionadas) {
         const checkboxes = document.querySelectorAll('#roteirizar-routes-list .roteiro-route-checkbox:checked');
@@ -11559,7 +12176,6 @@ async function processarRoteirizacaoLista(somenteSelecionadas = false) {
         rotasSelecionadas = Array.from(checkboxes).flatMap(cb => String(cb.value).split(',')).map(cb => cb.trim()).filter(Boolean);
     }
 
-    // Expande automaticamente rotas combinadas (ex: se selecionou 11501, garante 11502 e 11511 juntos)
     const rotasExpandidas = new Set(rotasSelecionadas);
     rotasSelecionadas.forEach(r => {
         const cfg = window.rotaVeiculoMap?.[r];
@@ -11570,16 +12186,14 @@ async function processarRoteirizacaoLista(somenteSelecionadas = false) {
     rotasSelecionadas = Array.from(rotasExpandidas);
 
     if (rotasSelecionadas.length === 0) { 
-        showToast("Nenhuma rota selecionada para roteirização.", "warning"); 
+        showToast("Nenhuma rota selecionada para junção de rotas.", "warning"); 
         return; 
     }
 
-    // 2. Oculta o modal de seleção antes de iniciar para não sobrepor!
     const modalEl = document.getElementById('roteirizacaoModal');
     const inputModal = bootstrap.Modal.getInstance(modalEl);
     if (inputModal) inputModal.hide();
 
-    // Show processing modal
     const modalElement = document.getElementById('processing-modal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     const progressBar = document.getElementById('processing-progress-bar');
@@ -11588,17 +12202,15 @@ async function processarRoteirizacaoLista(somenteSelecionadas = false) {
     const detailsText = document.getElementById('processing-details-text');
 
     progressBar.style.width = '0%';
-    statusText.textContent = `Roteirizando e Montando Cargas...`;
-    thinkingText.textContent = "Identificando pedidos e calculando rotas...";
+    statusText.textContent = `Montando Cargas por Junção de Rotas...`;
+    thinkingText.textContent = "Identificando pedidos e calculando proximidade geográfica...";
     detailsText.textContent = "";
     modal.show();
     startThinkingText();
 
     try {
-        // Allow UI to render modal
         await new Promise(r => setTimeout(r, 50));
 
-        // 3. Filtrar os pedidos gerais e sobras que pertencem a essas rotas selecionadas
         const pedidosEncontrados = [];
         const pedidosAlvos = window.pedidosRoteirizarDisponiveis || [];
         pedidosAlvos.forEach(p => {
@@ -11613,665 +12225,36 @@ async function processarRoteirizacaoLista(somenteSelecionadas = false) {
             return;
         }
 
-        progressBar.style.width = '10%';
-        thinkingText.textContent = "Mapeando cidades...";
-
-        // 4. Mapear cidades e obter coordenadas (usando base offline instantânea)
-        pedidosEncontrados.forEach(p => {
-            p._coords = getCityCoordinatesSafe(p.Cidade, p.UF);
+        const resultado = await executarMontagemSobrasGeograficas(pedidosEncontrados, {
+            progressBar,
+            statusText,
+            thinkingText,
+            detailsText
         });
 
-        if (useGeo) {
-            const apiKey = document.getElementById('graphhopperApiKey')?.value;
-            const missingCities = pedidosEncontrados.filter(p => !p._coords);
-            if (missingCities.length > 0 && apiKey) {
-                thinkingText.textContent = "Buscando coordenadas pendentes...";
-                const cityKeys = [...new Set(missingCities.map(p => `${(p.Cidade || '').trim().toUpperCase()} - ${(p.UF || '').trim().toUpperCase()}`))];
-                for (let i = 0; i < cityKeys.length; i++) {
-                    const [cidade, uf] = cityKeys[i].split(' - ');
-                    const coords = await getCityCoordinates(cidade, uf);
-                    if (coords) {
-                        pedidosEncontrados.forEach(p => {
-                            if (`${(p.Cidade || '').trim().toUpperCase()} - ${(p.UF || '').trim().toUpperCase()}` === cityKeys[i]) {
-                                p._coords = coords;
-                            }
-                        });
-                    }
-                    progressBar.style.width = `${10 + (i / cityKeys.length) * 20}%`;
-                }
-            }
+        progressBar.style.width = '100%';
+        updateAndRenderKPIs();
+        updateAndRenderChart();
+        updateTabCounts();
+        saveStateToLocalStorage();
+        renderAllUI();
+
+        modal.hide();
+        stopThinkingText();
+
+        const tabBtn = document.getElementById('roteirizados-tab-btn');
+        if (tabBtn) { const tab = new bootstrap.Tab(tabBtn); tab.show(); }
+
+        if (resultado.createdLoads.length > 0) {
+            showToast(`${resultado.createdLoads.length} carga(s) criada(s) na aba Cargas Auto (Junção de Rotas)!`, "success");
+        } else {
+            showToast("Os pedidos analisados não atingiram o peso mínimo em cidades vizinhas e permaneceram como sobras.", "info");
         }
-
-        // --- CLASSIFICAÇÃO DOS PEDIDOS POR VEÍCULO (Sem rebaixamento ou mistura de categorias) ---
-        thinkingText.textContent = "Classificando pedidos por veículo...";
-        const buckets = { fiorino: [], van: [], tresQuartos: [], toco: [] };
-        const currentSpecialFiorinoMap = window.rotasEspeciaisFiorino || (typeof rotasEspeciaisFiorino !== 'undefined' ? rotasEspeciaisFiorino : {});
-
-        pedidosEncontrados.forEach(p => {
-            const rota = String(p.Cod_Rota || '').trim();
-            let vType = getRouteVehicleCategory(rota);
-
-            // Regra do Painel do Super Usuário: Cidades Permitidas Fiorino por Rota
-            if (vType === 'fiorino' && currentSpecialFiorinoMap[rota]) {
-                const cidadesPermitidas = currentSpecialFiorinoMap[rota];
-                const normCidade = normalizeCityName(p.Cidade);
-                const ehPermitida = Array.isArray(cidadesPermitidas) && cidadesPermitidas.some(c => normalizeCityName(c) === normCidade);
-                if (!ehPermitida) {
-                    vType = 'van'; // Cidade fora da lista permitida para Fiorino vai para Van
-                }
-            }
-
-            if (buckets[vType]) buckets[vType].push(p);
-            else buckets.van.push(p);
-        });
-
-        // Configurações atuais lidas PRIORITARIAMENTE do Painel do Super Usuário
-        const getEffectiveVehicleLimits = (vType) => {
-            const defs = {
-                fiorino: { minKg: 600, softMaxKg: 650, hardMaxKg: 700, cubage: 3.5, hardCubage: 4.5 },
-                van: { minKg: 1300, softMaxKg: 1400, hardMaxKg: 1550, cubage: 9.5, hardCubage: 12.0 },
-                tresQuartos: { minKg: 3000, softMaxKg: 3500, hardMaxKg: 4000, cubage: 18.0, hardCubage: 22.0 },
-                toco: { minKg: 5000, softMaxKg: 5500, hardMaxKg: 6000, cubage: 30.0, hardCubage: 35.0 }
-            };
-            const def = defs[vType] || defs.van;
-
-            const elMin = document.getElementById(`acc-vc-${vType}-minKg`);
-            const elSoft = document.getElementById(`acc-vc-${vType}-softMax`);
-            const elHard = document.getElementById(`acc-vc-${vType}-hardMax`);
-            const elCub = document.getElementById(`acc-vc-${vType}-cubage`);
-            const elHardCub = document.getElementById(`acc-vc-${vType}-hardCubage`);
-
-            const domMin = elMin && elMin.value !== '' ? parseFloat(elMin.value) : null;
-            const domSoft = elSoft && elSoft.value !== '' ? parseFloat(elSoft.value) : null;
-            const domHard = elHard && elHard.value !== '' ? parseFloat(elHard.value) : null;
-            const domCub = elCub && elCub.value !== '' ? parseFloat(elCub.value) : null;
-            const domHardCub = elHardCub && elHardCub.value !== '' ? parseFloat(elHardCub.value) : null;
-
-            const adminCfg = (window._apexAdminVehicleConfig && window._apexAdminVehicleConfig[vType]) ? window._apexAdminVehicleConfig[vType] : null;
-
-            const minKg = (domMin !== null && !isNaN(domMin) && domMin > 0) ? domMin :
-                          (adminCfg && parseFloat(adminCfg.minKg) > 0 ? parseFloat(adminCfg.minKg) : def.minKg);
-
-            const softMaxKg = (domSoft !== null && !isNaN(domSoft) && domSoft > 0) ? domSoft :
-                             (adminCfg && parseFloat(adminCfg.softMaxKg) > 0 ? parseFloat(adminCfg.softMaxKg) : def.softMaxKg);
-
-            const hardMaxKg = (domHard !== null && !isNaN(domHard) && domHard > 0) ? domHard :
-                             (adminCfg && parseFloat(adminCfg.hardMaxKg) > 0 ? parseFloat(adminCfg.hardMaxKg) : def.hardMaxKg);
-
-            const cubage = (domCub !== null && !isNaN(domCub) && domCub > 0) ? domCub :
-                           (adminCfg && parseFloat(adminCfg.softMaxCubage || adminCfg.cubage) > 0 ? parseFloat(adminCfg.softMaxCubage || adminCfg.cubage) : def.cubage);
-
-            const hardMaxCubage = (domHardCub !== null && !isNaN(domHardCub) && domHardCub > 0) ? domHardCub :
-                               (adminCfg && parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) > 0 ? parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) : def.hardCubage);
-
-            return {
-                minKg,
-                softMaxKg,
-                softMaxCubage: cubage,
-                cubage,
-                hardMaxKg,
-                hardMaxCubage,
-                hardCubage: hardMaxCubage
-            };
-        };
-
-        const vehicleConfigs = {
-            fiorinoMinCapacity: getEffectiveVehicleLimits('fiorino').minKg,
-            fiorinoMaxCapacity: getEffectiveVehicleLimits('fiorino').softMaxKg,
-            fiorinoCubage: getEffectiveVehicleLimits('fiorino').cubage,
-            fiorinoHardMaxCapacity: getEffectiveVehicleLimits('fiorino').hardMaxKg,
-            fiorinoHardCubage: getEffectiveVehicleLimits('fiorino').hardMaxCubage,
-
-            vanMinCapacity: getEffectiveVehicleLimits('van').minKg,
-            vanMaxCapacity: getEffectiveVehicleLimits('van').softMaxKg,
-            vanCubage: getEffectiveVehicleLimits('van').cubage,
-            vanHardMaxCapacity: getEffectiveVehicleLimits('van').hardMaxKg,
-            vanHardCubage: getEffectiveVehicleLimits('van').hardMaxCubage,
-
-            tresQuartosMinCapacity: getEffectiveVehicleLimits('tresQuartos').minKg,
-            tresQuartosMaxCapacity: getEffectiveVehicleLimits('tresQuartos').softMaxKg,
-            tresQuartosCubage: getEffectiveVehicleLimits('tresQuartos').cubage,
-            tresQuartosHardMaxCapacity: getEffectiveVehicleLimits('tresQuartos').hardMaxKg,
-            tresQuartosHardCubage: getEffectiveVehicleLimits('tresQuartos').hardMaxCubage,
-
-            tocoMinCapacity: getEffectiveVehicleLimits('toco').minKg,
-            tocoMaxCapacity: getEffectiveVehicleLimits('toco').softMaxKg,
-            tocoCubage: getEffectiveVehicleLimits('toco').cubage,
-            tocoHardMaxCapacity: getEffectiveVehicleLimits('toco').hardMaxKg,
-            tocoHardCubage: getEffectiveVehicleLimits('toco').hardMaxCubage
-        };
-
-        // --- CONSOLIDAÇÃO DE SOBRAS ENTRE ROTAS VIZINHAS DO MESMO VEÍCULO ---
-        const consolidarSobrasProximas = (leftoverGroups, vType) => {
-            if (!leftoverGroups || leftoverGroups.length === 0) {
-                return { loads: [], remainingLeftovers: [] };
-            }
-
-            const cfg = getEffectiveVehicleLimits(vType);
-            const maxDist = vType === 'fiorino' ? 65 : (vType === 'van' ? 110 : (vType === 'tresQuartos' ? 140 : 170));
-            const unplaced = deepClone(leftoverGroups);
-
-            unplaced.sort((a, b) => {
-                if (a.oldestDate && b.oldestDate) {
-                    return new Date(a.oldestDate) - new Date(b.oldestDate);
-                }
-                return b.totalKg - a.totalKg;
-            });
-
-            const newLoads = [];
-            const usedIndices = new Set();
-
-            for (let i = 0; i < unplaced.length; i++) {
-                if (usedIndices.has(i)) continue;
-                const seedGroup = unplaced[i];
-
-                // TRAVA CRÍTICA: Se a semente já for maior que o limite rígido, não pode iniciar carga
-                if (seedGroup.totalKg > cfg.hardMaxKg || seedGroup.totalCubagem > cfg.hardMaxCubage) {
-                    continue;
-                }
-
-                const candidateLoad = {
-                    pedidos: [...seedGroup.pedidos],
-                    totalKg: seedGroup.totalKg,
-                    totalCubagem: seedGroup.totalCubagem,
-                    vehicleType: vType,
-                    usedHardLimit: false
-                };
-                const currentGroupIndices = [i];
-
-                for (let j = i + 1; j < unplaced.length; j++) {
-                    if (usedIndices.has(j)) continue;
-                    const candidateGroup = unplaced[j];
-
-                    // TRAVA RÍGIDA DE CAPACIDADE: Bloqueia qualquer candidato que faça exceder o hardMax
-                    if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
-                    if ((candidateLoad.totalCubagem + candidateGroup.totalCubagem) > cfg.hardMaxCubage) continue;
-                    if (!isMoveValid(candidateLoad, candidateGroup, vType)) continue;
-
-                    // Checa proximidade geográfica com todos os pedidos já na carga
-                    let isCloseToAll = true;
-                    for (const p1 of candidateLoad.pedidos) {
-                        const c1 = p1._coords;
-                        const r1 = String(p1.Cod_Rota || '').trim();
-                        const cfg1 = window.rotaVeiculoMap?.[r1];
-
-                        for (const p2 of candidateGroup.pedidos) {
-                            const c2 = p2._coords;
-                            const rotasCombinadas115 = ['11501', '11502', '11511'];
-                            const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                            const ehRotaCombinadaOuMesma = (r1 && r2 && r1 === r2) ||
-                                (cfg1?.combined && cfg1.combined.includes(r2)) ||
-                                (window.rotaVeiculoMap?.[r2]?.combined && window.rotaVeiculoMap[r2].combined.includes(r1));
-
-                            const effectiveMax = ehGrupo115 ? 230 : (ehRotaCombinadaOuMesma ? (maxDist * 1.25) : maxDist);
-
-                            if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
-                                const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
-                                if (dist > effectiveMax) {
-                                    isCloseToAll = false;
-                                    break;
-                                }
-                            } else if (p1.UF && p2.UF && String(p1.UF).trim().toUpperCase() !== String(p2.UF).trim().toUpperCase()) {
-                                isCloseToAll = false;
-                                break;
-                            }
-                        }
-                        if (!isCloseToAll) break;
-                    }
-
-                    if (isCloseToAll) {
-                        candidateLoad.pedidos.push(...candidateGroup.pedidos);
-                        candidateLoad.totalKg += candidateGroup.totalKg;
-                        candidateLoad.totalCubagem += candidateGroup.totalCubagem;
-                        currentGroupIndices.push(j);
-
-                        if (candidateLoad.totalKg >= cfg.softMaxKg) break;
-                    }
-                }
-
-                // TRAVA DUPLA DE FECHAMENTO: Deve atingir o mínimo E respeitar o máximo rígido
-                if (candidateLoad.totalKg >= cfg.minKg && candidateLoad.totalKg <= cfg.hardMaxKg && candidateLoad.totalCubagem <= cfg.hardMaxCubage) {
-                    candidateLoad.usedHardLimit = (candidateLoad.totalKg > cfg.softMaxKg || candidateLoad.totalCubagem > cfg.cubage);
-                    newLoads.push(candidateLoad);
-                    currentGroupIndices.forEach(idx => usedIndices.add(idx));
-                }
-            }
-
-            const remainingLeftovers = unplaced.filter((_, idx) => !usedIndices.has(idx));
-            return { loads: newLoads, remainingLeftovers };
-        };
-
-        // --- OTIMIZAÇÃO POR ESTÁGIO (COM CLUSTERIZAÇÃO DE DIÂMETRO FECHADO) ---
-        const optimizeStage = async (orders, type) => {
-            if (orders.length === 0) return { loads: [], leftovers: [] };
-            const cfg = getEffectiveVehicleLimits(type);
-
-            // 1. Agrupar por cidade
-            const stageCitiesMap = {};
-            orders.forEach(p => {
-                const normC = normalizeCityName(p.Cidade);
-                const key = `${normC} - ${(p.UF || '').trim().toUpperCase()}`;
-                if (!stageCitiesMap[key]) {
-                    stageCitiesMap[key] = {
-                        key: key,
-                        cidade: normC,
-                        uf: (p.UF || '').trim().toUpperCase(),
-                        coords: p._coords || null,
-                        pedidos: []
-                    };
-                }
-                stageCitiesMap[key].pedidos.push(p);
-            });
-
-            // 2. Clusterização com Diâmetro Fechado (Complete-Linkage)
-            // Impede encadeamento em cadeia através de todo o estado!
-            const maxClusterDist = (type === 'fiorino' ? 65 : (type === 'van' ? 110 : (type === 'tresQuartos' ? 140 : 170)));
-            const clusters = [];
-            const assignedCities = new Set();
-            const cityKeys = Object.keys(stageCitiesMap);
-
-            // Ordena cidades por peso decrescente para usar polos como seeds
-            cityKeys.sort((a, b) => {
-                const pesoA = stageCitiesMap[a].pedidos.reduce((s, p) => s + (p.Quilos_Saldo || 0), 0);
-                const pesoB = stageCitiesMap[b].pedidos.reduce((s, p) => s + (p.Quilos_Saldo || 0), 0);
-                return pesoB - pesoA;
-            });
-
-            for (const seedKey of cityKeys) {
-                if (assignedCities.has(seedKey)) continue;
-                const seedCity = stageCitiesMap[seedKey];
-                const currentCluster = {
-                    cities: [seedCity],
-                    pedidos: [...seedCity.pedidos]
-                };
-                assignedCities.add(seedKey);
-
-                for (const candidateKey of cityKeys) {
-                    if (assignedCities.has(candidateKey)) continue;
-                    const candCity = stageCitiesMap[candidateKey];
-
-                    // Se estados forem diferentes (ex: PR vs SP), não agrupa no mesmo cluster
-                    if (seedCity.uf && candCity.uf && seedCity.uf !== candCity.uf) continue;
-
-                    // Complete linkage: deve estar próximo de TODAS as cidades já no cluster
-                    let canJoin = false;
-
-                    // Checa afinidade de rotas: mesma rota ou rotas declaradamente combinadas entre si
-                    const temAfinidadeDeRotas = seedCity.pedidos.some(p1 => {
-                        const r1 = String(p1.Cod_Rota || '').trim();
-                        const cfg1 = window.rotaVeiculoMap?.[r1];
-                        return candCity.pedidos.some(p2 => {
-                            const r2 = String(p2.Cod_Rota || '').trim();
-                            if (r1 && r2 && r1 === r2) return true;
-                            if (cfg1?.combined && cfg1.combined.includes(r2)) return true;
-                            const cfg2 = window.rotaVeiculoMap?.[r2];
-                            if (cfg2?.combined && cfg2.combined.includes(r1)) return true;
-                            return false;
-                        });
-                    });
-
-                    if (seedCity.coords && candCity.coords) {
-                        const rotasCombinadas115 = ['11501', '11502', '11511'];
-                        const ehGrupo115 = seedCity.pedidos.some(p1 => rotasCombinadas115.includes(String(p1.Cod_Rota || '').trim())) &&
-                                           candCity.pedidos.some(p2 => rotasCombinadas115.includes(String(p2.Cod_Rota || '').trim()));
-                        const effectiveMaxDist = ehGrupo115 ? 230 : (temAfinidadeDeRotas ? (maxClusterDist * 1.25) : maxClusterDist);
-                        canJoin = currentCluster.cities.every(c => {
-                            if (!c.coords) return temAfinidadeDeRotas;
-                            const d = calculateDistance(c.coords.lat, c.coords.lng, candCity.coords.lat, candCity.coords.lng);
-                            return d <= effectiveMaxDist;
-                        });
-                    } else {
-                        // Sem coordenadas: agrupa se for a mesma cidade OU se pertencer à mesma rota / rotas combinadas
-                        canJoin = (seedCity.cidade === candCity.cidade) || temAfinidadeDeRotas;
-                    }
-
-                    if (canJoin) {
-                        currentCluster.cities.push(candCity);
-                        currentCluster.pedidos.push(...candCity.pedidos);
-                        assignedCities.add(candidateKey);
-                    }
-                }
-                clusters.push(currentCluster);
-            }
-
-            // 3. Otimizar cada cluster em paralelo usando Worker
-            const promises = clusters.map(cluster => {
-                // Agrupa pedidos por cliente, mas se o cliente exceder hardMaxKg, desmembra seus pedidos
-                const rawClientGroups = {};
-                cluster.pedidos.forEach(p => {
-                    const cId = normalizeClientId(p.Cliente);
-                    if (!rawClientGroups[cId]) rawClientGroups[cId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) };
-                    rawClientGroups[cId].pedidos.push(p);
-                    rawClientGroups[cId].totalKg += (Number(p.Quilos_Saldo) || 0);
-                    rawClientGroups[cId].totalCubagem += (Number(p.Cubagem) || 0);
-                });
-
-                const packableGroups = [];
-                const immediateLeftovers = [];
-
-                Object.values(rawClientGroups).forEach(grp => {
-                    if (grp.totalKg <= cfg.hardMaxKg && grp.totalCubagem <= cfg.hardMaxCubage) {
-                        packableGroups.push(grp);
-                    } else {
-                        // Se o cliente tem mais de 1 pedido, particiona para tentar caber pedidos menores
-                        if (grp.pedidos.length > 1) {
-                            let currentSub = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: grp.isSpecial };
-                            grp.pedidos.forEach(p => {
-                                const pKg = Number(p.Quilos_Saldo) || 0;
-                                const pCub = Number(p.Cubagem) || 0;
-                                if (pKg > cfg.hardMaxKg || pCub > cfg.hardMaxCubage) {
-                                    immediateLeftovers.push({ pedidos: [p], totalKg: pKg, totalCubagem: pCub, isSpecial: grp.isSpecial });
-                                } else if ((currentSub.totalKg + pKg) <= cfg.hardMaxKg && (currentSub.totalCubagem + pCub) <= cfg.hardMaxCubage) {
-                                    currentSub.pedidos.push(p);
-                                    currentSub.totalKg += pKg;
-                                    currentSub.totalCubagem += pCub;
-                                } else {
-                                    if (currentSub.pedidos.length > 0) packableGroups.push(currentSub);
-                                    currentSub = { pedidos: [p], totalKg: pKg, totalCubagem: pCub, isSpecial: grp.isSpecial };
-                                }
-                            });
-                            if (currentSub.pedidos.length > 0) packableGroups.push(currentSub);
-                        } else {
-                            // Pedido único que excede fisicamente a capacidade máxima do veículo: sobra automática
-                            immediateLeftovers.push(grp);
-                        }
-                    }
-                });
-
-                packableGroups.forEach(group => {
-                    group.oldestDate = group.pedidos.reduce((oldest, p) => {
-                        let pDate = p.Dat_Ped;
-                        if (!pDate || (pDate instanceof Date && isNaN(pDate.getTime()))) {
-                            pDate = p.Predat;
-                        }
-                        if (pDate) {
-                            const dateObj = pDate instanceof Date ? pDate : new Date(pDate);
-                            if (!isNaN(dateObj.getTime())) {
-                                if (!oldest || dateObj < oldest) return dateObj;
-                            }
-                        }
-                        return oldest;
-                    }, null);
-                });
-
-                if (packableGroups.length === 0) {
-                    return Promise.resolve({ cluster, result: { loads: [], leftovers: immediateLeftovers } });
-                }
-
-                const processingWorker = new Worker('worker.js');
-                processingWorker.postMessage({
-                    command: 'start-optimization',
-                    packableGroups: packableGroups,
-                    vehicleType: type,
-                    optimizationLevel: '2',
-                    configs: vehicleConfigs,
-                    pedidosPrioritarios: pedidosPrioritarios,
-                    pedidosRecall: pedidosRecall
-                });
-
-                return new Promise((resolve, reject) => {
-                    processingWorker.onmessage = (e) => {
-                        if (e.data.status === 'complete') {
-                            processingWorker.terminate();
-                            const res = e.data.result || { loads: [], leftovers: [] };
-                            if (immediateLeftovers.length > 0) {
-                                res.leftovers = [...(res.leftovers || []), ...immediateLeftovers];
-                            }
-                            resolve({ cluster, result: res });
-                        } else if (e.data.status === 'error') {
-                            processingWorker.terminate();
-                            reject(new Error(e.data.message));
-                        }
-                    };
-                    processingWorker.onerror = (e) => {
-                        processingWorker.terminate();
-                        reject(new Error(e.message));
-                    };
-                });
-            });
-
-            const results = await Promise.all(promises);
-
-            const stageLoads = [];
-            let stageLeftovers = [];
-
-            for (const { cluster, result } of results) {
-                // Encaixe local seguro de sobras nas cargas do mesmo cluster SEM cascata e SEM promover cargas inválidas
-                const clusterLoads = result.loads || [];
-                clusterLoads.forEach(l => l.vehicleType = type);
-                let clusterLeftovers = result.leftovers || [];
-
-                // Tenta encaixar sobras do cluster apenas onde houver folga real e respeitando hardMax
-                let lIdx = 0;
-                while (lIdx < clusterLeftovers.length) {
-                    const lGrp = clusterLeftovers[lIdx];
-                    let placed = false;
-                    for (const load of clusterLoads) {
-                        if ((load.totalKg + lGrp.totalKg) <= cfg.hardMaxKg &&
-                            (load.totalCubagem + lGrp.totalCubagem) <= cfg.hardMaxCubage &&
-                            isMoveValid(load, lGrp, type)) {
-                            load.pedidos.push(...lGrp.pedidos);
-                            load.totalKg += lGrp.totalKg;
-                            load.totalCubagem += lGrp.totalCubagem;
-                            load.usedHardLimit = (load.totalKg > cfg.softMaxKg || load.totalCubagem > cfg.cubage);
-                            placed = true;
-                            break;
-                        }
-                    }
-                    if (placed) {
-                        clusterLeftovers.splice(lIdx, 1);
-                    } else {
-                        lIdx++;
-                    }
-                }
-
-                stageLoads.push(...clusterLoads);
-                stageLeftovers.push(...clusterLeftovers);
-            }
-
-            // 4. Tenta consolidar as sobras dos clusters vizinhos dentro da MESMA categoria de veículo
-            if (stageLeftovers.length > 0) {
-                const consolidation = consolidarSobrasProximas(stageLeftovers, type);
-                if (consolidation.loads.length > 0) {
-                    consolidation.loads.forEach(l => l.vehicleType = type);
-                    stageLoads.push(...consolidation.loads);
-                    stageLeftovers = consolidation.remainingLeftovers;
-                }
-            }
-
-            return { loads: stageLoads, leftovers: stageLeftovers };
-        };
-
-        // --- EXECUÇÃO POR CATEGORIA DE VEÍCULO (SEM CASCATA / CADA VEÍCULO MANTÉM SEU POOL) ---
-        const allCreatedLoads = [];
-        const allFinalLeftovers = [];
-
-        // 1. FIORINO
-        if (buckets.fiorino.length > 0) {
-            progressBar.style.width = '30%';
-            thinkingText.textContent = "Processando cargas de Fiorino...";
-            detailsText.textContent = `Montando cargas de Fiorino (${buckets.fiorino.length} pedidos)...`;
-            const fiorinoResult = await optimizeStage(buckets.fiorino, 'fiorino');
-            allCreatedLoads.push(...fiorinoResult.loads.map(l => ({ ...l, vehicleType: 'fiorino' })));
-            allFinalLeftovers.push(...fiorinoResult.leftovers.flatMap(g => g.pedidos));
-        }
-
-        // 2. VAN (Paraná e São Paulo processadas no pool de Van, sem receber sobras de Fiorino!)
-        if (buckets.van.length > 0) {
-            progressBar.style.width = '55%';
-            thinkingText.textContent = "Processando cargas de Van...";
-            detailsText.textContent = `Montando cargas de Van (${buckets.van.length} pedidos)...`;
-            const vanResult = await optimizeStage(buckets.van, 'van');
-            allCreatedLoads.push(...vanResult.loads.map(l => ({ ...l, vehicleType: 'van' })));
-            allFinalLeftovers.push(...vanResult.leftovers.flatMap(g => g.pedidos));
-        }
-
-        // 3. 3/4 (Sem receber sobras de Van!)
-        if (buckets.tresQuartos.length > 0) {
-            progressBar.style.width = '75%';
-            thinkingText.textContent = "Processando cargas de 3/4...";
-            detailsText.textContent = `Montando cargas de 3/4 (${buckets.tresQuartos.length} pedidos)...`;
-            const tqResult = await optimizeStage(buckets.tresQuartos, 'tresQuartos');
-            allCreatedLoads.push(...tqResult.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
-            allFinalLeftovers.push(...tqResult.leftovers.flatMap(g => g.pedidos));
-        }
-
-        // 4. TOCO (Sem receber sobras de 3/4!)
-        if (buckets.toco.length > 0) {
-            progressBar.style.width = '90%';
-            thinkingText.textContent = "Processando cargas de Toco...";
-            detailsText.textContent = `Montando cargas de Toco (${buckets.toco.length} pedidos)...`;
-            const tocoResult = await optimizeStage(buckets.toco, 'toco');
-            allCreatedLoads.push(...tocoResult.loads.map(l => ({ ...l, vehicleType: 'toco' })));
-            allFinalLeftovers.push(...tocoResult.leftovers.flatMap(g => g.pedidos));
-        }
-
-        // 5. Ordena sequência das entregas em cada carga montada para rota lógica
-        allCreatedLoads.forEach(load => {
-            if (!load.pedidos || load.pedidos.length <= 1) return;
-            const depot = { lat: -23.31461, lng: -51.36963 };
-            const cityMap = {};
-            load.pedidos.forEach(p => {
-                const cKey = normalizeCityName(p.Cidade) || 'OUTROS';
-                if (!cityMap[cKey]) cityMap[cKey] = { pedidos: [], coords: p._coords };
-                cityMap[cKey].pedidos.push(p);
-            });
-
-            const unvisited = Object.keys(cityMap);
-            let currentPos = depot;
-            const sortedCityKeys = [];
-
-            while (unvisited.length > 0) {
-                let bestIdx = 0;
-                let minDist = Infinity;
-                for (let i = 0; i < unvisited.length; i++) {
-                    const cCoords = cityMap[unvisited[i]].coords;
-                    if (cCoords && typeof cCoords.lat === 'number') {
-                        const d = calculateDistance(currentPos.lat, currentPos.lng, cCoords.lat, cCoords.lng);
-                        if (d < minDist) {
-                            minDist = d;
-                            bestIdx = i;
-                        }
-                    }
-                }
-                const chosen = unvisited[bestIdx];
-                sortedCityKeys.push(chosen);
-                if (cityMap[chosen].coords) currentPos = cityMap[chosen].coords;
-                unvisited.splice(bestIdx, 1);
-            }
-
-            const sortedOrders = [];
-            sortedCityKeys.forEach(k => {
-                cityMap[k].pedidos.sort((a, b) => (a.Nome_Cliente || '').localeCompare(b.Nome_Cliente || ''));
-                sortedOrders.push(...cityMap[k].pedidos);
-            });
-            load.pedidos = sortedOrders;
-        });
-
-        // 6. AUDITORIA FINAL RÍGIDA E IMPLACÁVEL (Pente Fino)
-        // Garante que absolutamente NENHUMA carga exceda hardMaxKg ou hardMaxCubage definido no painel admin!
-        const validatedLoads = [];
-        for (const load of allCreatedLoads) {
-            const cfg = getEffectiveVehicleLimits(load.vehicleType);
-
-            // Recalcula peso e cubagem reais com precisão matemática
-            load.totalKg = load.pedidos.reduce((sum, p) => sum + (Number(p.Quilos_Saldo) || 0), 0);
-            load.totalCubagem = load.pedidos.reduce((sum, p) => sum + (Number(p.Cubagem) || 0), 0);
-
-            // Trava de teto (hardMax): Se exceder, remove pedidos excedentes de trás para frente até caber
-            while (load.pedidos.length > 1 && (load.totalKg > cfg.hardMaxKg || load.totalCubagem > cfg.hardMaxCubage)) {
-                const removedOrder = load.pedidos.pop();
-                load.totalKg -= (Number(removedOrder.Quilos_Saldo) || 0);
-                load.totalCubagem -= (Number(removedOrder.Cubagem) || 0);
-                allFinalLeftovers.push(removedOrder);
-                console.warn(`[Apex Roteirização] Pedido ${removedOrder.Num_Pedido} removido da carga ${load.vehicleType} para respeitar hardMax (${cfg.hardMaxKg}kg). Peso atualizado: ${load.totalKg.toFixed(2)}kg`);
-            }
-
-            // Trava de piso (minKg): Se a carga final estiver abaixo do peso mínimo, não pode ser fechada
-            if (load.totalKg >= cfg.minKg && load.totalKg <= cfg.hardMaxKg && load.totalCubagem <= cfg.hardMaxCubage) {
-                load.usedHardLimit = (load.totalKg > cfg.softMaxKg || load.totalCubagem > cfg.cubage);
-                validatedLoads.push(load);
-            } else {
-                console.warn(`[Apex Roteirização] Carga ${load.vehicleType} descartada por não atingir limites do painel (${load.totalKg.toFixed(2)}kg, min: ${cfg.minKg}kg, max: ${cfg.hardMaxKg}kg). Pedidos voltaram para lista.`);
-                allFinalLeftovers.push(...load.pedidos);
-            }
-        }
-
-        if (allFinalLeftovers.length > 0) {
-            showToast(`${allFinalLeftovers.length} pedidos não atingiram os critérios de capacidade/proximidade do Painel e permaneceram como sobras.`, 'info');
-        }
-
-        let loads = validatedLoads;
-
-        // 6. Finalize
-        progressBar.style.width = '95%';
-        thinkingText.textContent = "Finalizando...";
-
-        // Limpa o container de roteirizados antes de adicionar novos
-        const roteirizadosContainer = document.getElementById('resultado-roteirizados');
-        if (roteirizadosContainer) roteirizadosContainer.innerHTML = '';
-
-        // Pequeno delay para garantir que a UI atualize antes de travar na renderização
-        setTimeout(() => {
-            try {
-                const vehicleInfo = { fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' }, van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' }, tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' }, toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' } };
-                if (!loads) loads = [];
-                loads.forEach((load, idx) => {
-                    load.numero = `R-${Date.now().toString().slice(-4)}-${idx + 1}`;
-                    load.id = `roteiro-${Date.now()}-${idx}`;
-                    const citiesInLoad = [...new Set(load.pedidos.map(p => p.Cidade))];
-                    load.observation = `Roteirização por Lista (${citiesInLoad.length} cidades)`;
-                    activeLoads[load.id] = load;
-
-                    // Agora direciona todas as cargas para o container de roteirizados
-                    if (roteirizadosContainer) {
-                        const cardHtml = renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType]);
-                        roteirizadosContainer.insertAdjacentHTML('beforeend', cardHtml);
-                    }
-                    
-                    // Dispara o cálculo de frete automático
-                    if (typeof refreshLoadFreight === 'function') refreshLoadFreight(load.id);
-                });
-
-                // Remove apenas os pedidos que foram efetivamente alocados em cargas válidas
-                const usedIds = new Set(loads.flatMap(l => l.pedidos.map(p => String(p.Num_Pedido))));
-                pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !usedIds.has(String(p.Num_Pedido)));
-                currentLeftoversForPrinting = currentLeftoversForPrinting.filter(p => !usedIds.has(String(p.Num_Pedido)));
-
-                const gruposGerais = pedidosGeraisAtuais.reduce((acc, p) => { const rota = p.Cod_Rota; if (!acc[rota]) { acc[rota] = { pedidos: [], totalKg: 0 }; } acc[rota].pedidos.push(p); acc[rota].totalKg += p.Quilos_Saldo; return acc; }, {});
-                displayGerais(document.getElementById('resultado-geral'), gruposGerais);
-
-                progressBar.style.width = '100%';
-                updateAndRenderKPIs();
-                updateAndRenderChart();
-                updateTabCounts();
-                saveStateToLocalStorage();
-
-                modal.hide();
-                stopThinkingText();
-
-                const modalEl = document.getElementById('roteirizacaoModal');
-                const inputModal = bootstrap.Modal.getInstance(modalEl);
-                if (inputModal) inputModal.hide();
-
-                // Muda para a aba de Roteirizados
-                const tabBtn = document.getElementById('roteirizados-tab-btn');
-                if (tabBtn) { const tab = new bootstrap.Tab(tabBtn); tab.show(); }
-
-                showToast(`${loads.length} cargas criadas com sucesso!`, "success");
-            } catch (innerError) {
-                console.error("Erro na renderização final:", innerError);
-                modal.hide();
-                stopThinkingText();
-                showToast("Erro ao finalizar montagem: " + innerError.message, "error");
-            }
-        }, 100);
-
     } catch (e) {
         console.error(e);
         modal.hide();
         stopThinkingText();
-        showToast("Erro ao processar: " + e.message, "error");
+        showToast("Erro ao processar junção de rotas: " + e.message, "error");
     }
 }
 

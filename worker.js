@@ -278,23 +278,34 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
 
     if (groupToAdd.pedidos.some(p => p.Agendamento === 'Sim') && load.pedidos.some(p => p.Agendamento === 'Sim')) return false;
 
-    // REGRA DE COERÊNCIA GEOGRÁFICA / DISTÂNCIA ENTRE CIDADES
+    // REGRA DE COERÊNCIA GEOGRÁFICA / DISTÂNCIA ENTRE CIDADES (PRECISÃO CIRÚRGICA)
     if (load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
-        const maxDistKm = (effectiveVehicleType === 'fiorino' ? 70 : (effectiveVehicleType === 'van' ? 120 : (effectiveVehicleType === 'tresQuartos' ? 150 : 180)));
+        const maxDistKm = (effectiveVehicleType === 'fiorino' ? 50 : (effectiveVehicleType === 'van' ? 75 : (effectiveVehicleType === 'tresQuartos' ? 100 : 130)));
         const rotasCombinadas115 = ['11501', '11502', '11511'];
         for (const p1 of load.pedidos) {
             const c1 = p1._coords;
             const r1 = String(p1.Cod_Rota || '').trim();
+            const uf1 = String(p1.UF || '').trim().toUpperCase();
+            const cidade1 = (p1.Cidade || '').trim().toUpperCase();
+
             for (const p2 of groupToAdd.pedidos) {
                 const c2 = p2._coords;
                 const r2 = String(p2.Cod_Rota || '').trim();
+                const uf2 = String(p2.UF || '').trim().toUpperCase();
+                const cidade2 = (p2.Cidade || '').trim().toUpperCase();
+
+                // Bloqueio imediato entre estados distintos (ex: PR vs SP)
+                if (uf1 && uf2 && uf1 !== uf2) return false;
+
                 const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                const limitKm = ehGrupo115 ? 230 : maxDistKm;
+                const limitKm = ehGrupo115 ? 120 : maxDistKm;
+
                 if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
                     const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
                     if (dist > limitKm) return false;
-                } else if (p1.UF && p2.UF && String(p1.UF).trim().toUpperCase() !== String(p2.UF).trim().toUpperCase()) {
-                    return false;
+                } else {
+                    // Sem coordenadas: SÓ aceita se for exatamente a mesma cidade!
+                    if (cidade1 !== cidade2) return false;
                 }
             }
         }
