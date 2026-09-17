@@ -2551,11 +2551,35 @@ function processar() {
  * Esta função é crucial para manter a UI sincronizada após operações de arrastar e soltar.
  */
 function getLoadTabDestination(load) {
+    if (!load) return { tabVehicleType: 'van', region: 'SP', containerId: 'resultado-van-sp' };
+
     // Tocos ESTÁTICOS da planilha: IDs como 'toco-CF123' (não 'toco-auto-...')
     // Tocos AUTO-MONTADOS: IDs como 'toco-auto-1234567890-0' - devem ir para aba VAN
-    const isStaticToco = load.id.startsWith('toco-') && !load.id.startsWith('toco-auto-');
-    if (isStaticToco || load.id.startsWith('roteiro-')) {
+    const isStaticToco = typeof load.id === 'string' && load.id.startsWith('toco-') && !load.id.startsWith('toco-auto-');
+    if (isStaticToco || (typeof load.id === 'string' && load.id.startsWith('roteiro-'))) {
         return { tabVehicleType: 'toco', region: 'SP', containerId: 'resultado-toco' };
+    }
+
+    // Venda antecipada vai para sua respectiva seção
+    if (typeof load.id === 'string' && load.id.includes('venda-antecipada')) {
+        return { tabVehicleType: load.vehicleType || 'especial', region: '', containerId: 'resultado-venda-antecipada' };
+    }
+
+    // CARGAS MANUAIS E ESPECIAIS: SEMPRE pertencem à aba de Cargas Manuais ('resultado-montagens-especiais'),
+    // independentemente do tipo de veículo que o usuário escolheu (Fiorino, Van, 3/4, Toco, Truck, Especial)!
+    const isManualOrSpecial = (
+        load.isManualLoad === true ||
+        load.isManual === true ||
+        (typeof load.id === 'string' && (
+            load.id.startsWith('manual-') ||
+            load.id.startsWith('especial-') ||
+            load.id.includes('especial')
+        )) ||
+        load.vehicleType === 'especial'
+    );
+
+    if (isManualOrSpecial) {
+        return { tabVehicleType: load.vehicleType || 'especial', region: '', containerId: 'resultado-montagens-especiais' };
     }
 
     let tabVehicleType = load.vehicleType;
@@ -2620,7 +2644,7 @@ function renderActiveLoadCards() {
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
         toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
         truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
-        especial: { name: 'Especial', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-clipboard-check-fill' }
+        especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-white', icon: 'bi-tools' }
     };
 
     // Inicializa os containers de resultado
@@ -2640,14 +2664,24 @@ function renderActiveLoadCards() {
         // Ignora cargas roteirizadas (os tocos auto-montados PRECISAM ser processados aqui)
         if (load.id.startsWith('roteiro-')) continue;
 
-        // Se houver um filtro de rota ativa, e esta carga não pertencer a ela, ignoramos
-        if (activeRouteKey && load.routesKey !== activeRouteKey) continue;
+        const { containerId } = getLoadTabDestination(load);
 
-        const vInfo = vehicleInfo[load.vehicleType];
+        // Se for container de cargas manuais ('resultado-montagens-especiais'):
+        if (containerId === 'resultado-montagens-especiais') {
+            // Filtro exclusivo da aba de Cargas Manuais:
+            if (window.currentActiveManualFilter && window.currentActiveManualFilter !== 'all') {
+                if (load.id !== window.currentActiveManualFilter && load.vehicleType !== window.currentActiveManualFilter) {
+                    continue;
+                }
+            }
+        } else {
+            // Se houver um filtro de rota ativa, e esta carga não pertencer a ela, ignoramos
+            if (activeRouteKey && load.routesKey !== activeRouteKey) continue;
+        }
+
+        const vInfo = vehicleInfo[load.vehicleType] || vehicleInfo['especial'];
         if (vInfo) {
             const cardHtml = renderLoadCard(load, load.vehicleType, vInfo);
-            const { containerId } = getLoadTabDestination(load);
-
             if (containers[containerId] !== undefined) {
                 containers[containerId] += cardHtml;
             }
@@ -2660,7 +2694,9 @@ function renderActiveLoadCards() {
         if (container) {
             let htmlContent = containers[containerId];
             if (!htmlContent) {
-                if (activeRouteKey) {
+                if (containerId === 'resultado-montagens-especiais' && window.currentActiveManualFilter && window.currentActiveManualFilter !== 'all') {
+                    htmlContent = `<div class="alert alert-secondary small py-2 no-print"><i class="bi bi-info-circle me-2"></i>Nenhuma carga manual corresponde ao filtro selecionado. <button class="btn btn-sm btn-link p-0 text-decoration-none" onclick="exibirTodasCargasManuais()">Ver Todas Cargas</button></div>`;
+                } else if (activeRouteKey && containerId !== 'resultado-montagens-especiais') {
                     htmlContent = `<div class="alert alert-secondary small py-2 no-print"><i class="bi bi-info-circle me-2"></i>Nenhuma carga desta rota filtrada nesta aba.</div>`;
                 } else {
                     // Estado padrão/vazio da aba
@@ -2670,7 +2706,7 @@ function renderActiveLoadCards() {
                         'resultado-van-sp': 'bi-truck-front-fill',
                         'resultado-van-ms': 'bi-truck-front-fill',
                         'resultado-truck': 'bi-truck',
-                        'resultado-montagens-especiais': 'bi-clipboard-check-fill'
+                        'resultado-montagens-especiais': 'bi-tools'
                     };
                     const labels = {
                         'resultado-fiorino-geral': 'Nenhuma rota de Fiorino disponível',
@@ -2678,16 +2714,25 @@ function renderActiveLoadCards() {
                         'resultado-van-sp': 'Nenhuma rota de Van (SP) disponível',
                         'resultado-van-ms': 'Nenhuma rota de Van (MS) disponível',
                         'resultado-truck': 'Nenhuma rota de Truck disponível',
-                        'resultado-montagens-especiais': 'Nenhuma montagem especial'
+                        'resultado-montagens-especiais': 'Nenhuma carga manual disponível'
                     };
-                    const subText = 'Processe uma rota ou crie cargas manuais.';
+                    const subText = containerId === 'resultado-montagens-especiais'
+                        ? 'Crie cargas manuais ou especiais para visualizá-las aqui.'
+                        : 'Processe uma rota ou crie cargas manuais.';
                     htmlContent = `<div class="empty-state-premium">
-                        <i class="bi ${icons[containerId]} empty-state-icon"></i>
-                        <h5 class="text-light">${labels[containerId]}</h5>
+                        <i class="bi ${icons[containerId] || 'bi-box'} empty-state-icon"></i>
+                        <h5 class="text-light">${labels[containerId] || 'Vazio'}</h5>
                         <p class="text-muted small">${subText}</p>
                     </div>`;
                 }
-            } else if (activeRouteKey) {
+            } else if (containerId === 'resultado-montagens-especiais' && window.currentActiveManualFilter && window.currentActiveManualFilter !== 'all') {
+                const fLoad = activeLoads[window.currentActiveManualFilter];
+                const fTitle = fLoad ? (fLoad.numero || fLoad.id) : window.currentActiveManualFilter;
+                htmlContent = `<div class="alert alert-warning py-2 d-flex align-items-center justify-content-between mb-3 no-print" style="font-size: 0.85rem; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.25); color: #f59e0b;">
+                    <span><i class="bi bi-funnel-fill me-2 text-warning"></i>Mostrando apenas: <strong>${fTitle}</strong></span>
+                    <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none fw-bold" onclick="exibirTodasCargasManuais()">Ver Todas Cargas</button>
+                </div>` + htmlContent;
+            } else if (activeRouteKey && containerId !== 'resultado-montagens-especiais') {
                 // Se estiver exibindo rota filtrada, adiciona um badge informativo no topo do resultado
                 const routeTitle = processedRouteContexts[activeRouteKey]?.title || activeRouteKey;
                 const vType = containerId.includes('fiorino') ? 'fiorino' : 'van';
@@ -2700,6 +2745,8 @@ function renderActiveLoadCards() {
             container.innerHTML = htmlContent;
         }
     }
+
+    if (typeof renderBotoesManuais === 'function') renderBotoesManuais();
 }
 
 function renderRoteiroLoads() {
@@ -7403,6 +7450,10 @@ function removerTodasAsCargasDoMapa(loadId) {
     const cardElement = document.getElementById(loadId);
     if (cardElement) cardElement.remove();
 
+    if (window.currentActiveManualFilter === loadId) {
+        window.currentActiveManualFilter = 'all';
+    }
+    if (typeof renderBotoesManuais === 'function') renderBotoesManuais();
     if (typeof updateTabCounts === 'function') updateTabCounts();
     saveStateToLocalStorage();
 }
@@ -8410,7 +8461,7 @@ function startManualLoadBuilder() {
                     <div class="card-header bg-info text-dark"><h5 class="mb-0"><i class="bi bi-tools me-2"></i>Painel de Montagem de Carga Manual</h5></div>
                     <div class="card-body">
                         <div class="row align-items-center mb-3">
-                            <div class="col-md-4"><label for="manualVehicleType" class="form-label">Montar para o veículo:</label><select id="manualVehicleType" class="form-select" onchange="updateManualBuilderUI()"><option value="fiorino">Fiorino</option><option value="van">Van</option><option value="tresQuartos">3/4</option><option value="toco">Toco</option><option value="especial">Roteirização Manual</option></select></div>
+                            <div class="col-md-4"><label for="manualVehicleType" class="form-label">Montar para o veículo:</label><select id="manualVehicleType" class="form-select" onchange="updateManualBuilderUI()"><option value="fiorino">Fiorino</option><option value="van">Van</option><option value="tresQuartos">3/4</option><option value="toco">Toco</option><option value="especial">Carga Manual / Especial</option></select></div>
                             <div class="col-md-5"><p class="mb-1"><strong>Peso Total:</strong> <span id="manualLoadKg">0,00</span> kg</p><p class="mb-0"><strong>Cubagem Total:</strong> <span id="manualLoadCubage">0,00</span> m³</p></div>
                             <div class="col-md-3 text-end"><button class="btn btn-danger me-2" onclick="cancelManualLoad()"><i class="bi bi-x-circle me-1"></i>Cancelar</button><button id="finalizeManualLoadBtn" class="btn btn-success" onclick="finalizeManualLoad()" disabled><i class="bi bi-check-circle me-1"></i>Criar</button></div>
                         </div>
@@ -8483,8 +8534,9 @@ function finalizeManualLoad() {
     const newLoad = {
         ...manualLoadInProgress,
         id: `manual-${vehicleType}-${Date.now()}`,
-        numero: `M-${Object.keys(activeLoads).filter(k => k.startsWith('manual')).length + 1}`,
-        shortId: generateLoadId() // GERA ID DE 5 DÍGITOS
+        numero: `M-${Object.keys(activeLoads).filter(k => k.startsWith('manual') || k.startsWith('especial')).length + 1}`,
+        shortId: generateLoadId(), // GERA ID DE 5 DÍGITOS
+        isManualLoad: true
     };
 
     activeLoads[newLoad.id] = newLoad;
@@ -8493,50 +8545,47 @@ function finalizeManualLoad() {
     const usedOrderIds = new Set(newLoad.pedidos.map(p => String(p.Num_Pedido)));
     pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !usedOrderIds.has(String(p.Num_Pedido)));
 
-
     const vehicleInfo = {
         fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
         van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
         toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
-        especial: { name: 'Especial', colorClass: 'bg-dark', textColor: 'text-warning', icon: 'bi-stars', borderClass: 'border-warning' }
+        truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
+        especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-warning', icon: 'bi-tools', borderClass: 'border-warning' }
     };
 
-    let resultContainer;
-
-    if (vehicleType === 'especial') {
-        const specialTabPane = document.getElementById('montagens-especiais-tab-pane');
-        if (specialTabPane) {
-            resultContainer = document.getElementById('resultado-montagens-especiais');
-            // Ativa a aba automaticamente para feedback visual
-            const tabBtn = document.querySelector('[data-bs-target="#montagens-especiais-tab-pane"]');
-            if (tabBtn) {
-                const tab = new bootstrap.Tab(tabBtn);
-                tab.show();
-            }
-        }
+    // Direciona sempre para a aba Cargas Manuais
+    let resultContainer = document.getElementById('resultado-montagens-especiais');
+    const tabBtn = document.querySelector('[data-bs-target="#montagens-especiais-tab-pane"]');
+    if (tabBtn) {
+        const tab = bootstrap.Tab.getOrCreateInstance(tabBtn);
+        tab.show();
+        localStorage.setItem('lastActiveVehicleTab', '#montagens-especiais-tab-pane');
     }
 
     if (!resultContainer) {
-        // Fallback para comportamento padrão (aba ativa)
-        const activeTabPane = document.querySelector('.tab-pane.active');
-        if (!activeTabPane) {
-            showToast("Erro: Nenhuma aba de trabalho ativa para adicionar a carga.", 'error');
-            return;
-        }
-        resultContainer = activeTabPane.querySelector('[id^="resultado-"]');
-        if (!resultContainer) {
-            activeTabPane.innerHTML += `<div id="resultado-${vehicleType}-geral" class="mt-3"></div>`;
-            resultContainer = activeTabPane.querySelector('[id^="resultado-"]');
+        const specialTabPane = document.getElementById('montagens-especiais-tab-pane');
+        if (specialTabPane) {
+            resultContainer = specialTabPane.querySelector('[id^="resultado-"]');
         }
     }
 
-    // Gera o HTML do card e o insere no container correto
-    const newCardHTML = renderLoadCard(newLoad, vehicleType, vehicleInfo[vehicleType]);
-    resultContainer.insertAdjacentHTML('beforeend', newCardHTML);
+    if (resultContainer) {
+        const emptyState = resultContainer.querySelector('.empty-state, .empty-state-premium');
+        if (emptyState) emptyState.remove();
+        const newCardHTML = renderLoadCard(newLoad, vehicleType, vehicleInfo[vehicleType] || vehicleInfo['especial']);
+        resultContainer.insertAdjacentHTML('beforeend', newCardHTML);
+    }
     if (typeof window._apexApplyClientObservations === 'function') {
         window._apexApplyClientObservations();
     }
+    if (typeof renderBotoesManuais === 'function') {
+        renderBotoesManuais();
+    }
+    if (typeof updateTabCounts === 'function') {
+        updateTabCounts();
+    }
+    saveStateToLocalStorage();
 
     // MELHORIA: Em vez de fechar o painel, reinicia-o para permitir a criação de outra carga em sequência.
     const currentVehicleType = document.getElementById('manualVehicleType').value;
@@ -9251,7 +9300,8 @@ function montarCargaPredefinida(inputId, resultadoId, processedSet, nomeCarga) {
             totalCubagem: totalCubagem,
             numero: nomeCarga,
             vehicleType: veiculoEscolhido.tipo,
-            shortId: generateLoadId() // GERA ID DE 5 DÍGITOS
+            shortId: generateLoadId(), // GERA ID DE 5 DÍGITOS
+            isManualLoad: (nomeCarga === 'Especial' || nomeCarga === 'Manual' || veiculoEscolhido.tipo === 'especial' || loadId.startsWith('especial'))
         };
         activeLoads[loadId] = load;
 
@@ -9270,7 +9320,7 @@ function montarCargaPredefinida(inputId, resultadoId, processedSet, nomeCarga) {
         const cardHTML = renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType] || vehicleInfo['fiorino']);
 
         // Se targetContainer for null, tenta pegar via ID direto se for especial
-        if (!targetContainer && load.vehicleType === 'especial') {
+        if (!targetContainer && (load.vehicleType === 'especial' || load.isManualLoad)) {
             targetContainer = document.getElementById('resultado-montagens-especiais');
         }
 
@@ -9282,12 +9332,18 @@ function montarCargaPredefinida(inputId, resultadoId, processedSet, nomeCarga) {
 
             // REMOVE MENSAGEM DE VAZIO SE EXISTIR
             if (targetContainer.id === 'resultado-montagens-especiais') {
-                const emptyState = targetContainer.querySelector('.empty-state');
-                if (emptyState) emptyState.style.display = 'none';
+                const emptyState = targetContainer.querySelector('.empty-state, .empty-state-premium');
+                if (emptyState) emptyState.remove();
             }
         }
         if (typeof window._apexApplyClientObservations === 'function') {
             window._apexApplyClientObservations();
+        }
+        if (typeof renderBotoesManuais === 'function') {
+            renderBotoesManuais();
+        }
+        if (typeof updateTabCounts === 'function') {
+            updateTabCounts();
         }
 
         // AUDIT LOG
@@ -12534,12 +12590,13 @@ async function loadStateFromLocalStorage() {
 
 
 function reRenderManualLoads() {
-    // Captura todas as cargas que não sã£o de rotas automáticas (Manuais, Especiais, Venda Antecipada)
+    // Captura todas as cargas que não são de rotas automáticas (Manuais, Especiais, Venda Antecipada)
     const manualLoads = Object.values(activeLoads).filter(load =>
         load.id.startsWith('manual-') ||
         load.id.includes('venda-antecipada') ||
         load.id.includes('especial') ||
-        load.vehicleType === 'especial'
+        load.vehicleType === 'especial' ||
+        load.isManualLoad === true
     );
 
     if (manualLoads.length === 0) return;
@@ -12550,27 +12607,13 @@ function reRenderManualLoads() {
         tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
         toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' },
         truck: { name: 'Truck', colorClass: 'bg-danger', textColor: 'text-white', icon: 'bi-truck-flatbed' },
-        especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-warning', icon: 'bi-tools', borderClass: 'border-warning' } // Updated label
+        especial: { name: 'Manual', colorClass: 'bg-dark', textColor: 'text-warning', icon: 'bi-tools', borderClass: 'border-warning' }
     };
 
     manualLoads.forEach(load => {
-        let resultadoId;
-
-        // Define o container de destino baseado no ID ou Tipo
+        let resultadoId = 'resultado-montagens-especiais';
         if (load.id.includes('venda-antecipada')) {
             resultadoId = 'resultado-venda-antecipada';
-        } else if (load.vehicleType === 'especial') {
-            resultadoId = 'resultado-montagens-especiais';
-        } else if (load.vehicleType === 'fiorino') {
-            resultadoId = 'resultado-fiorino-geral';
-        } else if (load.vehicleType === 'van') {
-            resultadoId = 'resultado-van-geral';
-        } else if (load.vehicleType === 'tresQuartos') {
-            resultadoId = 'resultado-34-geral';
-        } else if (load.vehicleType === 'toco') {
-            resultadoId = 'resultado-toco';
-        } else if (load.vehicleType === 'truck') {
-            resultadoId = 'resultado-truck';
         }
 
         const resultadoDiv = document.getElementById(resultadoId);
@@ -12582,19 +12625,21 @@ function reRenderManualLoads() {
         }
 
         // Renderiza
-        // Para Venda Antecipada, mantém o alert; para outros, apenas o card (ou ajusta conforme necessidade)
+        // Para Venda Antecipada, mantém o alert; para outros, apenas o card
         if (load.id.includes('venda-antecipada')) {
             resultadoDiv.innerHTML = `
                 <div class="alert alert-success d-flex justify-content-between align-items-center">
                     <div><strong>Carga ${load.numero} restaurada.</strong></div>
                     <button class="btn btn-light btn-sm no-print" onclick="imprimirGeneric('${resultadoId}', 'Carga ${load.numero}')"><i class="bi bi-printer-fill me-1"></i> Imprimir Carga</button>
                 </div>
-                ${renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType])}`;
+                ${renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType] || vehicleInfo['especial'])}`;
         } else {
-            const cardHtml = renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType] || vehicleInfo['fiorino']);
+            const cardHtml = renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType] || vehicleInfo['especial']);
             resultadoDiv.insertAdjacentHTML('beforeend', cardHtml);
         }
     });
+
+    if (typeof renderBotoesManuais === 'function') renderBotoesManuais();
 }
 
 function reRenderActiveLoads(processedRouteContexts) {
@@ -12619,7 +12664,6 @@ function reRenderActiveLoads(processedRouteContexts) {
         resultadoDiv.innerHTML = `<div class="resultado-container"><h5 class="mt-3">Cargas para <strong>${context.title}</strong></h5></div>`;
 
         // Reativa o botão da rota processada
-        // Reativa o botão da rota processada
         const routeButton = document.getElementById(context.buttonId);
         if (routeButton) {
             const vehicleType = routeButton.id.split('-')[1];
@@ -12634,7 +12678,7 @@ function reRenderActiveLoads(processedRouteContexts) {
     // Renderiza cada carga no seu respectivo container
     for (const loadId in activeLoads) {
         const load = activeLoads[loadId];
-        if (!load.id || !load.vehicleType || !vehicleInfo[load.vehicleType] || load.id.startsWith('manual-') || load.id.startsWith('venda-antecipada') || load.id.startsWith('especial')) continue;
+        if (!load.id || !load.vehicleType || !vehicleInfo[load.vehicleType] || load.id.startsWith('manual-') || load.id.startsWith('venda-antecipada') || load.id.startsWith('especial') || load.id.includes('especial') || load.isManualLoad || load.isManual || load.vehicleType === 'especial') continue;
 
         const context = Object.values(processedRouteContexts).find(c => load.pedidos.some(p => c.routesKey.split(',').includes(String(p.Cod_Rota))));
         if (context) {
@@ -12905,6 +12949,8 @@ function changeLoadVehicleType(loadId, newVehicleType) {
         showToast('Erro ao atualizar o card: elemento não encontrado.', 'error');
     }
 
+    if (typeof updateTabCounts === 'function') updateTabCounts();
+    if (typeof renderBotoesManuais === 'function') renderBotoesManuais();
     updateAndRenderKPIs();
     updateAndRenderChart();
     debouncedSaveState();
@@ -12929,6 +12975,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetId = event.target.getAttribute('data-bs-target');
             if (targetId) {
                 localStorage.setItem('lastActiveVehicleTab', targetId);
+                if (targetId === '#montagens-especiais-tab-pane') {
+                    if (typeof renderBotoesManuais === 'function') renderBotoesManuais();
+                }
             }
         });
     }
@@ -14746,16 +14795,25 @@ function searchLoadByShortId(shortId) {
         // Identifica a aba correta baseado no tipo de veículo ou ID da carga
         let tabId = null;
 
-        // 1. Checa tipos explícitos primeiro
-        if (targetLoad.vehicleType === 'fiorino') tabId = 'fiorino-tab-pane';
+        const isManualOrSpecial = (
+            targetLoad.isManualLoad === true ||
+            targetLoad.isManual === true ||
+            (typeof targetLoadId === 'string' && (
+                targetLoadId.startsWith('manual-') ||
+                targetLoadId.startsWith('especial-') ||
+                targetLoadId.includes('especial')
+            )) ||
+            targetLoad.vehicleType === 'especial'
+        );
+
+        // 1. Checa cargas manuais e especiais primeiro
+        if (isManualOrSpecial) tabId = 'montagens-especiais-tab-pane';
+        else if (targetLoad.vehicleType === 'fiorino') tabId = 'fiorino-tab-pane';
         else if (targetLoad.vehicleType === 'van') tabId = 'van-tab-pane';
         else if (targetLoad.vehicleType === 'toco' && targetLoadId.startsWith('toco-auto-')) tabId = 'van-tab-pane';
         else if (targetLoad.vehicleType === 'toco') tabId = 'toco-tab-pane';
         else if (targetLoad.vehicleType === 'tresQuartos' || targetLoad.vehicleType === '3/4') tabId = 'tres-quartos-tab-pane';
-
-        // 2. Checa categorias especiais baseadas no ID
-        else if (targetLoadId.includes('especial') || targetLoad.vehicleType === 'especial') tabId = 'montagens-especiais-tab-pane';
-        else if (targetLoadId.includes('venda-antecipada')) tabId = 'outros-pedidos-tab-pane'; // Venda antecipada geralmente fica em Outros ou Especiais? Ajustar conforme UX
+        else if (targetLoadId.includes('venda-antecipada')) tabId = 'outros-pedidos-tab-pane';
         else if (targetLoadId.startsWith('route-') || targetLoad.isRoteirizado) tabId = 'roteirizados-tab-pane';
 
         // 3. Fallback: Tenta encontrar o elemento e ver onde ele está (mais custoso, mas seguro)
@@ -16212,6 +16270,98 @@ function exibirTodasCargasAba(divId, vehicleType, targetKey) {
     renderActiveLoadCards();
     
     showToast("Exibindo todas as cargas montadas desta aba.", "info");
+}
+
+// --- SISTEMA DE FILTROS E EXIBIÇÃO DA ABA CARGAS MANUAIS ---
+window.currentActiveManualFilter = 'all';
+
+function renderBotoesManuais() {
+    const botoesDiv = document.getElementById('botoes-manuais');
+    if (!botoesDiv) return;
+
+    const manualLoads = Object.values(activeLoads || {}).filter(load => {
+        if (!load || !load.id) return false;
+        if (load.id.startsWith('roteiro-')) return false;
+        if (load.id.includes('venda-antecipada')) return false;
+        return (
+            load.isManualLoad === true ||
+            load.isManual === true ||
+            (typeof load.id === 'string' && (
+                load.id.startsWith('manual-') ||
+                load.id.startsWith('especial-') ||
+                load.id.includes('especial')
+            )) ||
+            load.vehicleType === 'especial'
+        );
+    });
+
+    if (manualLoads.length === 0) {
+        botoesDiv.innerHTML = `<div class="empty-state-premium py-2" style="background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 8px; padding: 12px 16px;">
+            <i class="bi bi-tools text-warning me-2"></i>
+            <span class="text-muted small">Nenhuma carga manual criada ainda. Crie uma carga manual para gerenciar e filtrar aqui.</span>
+        </div>`;
+        return;
+    }
+
+    if (window.currentActiveManualFilter && window.currentActiveManualFilter !== 'all') {
+        if (!activeLoads[window.currentActiveManualFilter]) {
+            window.currentActiveManualFilter = 'all';
+        }
+    }
+
+    const vehicleColors = {
+        fiorino: { name: 'Fiorino', color: '#10b981', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.35)', icon: 'bi-box-seam-fill' },
+        van: { name: 'Van', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.12)', border: 'rgba(14, 165, 233, 0.35)', icon: 'bi-truck-front-fill' },
+        tresQuartos: { name: '3/4', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)', icon: 'bi-truck-flatbed' },
+        toco: { name: 'Toco', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.12)', border: 'rgba(148, 163, 184, 0.35)', icon: 'bi-inboxes-fill' },
+        truck: { name: 'Truck', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)', icon: 'bi-truck-flatbed' },
+        especial: { name: 'Manual', color: '#eab308', bg: 'rgba(234, 179, 8, 0.12)', border: 'rgba(234, 179, 8, 0.35)', icon: 'bi-tools' }
+    };
+
+    const isAllActive = (!window.currentActiveManualFilter || window.currentActiveManualFilter === 'all');
+    const activeClassAll = isAllActive ? 'route-active-highlight btn-tactical-group-active' : '';
+
+    let html = `<button class="btn btn-tactical warning mt-2 me-2 ${activeClassAll}" 
+        style="background: rgba(234, 179, 8, 0.18); border-color: rgba(234, 179, 8, 0.45); color: #eab308; font-weight: 700;" 
+        onclick="exibirTodasCargasManuais()" title="Ver todas as cargas manuais montadas">
+        <i class="bi bi-grid-fill me-1"></i>Ver Todas Cargas (${manualLoads.length})
+    </button>`;
+
+    manualLoads.forEach(load => {
+        const isLoadActive = (window.currentActiveManualFilter === load.id);
+        const activeClass = isLoadActive ? 'route-active-highlight btn-tactical-group-active' : '';
+        const vType = load.vehicleType || 'especial';
+        const vMeta = vehicleColors[vType] || vehicleColors['especial'];
+        const titleLabel = `${load.numero || 'Carga'} (${vMeta.name}) - ${Math.round(load.totalKg || 0).toLocaleString('pt-BR')} kg`;
+
+        html += `<button class="btn btn-tactical mt-2 me-2 ${activeClass}" 
+            style="color: ${vMeta.color}; background: ${vMeta.bg}; border-color: ${vMeta.border}; font-weight: 500;" 
+            onclick="filtrarCargaManual('${load.id}')" title="Filtrar apenas ${load.numero || 'esta carga'}">
+            <i class="bi ${vMeta.icon} me-1"></i>${titleLabel}
+        </button>`;
+    });
+
+    botoesDiv.innerHTML = html;
+}
+
+function exibirTodasCargasManuais() {
+    window.currentActiveManualFilter = 'all';
+    renderBotoesManuais();
+    renderActiveLoadCards();
+    showToast("Exibindo todas as cargas manuais montadas.", "info");
+}
+
+function filtrarCargaManual(loadId) {
+    if (window.currentActiveManualFilter === loadId) {
+        window.currentActiveManualFilter = 'all';
+        showToast("Exibindo todas as cargas manuais montadas.", "info");
+    } else {
+        window.currentActiveManualFilter = loadId;
+        const load = activeLoads[loadId];
+        showToast(`Filtrando para exibir apenas: ${load?.numero || 'Carga selecionada'}`, "info");
+    }
+    renderBotoesManuais();
+    renderActiveLoadCards();
 }
 
 // --- SISTEMA DE IMPRESSÃO ESTILOSA E RELATÓRIOS ---
