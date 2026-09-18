@@ -4374,6 +4374,37 @@ function isMoveValid(load, groupToAdd, vehicleType) {
         }
     }
 
+    // REGRA DE DISTÂNCIA GEOGRÁFICA (alinhada com worker.js)
+    if (vehicleType !== 'truck' && load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
+        const maxDistKm = (vehicleType === 'fiorino' ? 50 : (vehicleType === 'van' ? 75 : (vehicleType === 'tresQuartos' ? 100 : 130)));
+        const rotasCombinadas115 = ['11501', '11502', '11511'];
+        for (const p1 of load.pedidos) {
+            const c1 = p1._coords;
+            const r1 = String(p1.Cod_Rota || '').trim();
+            const uf1 = String(p1.UF || '').trim().toUpperCase();
+            const cidade1 = (p1.Cidade || '').trim().toUpperCase();
+
+            for (const p2 of groupToAdd.pedidos) {
+                const c2 = p2._coords;
+                const r2 = String(p2.Cod_Rota || '').trim();
+                const uf2 = String(p2.UF || '').trim().toUpperCase();
+                const cidade2 = (p2.Cidade || '').trim().toUpperCase();
+
+                if (uf1 && uf2 && uf1 !== uf2) return false;
+
+                const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
+                const limitKm = ehGrupo115 ? 120 : maxDistKm;
+
+                if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
+                    const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
+                    if (dist > limitKm) return false;
+                } else {
+                    if (cidade1 !== cidade2) return false;
+                }
+            }
+        }
+    }
+
     return true;
 }
 
@@ -5152,7 +5183,7 @@ window.reaplicarRegrasPainelInterno = function() {
                     
                     // Se não atingiu o peso mínimo do novo veículo, tenta agrupar com outros grupos >= 1000kg
                     if (upgradeLoad.totalKg < reqCfg.minKg) {
-                        let candidates = tempRemainingGroups.filter(g => g.totalKg >= 1000);
+                        let candidates = tempRemainingGroups.filter(g => g.totalKg >= 200);
                         candidates.sort((a, b) => b.totalKg - a.totalKg);
                         
                         const addedGroupIndices = [];
@@ -5183,9 +5214,12 @@ window.reaplicarRegrasPainelInterno = function() {
                             skippedUpgradeIndices.clear(); // Limpa pois os índices mudaram
                             changed = true;
                         } else {
-                            console.log(`Grupo de ${groupToUpgrade.totalKg}kg precisava de upgrade para ${requiredType}, mas não atingiu o mínimo de ${reqCfg.minKg}kg. Ficou como sobra.`);
-                            skippedUpgradeIndices.add(upgradeGroupIndex);
-                            changed = true; // Continua procurando outros, mas ignora este
+                            // Grupo excede hardMax do veículo padrão mas não atingiu minKg do upgrade.
+                            // Remove de packableGroups para que vá para sobras e seja processado pela cascata.
+                            console.log(`Grupo de ${groupToUpgrade.totalKg}kg precisava de upgrade para ${requiredType}, mas não atingiu o mínimo de ${reqCfg.minKg}kg. Enviado para cascata.`);
+                            packableGroups = tempRemainingGroups;
+                            skippedUpgradeIndices.clear();
+                            changed = true;
                         }
                     } else {
                         upgradeLoads.push(upgradeLoad);

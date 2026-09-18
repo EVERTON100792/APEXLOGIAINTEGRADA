@@ -276,7 +276,20 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
         }
     }
 
-    if (groupToAdd.pedidos.some(p => p.Agendamento === 'Sim') && load.pedidos.some(p => p.Agendamento === 'Sim')) return false;
+    // REGRA DE AGENDAMENTO: Só bloqueia se clientes DIFERENTES ambos têm agendamento.
+    // Permite combinar agendamento do MESMO cliente na mesma carga.
+    const groupHasAgendamento = groupToAdd.pedidos.some(p => p.Agendamento === 'Sim');
+    if (groupHasAgendamento) {
+        const agendamentoClientIdsInLoad = new Set(
+            load.pedidos.filter(p => p.Agendamento === 'Sim').map(p => normalizeClientId(p.Cliente))
+        );
+        if (agendamentoClientIdsInLoad.size > 0) {
+            const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
+            if (!agendamentoClientIdsInLoad.has(newClientId)) {
+                return false;
+            }
+        }
+    }
 
     // REGRA DE COERÊNCIA GEOGRÁFICA / DISTÂNCIA ENTRE CIDADES (PRECISÃO CIRÚRGICA)
     if (load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
