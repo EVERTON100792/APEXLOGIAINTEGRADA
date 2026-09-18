@@ -13,6 +13,18 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 async function initApp() {
+    // Bloqueia autocomplete do Chrome Address Manager na barra de busca
+    const searchInput = document.getElementById('pedidoSearchInput');
+    if (searchInput) {
+        searchInput.setAttribute('autocomplete', 'off');
+        searchInput.setAttribute('name', 'pesquisa');
+        searchInput.setAttribute('role', 'searchbox');
+        searchInput.setAttribute('aria-autocomplete', 'none');
+        searchInput.setAttribute('autocapitalize', 'off');
+        searchInput.setAttribute('autocorrect', 'off');
+        searchInput.setAttribute('spellcheck', 'false');
+    }
+    
     const session = await requireAuth();
     if (!session) return; // redirect handled in auth.js
 
