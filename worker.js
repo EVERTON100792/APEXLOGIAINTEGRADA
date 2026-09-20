@@ -293,7 +293,7 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
 
     // REGRA DE COERÊNCIA GEOGRÁFICA / DISTÂNCIA ENTRE CIDADES (PRECISÃO CIRÚRGICA)
     if (load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
-        const maxDistKm = (effectiveVehicleType === 'fiorino' ? 50 : (effectiveVehicleType === 'van' ? 75 : (effectiveVehicleType === 'tresQuartos' ? 100 : 130)));
+        const maxDistKm = (effectiveVehicleType === 'fiorino' ? 70 : (effectiveVehicleType === 'van' ? 120 : (effectiveVehicleType === 'tresQuartos' ? 150 : 180)));
         const rotasCombinadas115 = ['11501', '11502', '11511'];
         for (const p1 of load.pedidos) {
             const c1 = p1._coords;
@@ -311,14 +311,18 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
                 if (uf1 && uf2 && uf1 !== uf2) return false;
 
                 const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                const limitKm = ehGrupo115 ? 120 : maxDistKm;
+                const limitKm = ehGrupo115 ? 230 : maxDistKm;
 
                 if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
                     const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
                     if (dist > limitKm) return false;
                 } else {
-                    // Sem coordenadas: SÓ aceita se for exatamente a mesma cidade!
-                    if (cidade1 !== cidade2) return false;
+                    // Sem coordenadas: permite se for mesma rota ou rotas parceiras 115 no mesmo estado
+                    if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
+                        // Permitido
+                    } else if (cidade1 !== cidade2) {
+                        return false;
+                    }
                 }
             }
         }

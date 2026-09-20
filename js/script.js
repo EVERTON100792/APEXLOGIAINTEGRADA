@@ -4379,16 +4379,16 @@ function isMoveValid(load, groupToAdd, vehicleType) {
 
     // REGRA DE DISTÂNCIA GEOGRÁFICA (alinhada com worker.js)
     if (vehicleType !== 'truck' && load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
-        const maxDistKm = (vehicleType === 'fiorino' ? 50 : (vehicleType === 'van' ? 75 : (vehicleType === 'tresQuartos' ? 100 : 130)));
+        const maxDistKm = (vehicleType === 'fiorino' ? 70 : (vehicleType === 'van' ? 120 : (vehicleType === 'tresQuartos' ? 150 : 180)));
         const rotasCombinadas115 = ['11501', '11502', '11511'];
         for (const p1 of load.pedidos) {
-            const c1 = p1._coords;
+            const c1 = p1._coords || getCityCoordinatesSafe(p1.Cidade, p1.UF);
             const r1 = String(p1.Cod_Rota || '').trim();
             const uf1 = String(p1.UF || '').trim().toUpperCase();
             const cidade1 = (p1.Cidade || '').trim().toUpperCase();
 
             for (const p2 of groupToAdd.pedidos) {
-                const c2 = p2._coords;
+                const c2 = p2._coords || getCityCoordinatesSafe(p2.Cidade, p2.UF);
                 const r2 = String(p2.Cod_Rota || '').trim();
                 const uf2 = String(p2.UF || '').trim().toUpperCase();
                 const cidade2 = (p2.Cidade || '').trim().toUpperCase();
@@ -4396,13 +4396,17 @@ function isMoveValid(load, groupToAdd, vehicleType) {
                 if (uf1 && uf2 && uf1 !== uf2) return false;
 
                 const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                const limitKm = ehGrupo115 ? 120 : maxDistKm;
+                const limitKm = ehGrupo115 ? 230 : maxDistKm;
 
                 if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
                     const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
                     if (dist > limitKm) return false;
                 } else {
-                    if (cidade1 !== cidade2) return false;
+                    if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
+                        // Permitido: mesma rota ou rotas parceiras 115 no mesmo estado
+                    } else if (cidade1 !== cidade2) {
+                        return false;
+                    }
                 }
             }
         }
@@ -10707,7 +10711,7 @@ function isGeographicallyCompatible(load, groupToAdd, vehicleType) {
     if (!groupToAdd || !groupToAdd.pedidos || groupToAdd.pedidos.length === 0) return true;
 
     const vType = load.vehicleType || vehicleType || 'van';
-    const maxDistKm = (vType === 'fiorino' ? 50 : (vType === 'van' ? 75 : (vType === 'tresQuartos' ? 100 : 130)));
+    const maxDistKm = (vType === 'fiorino' ? 70 : (vType === 'van' ? 120 : (vType === 'tresQuartos' ? 150 : 180)));
     const rotasCombinadas115 = ['11501', '11502', '11511'];
 
     for (const p1 of load.pedidos) {
@@ -10726,14 +10730,18 @@ function isGeographicallyCompatible(load, groupToAdd, vehicleType) {
             if (uf1 && uf2 && uf1 !== uf2) return false;
 
             const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-            const limitKm = ehGrupo115 ? 120 : maxDistKm;
+            const limitKm = ehGrupo115 ? 230 : maxDistKm;
 
             if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
                 const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
                 if (dist > limitKm) return false;
             } else {
-                // Sem coordenadas conhecidas: SÓ permite se for a mesmíssima cidade
-                if (cid1 !== cid2) return false;
+                // Sem coordenadas conhecidas: permite se for da mesma rota ou rotas parceiras 115 no mesmo estado
+                if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
+                    // Permitido
+                } else if (cid1 !== cid2) {
+                    return false;
+                }
             }
         }
     }
@@ -11889,7 +11897,7 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                         }
 
                         const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                        const effectiveMax = ehGrupo115 ? 120 : maxDist;
+                        const effectiveMax = ehGrupo115 ? 230 : maxDist;
 
                         if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
                             const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
@@ -11898,7 +11906,9 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                                 break;
                             }
                         } else {
-                            if (cid1 !== cid2) {
+                            if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
+                                // Permitido
+                            } else if (cid1 !== cid2) {
                                 isCloseToAll = false;
                                 break;
                             }
@@ -11982,7 +11992,7 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                 if (seedCity.coords && candCity.coords) {
                     const ehGrupo115 = seedCity.pedidos.some(p1 => rotasCombinadas115.includes(String(p1.Cod_Rota || '').trim())) &&
                                        candCity.pedidos.some(p2 => rotasCombinadas115.includes(String(p2.Cod_Rota || '').trim()));
-                    const effectiveMaxDist = ehGrupo115 ? 120 : maxClusterDist;
+                    const effectiveMaxDist = ehGrupo115 ? 230 : maxClusterDist;
 
                     canJoin = currentCluster.cities.every(c => {
                         if (!c.coords) return false;
@@ -11990,7 +12000,7 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                         return d <= effectiveMaxDist;
                     });
 
-                    if (canJoin && currentCluster.cities.length > 1) {
+                    if (!ehGrupo115 && canJoin && currentCluster.cities.length > 1) {
                         const lats = currentCluster.cities.map(c => c.coords.lat);
                         const lngs = currentCluster.cities.map(c => c.coords.lng);
                         const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length;
@@ -12001,7 +12011,9 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                         }
                     }
                 } else {
-                    canJoin = (seedCity.cidade === candCity.cidade);
+                    const ehGrupo115 = seedCity.pedidos.some(p1 => rotasCombinadas115.includes(String(p1.Cod_Rota || '').trim())) &&
+                                       candCity.pedidos.some(p2 => rotasCombinadas115.includes(String(p2.Cod_Rota || '').trim()));
+                    canJoin = (seedCity.cidade === candCity.cidade) || (ehGrupo115 && seedCity.uf === candCity.uf);
                 }
 
                 if (canJoin) {
