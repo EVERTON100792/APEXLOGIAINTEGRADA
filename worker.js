@@ -332,8 +332,6 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
     let loads = [];
     let leftoverItems = [];
 
-    // Adicionado: Define um limiar de data para pedidos que "devem" sair.
-    // Pega a data do item mais antigo na lista de empacotamento, tratando datas serializadas.
     const getOldestDateTimestamp = (items) => {
         if (items.length > 0 && items[0].oldestDate) {
             const date = getComparableDate(items[0].oldestDate);
@@ -342,7 +340,6 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
         return null;
     };
     const oldestItemTimestamp = getOldestDateTimestamp(itemsParaEmpacotar);
-
 
     itemsParaEmpacotar.forEach(item => {
         if (item.totalKg > config.hardMaxKg || item.totalCubagem > config.hardMaxCubage) {
@@ -414,7 +411,25 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
         } else if (load.pedidos.length > 0) {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
                 const clienteId = normalizeClientId(p.Cliente);
-                if (!acc[clienteId]) { acc[clienteId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) }; }
+                const pDate = p.Predat || p.Dat_Ped;
+                if (!acc[clienteId]) {
+                    acc[clienteId] = {
+                        pedidos: [],
+                        totalKg: 0,
+                        totalCubagem: 0,
+                        isSpecial: isSpecialClient(p),
+                        oldestDate: pDate || null
+                    };
+                }
+                if (pDate && acc[clienteId].oldestDate) {
+                    const existingDate = getComparableDate(acc[clienteId].oldestDate);
+                    const newDate = getComparableDate(pDate);
+                    if (newDate && existingDate && newDate < existingDate) {
+                        acc[clienteId].oldestDate = pDate;
+                    }
+                } else if (pDate && !acc[clienteId].oldestDate) {
+                    acc[clienteId].oldestDate = pDate;
+                }
                 acc[clienteId].pedidos.push(p);
                 acc[clienteId].totalKg += p.Quilos_Saldo;
                 acc[clienteId].totalCubagem += p.Cubagem;
@@ -810,25 +825,34 @@ function runSequenceOptimization(orderedGroups, vehicleType, configs) {
     let currentLoad = { pedidos: [], totalKg: 0, totalCubagem: 0, vehicleType: vehicleType };
     let leftovers = [];
 
+    const totalWeight = orderedGroups.reduce((sum, g) => sum + g.totalKg, 0);
+    let targetPerLoad = config.softMaxKg;
+    if (totalWeight > config.minKg) {
+        const loadsAtSoftMax = Math.ceil(totalWeight / config.softMaxKg);
+        const loadsAtHardMax = Math.ceil(totalWeight / config.hardMaxKg);
+        const idealLoads = Math.max(loadsAtHardMax, loadsAtSoftMax);
+        targetPerLoad = Math.min(config.softMaxKg, totalWeight / idealLoads);
+        if (targetPerLoad < config.minKg) targetPerLoad = config.minKg;
+    }
+
+    let packedWeight = 0;
+
     orderedGroups.forEach(group => {
-        // Verifica limites absolutos do grupo
         if (group.totalKg > config.hardMaxKg || group.totalCubagem > config.hardMaxCubage) {
             leftovers.push(group);
             return;
         }
 
-        // Tenta adicionar à carga atual respeitando TODAS as regras (peso, cubagem, mix de clientes, agendamento)
         if (isMoveValid(currentLoad, group, vehicleType, configs)) {
             currentLoad.pedidos.push(...group.pedidos);
             currentLoad.totalKg += group.totalKg;
             currentLoad.totalCubagem += group.totalCubagem;
             currentLoad.usedHardLimit = (currentLoad.totalKg > config.softMaxKg || currentLoad.totalCubagem > config.softMaxCubage);
         } else {
-            // Se não couber, fecha a carga atual (se tiver itens) e abre uma nova
             if (currentLoad.pedidos.length > 0) {
                 loads.push(currentLoad);
+                packedWeight += currentLoad.totalKg;
             }
-            // Inicia nova carga com o grupo atual
             currentLoad = {
                 pedidos: [...group.pedidos],
                 totalKg: group.totalKg,
@@ -836,10 +860,19 @@ function runSequenceOptimization(orderedGroups, vehicleType, configs) {
                 vehicleType: vehicleType,
                 usedHardLimit: (group.totalKg > config.softMaxKg || group.totalCubagem > config.softMaxCubage)
             };
+            return;
+        }
+
+        if (currentLoad.totalKg >= targetPerLoad && currentLoad.totalKg >= config.minKg) {
+            const remainingAfter = totalWeight - packedWeight - currentLoad.totalKg;
+            if (remainingAfter >= config.minKg || currentLoad.totalKg >= config.hardMaxKg) {
+                loads.push(currentLoad);
+                packedWeight += currentLoad.totalKg;
+                currentLoad = { pedidos: [], totalKg: 0, totalCubagem: 0, vehicleType: vehicleType };
+            }
         }
     });
 
-    // Adiciona a última carga se não estiver vazia
     if (currentLoad.pedidos.length > 0) {
         loads.push(currentLoad);
     }

@@ -507,8 +507,11 @@
 
         // Apply locally to in-memory map immediately
         if (window.rotaVeiculoMap) {
+            const fiorinoRotas = ['11101', '11102', '11301', '11311', '11331', '11551', '11561', '11571', '11711', '11721', '11731'];
             for (const [code, delta] of Object.entries(changes)) {
                 if (window.rotaVeiculoMap[code]) {
+                    // Impede que overrides alterem rotas Fiorino conhecidas para Van
+                    if (fiorinoRotas.includes(code) && delta.type && delta.type !== 'fiorino') continue;
                     if (delta.type) window.rotaVeiculoMap[code].type = delta.type;
                     if (delta.name !== undefined) window.rotaVeiculoMap[code].customName = delta.name;
                     if (delta.order !== undefined) window.rotaVeiculoMap[code].order = delta.order;
@@ -789,7 +792,7 @@
         container.querySelectorAll('.acc-regra-row').forEach(row => {
             const code = row.dataset.rota;
             const val = row.querySelector('textarea')?.value || '';
-            map[code] = val.split(',').map(c => c.trim().toUpperCase()).filter(Boolean);
+            map[code] = val.split(',').map(c => c.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase()).filter(Boolean);
         });
         const sb = window.supabaseClient || window.supabase;
         const { error } = await sb.from('apex_admin_config')
@@ -1175,8 +1178,11 @@
                 window._apexAdminRouteOverrides = routeData.config_value;
                 // Apply to rotaVeiculoMap if already loaded
                 if (window.rotaVeiculoMap) {
+                    const fiorinoRotas = ['11101', '11102', '11301', '11311', '11331', '11551', '11561', '11571', '11711', '11721', '11731'];
                     for (const [code, ov] of Object.entries(routeData.config_value)) {
                         if (window.rotaVeiculoMap[code] && ov.type) {
+                            // Impede que overrides alterem rotas Fiorino conhecidas para Van
+                            if (fiorinoRotas.includes(code) && ov.type !== 'fiorino') continue;
                             window.rotaVeiculoMap[code].type = ov.type;
                         }
                     }

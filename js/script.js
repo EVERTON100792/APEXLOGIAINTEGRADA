@@ -428,8 +428,11 @@ async function loadRouteOverrides() {
         // 2. Apply Route Overrides
         window._apexRouteOverrides = configs['route_overrides'] || {};
         if (window.rotaVeiculoMap && window._apexRouteOverrides) {
+            const fiorinoRotas = ['11101', '11102', '11301', '11311', '11331', '11551', '11561', '11571', '11711', '11721', '11731'];
             for (const [code, ov] of Object.entries(window._apexRouteOverrides)) {
                 if (window.rotaVeiculoMap[code]) {
+                    // Impede que overrides alterem rotas Fiorino conhecidas para Van
+                    if (fiorinoRotas.includes(code) && ov.type && ov.type !== 'fiorino') continue;
                     if (ov.type) window.rotaVeiculoMap[code].type = ov.type;
                     if (ov.name) window.rotaVeiculoMap[code].customName = ov.name;
                     if (ov.order !== undefined) window.rotaVeiculoMap[code].order = ov.order;
@@ -531,16 +534,15 @@ function getSafeRouteId(rota) {
 function getSortedVarejoRoutes(rotas) {
     const vehicleOrder = { 'fiorino': 1, 'van': 2, 'tresQuartos': 3, 'toco': 4 };
     const numericSort = (a, b) => a.localeCompare(b, undefined, { numeric: true });
-    const overrides = window._apexRouteOverrides || {};
 
     return rotas.sort((a, b) => {
         // Prioriza a Rota "0" para aparecer sempre em primeiro.
         if (a === '0' && b !== '0') return -1;
         if (b === '0' && a !== '0') return 1;
 
-        // 1. Ordem por Tipo de Veículo
-        const typeA = overrides[a]?.type || rotaVeiculoMap[a]?.type || 'van';
-        const typeB = overrides[b]?.type || rotaVeiculoMap[b]?.type || 'van';
+        // 1. Ordem por Tipo de Veículo (usa getRouteVehicleCategory para respeitar rotas conhecidas)
+        const typeA = getRouteVehicleCategory(a);
+        const typeB = getRouteVehicleCategory(b);
 
         const orderTypeA = vehicleOrder[typeA] || 99;
         const orderTypeB = vehicleOrder[typeB] || 99;
@@ -559,8 +561,9 @@ function getSortedVarejoRoutes(rotas) {
         if (!isPRA && isPRB) return 1;
 
         // 3. Ordem Customizada do Admin (Global) com fallback seguro
-        const customOrderA = overrides[a]?.order ?? (window.rotaVeiculoMap?.[a]?.order ?? 9999);
-        const customOrderB = overrides[b]?.order ?? (window.rotaVeiculoMap?.[b]?.order ?? 9999);
+        const adminOverrides = window._apexRouteOverrides || {};
+        const customOrderA = adminOverrides[a]?.order ?? (window.rotaVeiculoMap?.[a]?.order ?? 9999);
+        const customOrderB = adminOverrides[b]?.order ?? (window.rotaVeiculoMap?.[b]?.order ?? 9999);
 
         if (customOrderA !== customOrderB) {
             return customOrderA - customOrderB;
@@ -3305,10 +3308,10 @@ if (!div) { console.warn('displayGerais: div nao encontrada no DOM.'); return fa
             }
 
             // Define o título do botão dinamicamente (respeita overrides do Admin)
-            const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
+            const vehicleType = getRouteVehicleCategory(rota);
+            const buttonTitle = getRouteDisplayTitle(rota, vehicleType).replace('Rota: ', '');
             const isPR = config.title.startsWith('Rota 1') || String(rota).startsWith('1');
 
-            const vehicleType = config.type;
             const colorClass = vehicleType === 'fiorino' ? 'success' : (vehicleType === 'van' ? 'primary' : 'warning');
 
             if (vehicleType === 'fiorino') {
@@ -3506,7 +3509,7 @@ function displayAccordionGerais(div, grupos) {
         const grupo = grupos[rota];
         const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const config = rotaVeiculoMap[rota] || { type: 'van' }; // Fallback para rotas não mapeadas (SP)
-        const veiculo = config.type;
+        const veiculo = getRouteVehicleCategory(rota);
 
         let rotaDisplay = getRouteDisplayTitle(rota, veiculo);
 
@@ -3555,7 +3558,7 @@ if (!div) { console.warn('displayPedidosCFNumerico: div nao encontrada no DOM.')
     rotasOrdenadas.forEach((rota, index) => {
         const grupo = grupos[rota];
         const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const veiculo = rotaVeiculoMap[rota]?.type || 'van'; // Assume 'van' para rotas não mapeadas
+        const veiculo = getRouteVehicleCategory(rota);
         let veiculoClass = '';
         if (veiculo === 'fiorino') veiculoClass = 'route-fiorino';
         else if (veiculo === 'van') veiculoClass = 'route-van';
@@ -4478,7 +4481,6 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType) {
     let loads = [];
     let leftoverItems = [];
 
-    // Adicionado: Pega a data do item mais antigo na lista de empacotamento, tratando datas serializadas.
     const getOldestDateTimestamp = (items) => {
         if (items.length > 0 && items[0].oldestDate) {
             const date = new Date(items[0].oldestDate);
@@ -4833,7 +4835,7 @@ function refinarCargasComTrocas(initialLoads, initialLeftovers, vehicleType) {
                     const groupToSwapOut = clientGroupsInLoad[k];
                     const outDate = groupToSwapOut.oldestDate ? new Date(groupToSwapOut.oldestDate) : null;
 
-                    // Proteção de antiguidade: Não troca se o que sai é mais velho que o que entra
+                    // Proteção de antiguidade: Não remove grupos mais antigos para inserir mais novos
                     if (outDate && leftoverDate && outDate < leftoverDate) {
                         continue;
                     }
@@ -5092,11 +5094,12 @@ window.reaplicarRegrasPainelInterno = function() {
     // --- LÓGICA ESPECIAL PARA PRIORIZAR FIORINO EM ROTAS MISTAS ---
     let groupsExcludedFromFiorino = [];
 
-    // Verifica se alguma das rotas atuais está no mapa especial
-    const rotaEspecialEncontrada = routes.find(r => rotasEspeciaisFiorino[r]);
+    // Verifica se alguma das rotas atuais está no mapa especial (usa window para incluir overrides do Admin)
+    const currentFiorinoMap = window.rotasEspeciaisFiorino || rotasEspeciaisFiorino;
+    const rotaEspecialEncontrada = routes.find(r => currentFiorinoMap[r]);
 
     if (rotaEspecialEncontrada) {
-        const cidadesPermitidasFiorino = new Set(rotasEspeciaisFiorino[rotaEspecialEncontrada]);
+        const cidadesPermitidasFiorino = new Set(currentFiorinoMap[rotaEspecialEncontrada]);
         const normalizeCity = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
 
         const fiorinoGroups = [];
@@ -5283,7 +5286,7 @@ window.reaplicarRegrasPainelInterno = function() {
 
 
     // --- LÓGICA DE PROCESSAMENTO COM WEB WORKER ---
-    const processingWorker = new Worker('worker.js');
+    const processingWorker = new Worker('worker.js?v=' + Date.now());
 
     processingWorker.postMessage({
         command: 'start-optimization',
@@ -5496,10 +5499,9 @@ window.reaplicarRegrasPainelInterno = function() {
         load.numero = `${load.vehicleType.charAt(0).toUpperCase()}${index + 1}`;
         const loadId = `${load.vehicleType}-${Date.now()}-${index}`;
         load.id = loadId;
-        load.routesKey = routesKey; // Vincula a carga ao processamento desta rota
+        load.routesKey = routesKey;
         activeLoads[loadId] = load;
         
-        // DISPARA CÁLCULO DE FRETE AUTOMÁTICO
         if (typeof refreshLoadFreight === 'function') refreshLoadFreight(loadId);
     });
 
@@ -5874,17 +5876,15 @@ function exportarSobrasSP_PDF() {
 async function runExpertOptimizer(packableGroups, vehicleType) {
     console.log(`Executando Nível 2: Otimização Especialista para ${vehicleType}...`);
 
-    // Fase 1: Otimização principal com Recozimento Simulado
-    const saResult = await runSimulatedAnnealing(packableGroups, vehicleType, 'Otimizando... (Fase 1/3: Análise Profunda)');
+    // runSimulatedAnnealing só existe no Worker. Fallback: usa heurística no主线程
+    let saResult = runHeuristicOptimization(packableGroups, vehicleType);
+    if (saResult && saResult.loads) {
+        saResult.loads = saResult.loads.map(l => ({ ...l, vehicleType: l.vehicleType || vehicleType }));
+    }
+    if (!saResult) saResult = { loads: [], leftovers: packableGroups };
 
-    // Fase 2: Tenta reconstruir a pior carga para melhorar a solução
-    document.getElementById('processing-status-text').textContent = 'Otimizando... (Fase 2/3: Reconstrução)';
-    document.getElementById('thinking-text').textContent = 'Analisando e reestruturando cargas ineficientes.';
     const reconstructed = await refinarComReconstrucao(saResult.loads, saResult.leftovers, vehicleType);
 
-    // Fase 3: Faz um polimento final, tentando trocar sobras com itens de menor peso nas cargas
-    document.getElementById('processing-status-text').textContent = 'Otimizando... (Fase 3/3: Polimento Final)';
-    document.getElementById('thinking-text').textContent = 'Buscando últimas oportunidades de encaixe.';
     return refinarCargasComTrocas(reconstructed.refinedLoads, reconstructed.remainingLeftovers, vehicleType);
 }
 
@@ -5913,30 +5913,33 @@ function refineLoadsWithSimpleFit(initialLoads, initialLeftovers) {
     while (i < remainingLeftovers.length) {
         const leftoverGroup = remainingLeftovers[i];
         let inserted = false;
+        let bestFitLoad = null;
+        let bestFitRemaining = Infinity;
 
         for (const load of refinedLoads) {
             const vehicleType = load.vehicleType;
             if (!vehicleType) continue;
 
             if (isMoveValid(load, leftoverGroup, vehicleType)) {
-                load.pedidos.push(...leftoverGroup.pedidos);
-                load.totalKg += leftoverGroup.totalKg;
-                load.totalCubagem += leftoverGroup.totalCubagem;
-                // isMoveValid garante os hard limits, mas podemos atualizar flag se necessário
                 const config = getVehicleConfigSafe(vehicleType);
-                load.usedHardLimit = (load.totalKg > config.softMaxKg || load.totalCubagem > config.softMaxCubage);
-
-                inserted = true;
-                break;
+                const remaining = config.hardMaxKg - (load.totalKg + leftoverGroup.totalKg);
+                if (remaining < bestFitRemaining) {
+                    bestFitRemaining = remaining;
+                    bestFitLoad = load;
+                }
             }
         }
 
-        if (inserted) {
-            // Remove do array de sobras
+        if (bestFitLoad) {
+            bestFitLoad.pedidos.push(...leftoverGroup.pedidos);
+            bestFitLoad.totalKg += leftoverGroup.totalKg;
+            bestFitLoad.totalCubagem += leftoverGroup.totalCubagem;
+            const cfg = getVehicleConfigSafe(bestFitLoad.vehicleType);
+            bestFitLoad.usedHardLimit = (bestFitLoad.totalKg > cfg.softMaxKg || bestFitLoad.totalCubagem > cfg.softMaxCubage);
+
+            inserted = true;
             remainingLeftovers.splice(i, 1);
-            // Não incrementa i, pois o próximo elemento agora ocupa o índice atual
         } else {
-            // Avança para o próximo
             i++;
         }
     }
@@ -5951,7 +5954,11 @@ function promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers) {
         return { refinedLoads, remainingLeftovers };
     }
 
-    // Agrupa as sobras por rota (respeitando rotas combinadas irmãs, ex: 11501/11502/11511)
+    const vehicleTypeCounts = {};
+    refinedLoads.forEach(l => { const vt = l.vehicleType; vehicleTypeCounts[vt] = (vehicleTypeCounts[vt] || 0) + 1; });
+    const dominantVehicleType = Object.entries(vehicleTypeCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'van';
+    const dominantConfig = getVehicleConfigSafe(dominantVehicleType);
+    if (!dominantConfig) return { refinedLoads, remainingLeftovers };
     const processedRouteGroups = new Set();
     const rotasSobras = [...new Set(remainingLeftovers.flatMap(g => g.pedidos.map(p => String(p.Cod_Rota))))];
 
@@ -5967,8 +5974,7 @@ function promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers) {
         const leftoversDaRota = remainingLeftovers.filter(g => g.pedidos.some(p => rotasDoGrupo.includes(String(p.Cod_Rota))));
         const pesoTotalLeftovers = leftoversDaRota.reduce((sum, g) => sum + g.totalKg, 0);
 
-        // Encontra as cargas válidas criadas para essa rota ou seu grupo combinado
-        const cargasDaRota = refinedLoads.filter(load => 
+        const cargasDaRota = refinedLoads.filter(load =>
             load.pedidos.some(p => rotasDoGrupo.includes(String(p.Cod_Rota)))
         );
 
@@ -5981,12 +5987,16 @@ function promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers) {
         const deficit = config.minKg - pesoTotalLeftovers;
 
         if (deficit > 0) {
-            // Busca cargas da rota que possuem peso acima do mínimo configurado (folga)
-            let doadoresPotenciais = cargasDaRota.filter(load => load.totalKg > config.minKg);
-            if (doadoresPotenciais.length === 0) continue;
+            let doadoresPotenciais = cargasDaRota
+                .filter(load => load.totalKg > config.minKg)
+                .sort((a, b) => (b.totalKg - config.minKg) - (a.totalKg - config.minKg));
+
+            let gruposParaDoar = [];
+            let pesoDoado = 0;
+            let cubagemDoada = 0;
+            let doadoresUsados = [];
 
             for (const doador of doadoresPotenciais) {
-                // Agrupa os pedidos da carga doadora por cliente
                 const clientGroupsInDoador = Object.values(doador.pedidos.reduce((acc, p) => {
                     const cId = normalizeClientId(p.Cliente);
                     if (!acc[cId]) acc[cId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) };
@@ -5995,17 +6005,8 @@ function promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers) {
                     acc[cId].totalCubagem += p.Cubagem;
                     return acc;
                 }, {}));
-
-                // Ordena por peso crescente para doar em pedaços pequenos
                 clientGroupsInDoador.sort((a, b) => a.totalKg - b.totalKg);
-
                 const folgaDoador = doador.totalKg - config.minKg;
-
-                // Tenta acumular a partir do menor para o maior
-                let gruposParaDoar = [];
-                let pesoDoado = 0;
-                let cubagemDoada = 0;
-
                 for (const grupo of clientGroupsInDoador) {
                     if (pesoDoado + grupo.totalKg <= folgaDoador) {
                         gruposParaDoar.push(grupo);
@@ -6014,78 +6015,164 @@ function promoverSobrasParaNovasCargas(refinedLoads, remainingLeftovers) {
                         if (pesoTotalLeftovers + pesoDoado >= config.minKg) break;
                     }
                 }
+                doadoresUsados.push(doador);
+                if (pesoTotalLeftovers + pesoDoado >= config.minKg) break;
+            }
 
-                // Se o acumulado não atingiu o déficit, tenta encontrar um único grupo de cliente com peso ideal
-                if (pesoTotalLeftovers + pesoDoado < config.minKg) {
-                    gruposParaDoar = [];
-                    pesoDoado = 0;
-                    cubagemDoada = 0;
-
+            if (pesoTotalLeftovers + pesoDoado < config.minKg) {
+                for (const doador of doadoresPotenciais) {
+                    if (doadoresUsados.includes(doador)) continue;
+                    const clientGroupsInDoador = Object.values(doador.pedidos.reduce((acc, p) => {
+                        const cId = normalizeClientId(p.Cliente);
+                        if (!acc[cId]) acc[cId] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) };
+                        acc[cId].pedidos.push(p);
+                        acc[cId].totalKg += p.Quilos_Saldo;
+                        acc[cId].totalCubagem += p.Cubagem;
+                        return acc;
+                    }, {}));
+                    const folgaDoador = doador.totalKg - config.minKg;
                     const grupoIdeal = clientGroupsInDoador.find(g => g.totalKg >= deficit && g.totalKg <= folgaDoador);
                     if (grupoIdeal) {
                         gruposParaDoar = [grupoIdeal];
                         pesoDoado = grupoIdeal.totalKg;
                         cubagemDoada = grupoIdeal.totalCubagem;
-                    }
-                }
-
-                // Se temos uma doação viável que cobre o déficit e respeita a folga do doador
-                if (pesoTotalLeftovers + pesoDoado >= config.minKg && pesoDoado <= folgaDoador) {
-                    // Instancia a nova carga temporária
-                    let novaCarga = {
-                        pedidos: leftoversDaRota.flatMap(g => g.pedidos),
-                        totalKg: pesoTotalLeftovers,
-                        totalCubagem: leftoversDaRota.reduce((sum, g) => sum + g.totalCubagem, 0),
-                        vehicleType: vehicleType,
-                        usedHardLimit: false
-                    };
-
-                    // Valida a inserção de cada grupo doado na nova carga usando isMoveValid
-                    let doacaoValida = true;
-                    for (const grupo of gruposParaDoar) {
-                        if (!isMoveValid(novaCarga, grupo, vehicleType)) {
-                            doacaoValida = false;
-                            break;
-                        }
-                        novaCarga.pedidos.push(...grupo.pedidos);
-                        novaCarga.totalKg += grupo.totalKg;
-                        novaCarga.totalCubagem += grupo.totalCubagem;
-                    }
-
-                    // Valida que o doador continuará válido após a retirada
-                    const idsDoados = new Set(gruposParaDoar.flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
-                    let doadorAposDoacao = {
-                        pedidos: doador.pedidos.filter(p => !idsDoados.has(p.Num_Pedido)),
-                        totalKg: doador.totalKg - pesoDoado,
-                        totalCubagem: doador.totalCubagem - cubagemDoada,
-                        vehicleType: doador.vehicleType,
-                        usedHardLimit: false
-                    };
-
-                    if (doacaoValida && doadorAposDoacao.pedidos.length > 0 && doadorAposDoacao.totalKg >= config.minKg) {
-                        // Efetiva a transferência de verdade
-                        console.log(`[Otimizador APEX] Promoção de carga na rota ${rota}: Movidos ${pesoDoado.toFixed(2)}kg da carga ${doador.numero || 'existente'} para criar nova carga com sobras.`);
-                        
-                        // Atualiza a carga doadora
-                        doador.pedidos = doadorAposDoacao.pedidos;
-                        doador.totalKg = doadorAposDoacao.totalKg;
-                        doador.totalCubagem = doadorAposDoacao.totalCubagem;
-                        doador.usedHardLimit = (doador.totalKg > config.softMaxKg || doador.totalCubagem > config.softMaxCubage);
-
-                        // Cria a nova carga de fato
-                        novaCarga.usedHardLimit = (novaCarga.totalKg > config.softMaxKg || novaCarga.totalCubagem > config.softMaxCubage);
-                        refinedLoads.push(novaCarga);
-
-                        // Remove os pedidos promovidos do array de sobras remanescentes
-                        const idsSobrasRemovidas = new Set(leftoversDaRota.flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
-                        remainingLeftovers = remainingLeftovers.filter(g => 
-                            !g.pedidos.some(p => idsSobrasRemovidas.has(p.Num_Pedido))
-                        );
-
-                        // Rota balanceada com sucesso, para de procurar doadores
+                        doadoresUsados = [doador];
                         break;
                     }
                 }
+            }
+
+            if (pesoTotalLeftovers + pesoDoado >= config.minKg && gruposParaDoar.length > 0) {
+                let novaCarga = {
+                    pedidos: leftoversDaRota.flatMap(g => g.pedidos),
+                    totalKg: pesoTotalLeftovers,
+                    totalCubagem: leftoversDaRota.reduce((sum, g) => sum + g.totalCubagem, 0),
+                    vehicleType: vehicleType,
+                    usedHardLimit: false
+                };
+
+                let doacaoValida = true;
+                for (const grupo of gruposParaDoar) {
+                    if (!isMoveValid(novaCarga, grupo, vehicleType)) {
+                        doacaoValida = false;
+                        break;
+                    }
+                    novaCarga.pedidos.push(...grupo.pedidos);
+                    novaCarga.totalKg += grupo.totalKg;
+                    novaCarga.totalCubagem += grupo.totalCubagem;
+                }
+
+                let todosDoadoresValidos = true;
+                for (const doador of doadoresUsados) {
+                    const idsDoadosDoDoador = new Set(gruposParaDoar
+                        .filter(g => doador.pedidos.some(dp => g.pedidos.some(gp => gp.Num_Pedido === dp.Num_Pedido)))
+                        .flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
+                    const pesoDoadorRestante = doador.totalKg - [...idsDoadosDoDoador].reduce((sum, id) => {
+                        const p = doador.pedidos.find(pp => String(pp.Num_Pedido) === id);
+                        return sum + (p ? p.Quilos_Saldo : 0);
+                    }, 0);
+                    if (pesoDoadorRestante < config.minKg) {
+                        todosDoadoresValidos = false;
+                        break;
+                    }
+                }
+
+                if (doacaoValida && todosDoadoresValidos && novaCarga.pedidos.length > 0) {
+                    console.log(`[Otimizador APEX] Promoção na rota ${rota}: ${pesoDoado.toFixed(2)}kg doados de ${doadoresUsados.length} carga(s) para criar nova carga com sobras.`);
+
+                    for (const doador of doadoresUsados) {
+                        const idsDoados = new Set(gruposParaDoar
+                            .filter(g => doador.pedidos.some(dp => g.pedidos.some(gp => gp.Num_Pedido === dp.Num_Pedido)))
+                            .flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
+                        doador.pedidos = doador.pedidos.filter(p => !idsDoados.has(p.Num_Pedido));
+                        doador.totalKg = doador.pedidos.reduce((s, p) => s + p.Quilos_Saldo, 0);
+                        doador.totalCubagem = doador.pedidos.reduce((s, p) => s + p.Cubagem, 0);
+                        doador.usedHardLimit = (doador.totalKg > config.softMaxKg || doador.totalCubagem > config.softMaxCubage);
+                    }
+
+                    novaCarga.usedHardLimit = (novaCarga.totalKg > config.softMaxKg || novaCarga.totalCubagem > config.softMaxCubage);
+                    refinedLoads.push(novaCarga);
+
+                    const idsSobrasRemovidas = new Set(leftoversDaRota.flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
+                    remainingLeftovers = remainingLeftovers.filter(g =>
+                        !g.pedidos.some(p => idsSobrasRemovidas.has(p.Num_Pedido))
+                    );
+                }
+            }
+        } else if (pesoTotalLeftovers >= config.minKg && pesoTotalLeftovers <= config.hardMaxKg) {
+            const novaCarga = {
+                pedidos: leftoversDaRota.flatMap(g => g.pedidos),
+                totalKg: pesoTotalLeftovers,
+                totalCubagem: leftoversDaRota.reduce((sum, g) => sum + g.totalCubagem, 0),
+                vehicleType: vehicleType,
+                usedHardLimit: (pesoTotalLeftovers > config.softMaxKg)
+            };
+            if (novaCarga.totalKg >= config.minKg) {
+                refinedLoads.push(novaCarga);
+                const idsSobrasRemovidas = new Set(leftoversDaRota.flatMap(g => g.pedidos.map(p => p.Num_Pedido)));
+                remainingLeftovers = remainingLeftovers.filter(g =>
+                    !g.pedidos.some(p => idsSobrasRemovidas.has(p.Num_Pedido))
+                );
+            }
+        }
+    }
+
+    if (remainingLeftovers.length >= 2) {
+        let sortedLeftovers = [...remainingLeftovers].sort((a, b) => {
+            if (a.oldestDate && b.oldestDate) {
+                const da = new Date(a.oldestDate);
+                const db = new Date(b.oldestDate);
+                if (da < db) return -1;
+                if (da > db) return 1;
+            }
+            return a.totalKg - b.totalKg;
+        });
+
+        let changed = true;
+        while (changed) {
+            changed = false;
+            for (let i = 0; i < sortedLeftovers.length; i++) {
+                const g1 = sortedLeftovers[i];
+                if (g1.totalKg >= dominantConfig.minKg && g1.totalKg <= dominantConfig.hardMaxKg) {
+                    const novaCarga = {
+                        pedidos: [...g1.pedidos],
+                        totalKg: g1.totalKg,
+                        totalCubagem: g1.totalCubagem,
+                        vehicleType: dominantVehicleType,
+                        usedHardLimit: (g1.totalKg > dominantConfig.softMaxKg)
+                    };
+                    refinedLoads.push(novaCarga);
+                    remainingLeftovers = remainingLeftovers.filter(g => g !== g1);
+                    sortedLeftovers.splice(i, 1);
+                    changed = true;
+                    break;
+                }
+                for (let j = i + 1; j < sortedLeftovers.length; j++) {
+                    const g2 = sortedLeftovers[j];
+                    const pesoCombinado = g1.totalKg + g2.totalKg;
+                    if (pesoCombinado >= dominantConfig.minKg && pesoCombinado <= dominantConfig.hardMaxKg) {
+                        const cubagemCombinada = g1.totalCubagem + g2.totalCubagem;
+                        if (cubagemCombinada <= dominantConfig.hardMaxCubage) {
+                            const testLoad = { pedidos: [...g1.pedidos, ...g2.pedidos], totalKg: pesoCombinado, totalCubagem: cubagemCombinada };
+                            if (isMoveValid(testLoad, { pedidos: [], totalKg: 0, totalCubagem: 0 }, dominantVehicleType)) {
+                                const novaCarga = {
+                                    pedidos: [...g1.pedidos, ...g2.pedidos],
+                                    totalKg: pesoCombinado,
+                                    totalCubagem: cubagemCombinada,
+                                    vehicleType: dominantVehicleType,
+                                    usedHardLimit: (pesoCombinado > dominantConfig.softMaxKg)
+                                };
+                                refinedLoads.push(novaCarga);
+                                remainingLeftovers = remainingLeftovers.filter(g => g !== g1 && g !== g2);
+                                sortedLeftovers.splice(Math.max(i, j), 1);
+                                sortedLeftovers.splice(Math.min(i, j), 1);
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (changed) break;
             }
         }
     }
@@ -10561,23 +10648,24 @@ function getCityCoordinatesSafe(cidade, uf) {
 
 function getRouteVehicleCategory(rota) {
     const r = String(rota || '').trim();
-    // 1. Overrides from admin
+    
+    // 1. Known Fiorino routes (sempre respeitado, independente de overrides)
+    const fiorinoRotas = ['11101', '11102', '11301', '11311', '11331', '11551', '11561', '11571', '11711', '11721', '11731'];
+    if (fiorinoRotas.includes(r)) return 'fiorino';
+    
+    // 2. Known 3/4 routes
+    const tqRotas = ['11361', '11501', '11502', '11511', '11541'];
+    if (tqRotas.includes(r)) return 'tresQuartos';
+    
+    // 3. Overrides from admin
     const overrides = window._apexRouteOverrides || window._apexAdminRouteOverrides || {};
     if (overrides[r]?.type) return overrides[r].type;
     
-    // 2. Global rotaVeiculoMap
+    // 4. Global rotaVeiculoMap
     if (window.rotaVeiculoMap?.[r]?.type) return window.rotaVeiculoMap[r].type;
     if (typeof rotaVeiculoMap !== 'undefined' && rotaVeiculoMap[r]?.type) return rotaVeiculoMap[r].type;
-
-    // 3. Known Fiorino routes
-    const fiorinoRotas = ['11101', '11102', '11301', '11311', '11331', '11551', '11561', '11571', '11711', '11721', '11731'];
-    if (fiorinoRotas.includes(r)) return 'fiorino';
-
-    // 4. Known 3/4 routes
-    const tqRotas = ['11361', '11501', '11502', '11511', '11541'];
-    if (tqRotas.includes(r)) return 'tresQuartos';
-
-    // 5. Default is Van (Van PR e Van SP: 11341, 11342, 11351, 11521, 11531, 11701, 2000, 2520, 2555, 2560, 2561, 2565, 2566, 2571, 2575, 2705, 2735, 2740, 2745...)
+    
+    // 5. Default is Van
     return 'van';
 }
 
@@ -10716,11 +10804,12 @@ async function montarCargasPrioritarias() {
         if (processedInThisBatch.has(rota)) continue;
 
         // Determina as configurações da rota (tipo de veículo, título, etc.)
+        const vehicleType = getRouteVehicleCategory(rota);
         let config = rotaVeiculoMap[rota];
 
         // Fallback para rotas de SP ou não mapeadas
         if (!config) {
-            config = { type: 'van', title: `Rota ${rota} (Automática)` };
+            config = { type: vehicleType, title: `Rota ${rota} (Automática)` };
         }
 
         let rotasParaProcessar = rota;
@@ -10734,9 +10823,9 @@ async function montarCargasPrioritarias() {
 
         // Determina o ID da div de destino baseado no tipo de veículo e no prefixo da rota principal
         let divId;
-        if (config.type === 'fiorino') {
+        if (vehicleType === 'fiorino') {
             divId = 'resultado-fiorino-geral';
-        } else if (config.type === 'van' || config.type === 'tresQuartos') {
+        } else if (vehicleType === 'van' || vehicleType === 'tresQuartos') {
             const rotaStr = String(rota);
             const isPR = config.title.startsWith('Rota 1') || rotaStr.startsWith('1');
             const isMS = rotaStr.startsWith('3');
@@ -10753,12 +10842,12 @@ async function montarCargasPrioritarias() {
         }
 
         // Define o título de exibição de maneira idêntica ao botão
-        const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
+        const buttonTitle = getRouteDisplayTitle(rota, vehicleType).replace('Rota: ', '');
 
         // Chama a função de separação existente
         // Passamos 'null' no botão pois é uma chamada automática
         // Passamos 'true' para isBatchMode para não limpar as cargas anteriores
-        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, config.type, null, true);
+        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, vehicleType, null, true);
 
         // Pequena pausa para a UI respirar e não travar
         await new Promise(r => setTimeout(r, 500));
@@ -10876,6 +10965,8 @@ function abrirModalAutoMontar() {
             config = { type: 'van', title: `Van / 3/4 São Paulo - Rota ${rota}` };
         }
 
+        const vehicleType = getRouteVehicleCategory(rota);
+
         // Consolida pedidos e métricas se a rota for combinada (ex: 11501, 11502 e 11511)
         let group = routeGroups[rota] ? { ...routeGroups[rota], pedidos: [...routeGroups[rota].pedidos] } : {
             rota: rota,
@@ -10913,7 +11004,6 @@ function abrirModalAutoMontar() {
 
         if (group.pedidos.length === 0) return;
 
-        const vehicleType = config.type || 'van';
         const routeTitle = getRouteDisplayTitle(rota, vehicleType).replace('Rota: ', '');
         
         // Detalhes do veículo para badge
@@ -11210,8 +11300,9 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
     // Filtra e agrupa rotas ordenadas pelas categorias correspondentes
     const groupedCategories = categoriesConfig.map(cat => {
         const catRoutes = uniqueRoutes.filter(rota => {
+            const vType = getRouteVehicleCategory(rota);
             let config = window.rotaVeiculoMap?.[rota];
-            if (!config) config = { type: 'van', title: `Rota ${rota} (Automática)` };
+            if (!config) config = { type: vType, title: `Rota ${rota} (Automática)` };
             return cat.filter(config, rota);
         });
         return {
@@ -11273,7 +11364,7 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
                 detailsText.textContent = `Montando ${processedCount} de ${totalRoutesToProcess} rotas selecionadas.`;
 
                 let config = window.rotaVeiculoMap?.[rota];
-                if (!config) config = { type: 'van', title: `Rota ${rota} (Automática)` };
+                if (!config) config = { type: getRouteVehicleCategory(rota), title: `Rota ${rota} (Automática)` };
 
                 let rotasParaProcessar = rota;
                 if (config.combined) {
@@ -11284,10 +11375,11 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
                     processedInThisBatch.add(rota);
                 }
 
-                const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
+                const vehicleType = getRouteVehicleCategory(rota);
+                const buttonTitle = getRouteDisplayTitle(rota, vehicleType).replace('Rota: ', '');
 
                 // Chama a função nativa de separação de cargas
-                await separarCargasGeneric(rotasParaProcessar, category.divId, buttonTitle, config.type, null, true, onlyPriority);
+                await separarCargasGeneric(rotasParaProcessar, category.divId, buttonTitle, vehicleType, null, true, onlyPriority);
                 
                 // Delay para visual e respiro do Web Worker
                 await new Promise(r => setTimeout(r, 400));
@@ -11579,6 +11671,8 @@ async function montarTodasAsRotas() {
         let config = rotaVeiculoMap[rota];
         if (!config) config = { type: 'van', title: `Rota ${rota} (Automática)` };
 
+        const vehicleType = getRouteVehicleCategory(rota);
+
         let rotasParaProcessar = rota;
         if (config.combined) {
             const combinedRoutes = [rota, ...config.combined];
@@ -11589,9 +11683,9 @@ async function montarTodasAsRotas() {
         } else processedInThisBatch.add(rota);
 
         let divId;
-        if (config.type === 'fiorino') {
+        if (vehicleType === 'fiorino') {
             divId = 'resultado-fiorino-geral';
-        } else if (config.type === 'van' || config.type === 'tresQuartos') {
+        } else if (vehicleType === 'van' || vehicleType === 'tresQuartos') {
             const rotaStr = String(rota);
             const isPR = (config.title && config.title.startsWith('Rota 1')) || rotaStr.startsWith('1');
             const isMS = rotaStr.startsWith('3');
@@ -11603,16 +11697,16 @@ async function montarTodasAsRotas() {
             } else {
                 divId = 'resultado-van-sp';
             }
-        } else if (config.type === 'toco') {
+        } else if (vehicleType === 'toco') {
             divId = 'resultado-toco';
-        } else if (config.type === 'truck') {
+        } else if (vehicleType === 'truck') {
             divId = 'resultado-truck';
         } else {
             divId = 'resultado-fiorino-geral';
         }
 
-        const buttonTitle = getRouteDisplayTitle(rota, config.type).replace('Rota: ', '');
-        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, config.type, null, true);
+        const buttonTitle = getRouteDisplayTitle(rota, vehicleType).replace('Rota: ', '');
+        await separarCargasGeneric(rotasParaProcessar, divId, buttonTitle, vehicleType, null, true);
         await new Promise(r => setTimeout(r, 300));
     }
 
@@ -11979,7 +12073,7 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                 return Promise.resolve({ cluster, result: { loads: [], leftovers: immediateLeftovers } });
             }
 
-            const processingWorker = new Worker('worker.js');
+            const processingWorker = new Worker('worker.js?v=' + Date.now());
             processingWorker.postMessage({
                 command: 'start-optimization',
                 packableGroups: packableGroups,
