@@ -291,39 +291,13 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
         }
     }
 
-    // REGRA DE COERÊNCIA GEOGRÁFICA / DISTÂNCIA ENTRE CIDADES (PRECISÃO CIRÚRGICA)
+    // REGRA GEOGRÁFICA: bloqueia apenas entrega em estados distintos (ex: PR vs SP)
     if (load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
-        const maxDistKm = (effectiveVehicleType === 'fiorino' ? 70 : (effectiveVehicleType === 'van' ? 120 : (effectiveVehicleType === 'tresQuartos' ? 150 : 180)));
-        const rotasCombinadas115 = ['11501', '11502', '11511'];
         for (const p1 of load.pedidos) {
-            const c1 = p1._coords;
-            const r1 = String(p1.Cod_Rota || '').trim();
             const uf1 = String(p1.UF || '').trim().toUpperCase();
-            const cidade1 = (p1.Cidade || '').trim().toUpperCase();
-
             for (const p2 of groupToAdd.pedidos) {
-                const c2 = p2._coords;
-                const r2 = String(p2.Cod_Rota || '').trim();
                 const uf2 = String(p2.UF || '').trim().toUpperCase();
-                const cidade2 = (p2.Cidade || '').trim().toUpperCase();
-
-                // Bloqueio imediato entre estados distintos (ex: PR vs SP)
                 if (uf1 && uf2 && uf1 !== uf2) return false;
-
-                const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                const limitKm = ehGrupo115 ? 230 : maxDistKm;
-
-                if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
-                    const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
-                    if (dist > limitKm) return false;
-                } else {
-                    // Sem coordenadas: permite se for mesma rota ou rotas parceiras 115 no mesmo estado
-                    if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
-                        // Permitido
-                    } else if (cidade1 !== cidade2) {
-                        return false;
-                    }
-                }
             }
         }
     }
@@ -1008,28 +982,7 @@ async function processarRoteirizacaoNoWorker(pedidosEncontrados, vehicleType, us
     let loads = packingResult.loads;
     packingResult.discardedMessages = [];
 
-    // 5. Distance check for Fiorino/Van
-    if ((vehicleType === 'fiorino' || vehicleType === 'van') && useGeo && apiKey) {
-        const distanceLimit = vehicleType === 'fiorino' ? 500 : 1000;
-        const validLoads = [];
-        const depot = { lat: -23.31461, lng: -51.36963 };
-
-        for (const load of loads) {
-            const citiesInLoad = [...new Set(load.pedidos.map(p => `${(p.Cidade || '').trim().toUpperCase()} - ${(p.UF || '').trim().toUpperCase()}`))];
-            let totalDistKm = 0;
-            let currentPos = depot;
-            for (const cityKey of citiesInLoad) {
-                const [cidade, uf] = cityKey.split(' - ');
-                const coords = await getCityCoordinates(cidade, uf, apiKey);
-                if (coords) { totalDistKm += calculateDistance(currentPos.lat, currentPos.lng, coords.lat, coords.lng); currentPos = coords; }
-            }
-            totalDistKm += calculateDistance(currentPos.lat, currentPos.lng, depot.lat, depot.lng);
-            const estimatedRoadDist = totalDistKm * 1.3;
-            if (estimatedRoadDist <= distanceLimit) { validLoads.push(load); }
-            else { packingResult.discardedMessages.push(`Carga ${vehicleType} descartada: Rota estimada em ${estimatedRoadDist.toFixed(0)}km (>${distanceLimit}km).`); }
-        }
-        loads = validLoads;
-    }
+    // 5. Distance check removido: montagem sem restrição de quilometragem.
 
     self.postMessage({ status: 'progress', progress: 100 });
     packingResult.loads = loads;

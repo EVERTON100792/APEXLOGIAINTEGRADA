@@ -1270,6 +1270,10 @@ const rotaVeiculoMap = {
 window.rotaVeiculoMap = rotaVeiculoMap;
 
 // Mapa de rotas e suas cidades permitidas para Fiorino (Global)
+// ROTAS MISTAS: só estas seguem as cidades cadastradas no painel do Super Usuário.
+// As demais rotas de Fiorino montam normal, com todas as cidades da rota.
+const rotasFiorinoMistas = ['11102', '11331', '11551', '11571', '11711'];
+
 const rotasEspeciaisFiorino = {
     '11711': [
         'MANDAGUACU', 'SAO JORGE DO IVAI', 'TAMBOARA', 'GUAIRACA',
@@ -4377,37 +4381,13 @@ function isMoveValid(load, groupToAdd, vehicleType) {
         }
     }
 
-    // REGRA DE DISTÂNCIA GEOGRÁFICA (alinhada com worker.js)
+    // REGRA GEOGRÁFICA: bloqueia apenas entrega em estados distintos (alinhada com worker.js)
     if (vehicleType !== 'truck' && load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
-        const maxDistKm = (vehicleType === 'fiorino' ? 70 : (vehicleType === 'van' ? 120 : (vehicleType === 'tresQuartos' ? 150 : 180)));
-        const rotasCombinadas115 = ['11501', '11502', '11511'];
         for (const p1 of load.pedidos) {
-            const c1 = p1._coords || getCityCoordinatesSafe(p1.Cidade, p1.UF);
-            const r1 = String(p1.Cod_Rota || '').trim();
             const uf1 = String(p1.UF || '').trim().toUpperCase();
-            const cidade1 = (p1.Cidade || '').trim().toUpperCase();
-
             for (const p2 of groupToAdd.pedidos) {
-                const c2 = p2._coords || getCityCoordinatesSafe(p2.Cidade, p2.UF);
-                const r2 = String(p2.Cod_Rota || '').trim();
                 const uf2 = String(p2.UF || '').trim().toUpperCase();
-                const cidade2 = (p2.Cidade || '').trim().toUpperCase();
-
                 if (uf1 && uf2 && uf1 !== uf2) return false;
-
-                const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                const limitKm = ehGrupo115 ? 230 : maxDistKm;
-
-                if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
-                    const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
-                    if (dist > limitKm) return false;
-                } else {
-                    if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
-                        // Permitido: mesma rota ou rotas parceiras 115 no mesmo estado
-                    } else if (cidade1 !== cidade2) {
-                        return false;
-                    }
-                }
             }
         }
     }
@@ -5096,11 +5076,13 @@ window.reaplicarRegrasPainelInterno = function() {
 
 
     // --- LÓGICA ESPECIAL PARA PRIORIZAR FIORINO EM ROTAS MISTAS ---
+    // Aplica somente para as rotas mistas (rotasFiorinoMistas), que seguem as
+    // cidades cadastradas no painel do Super Usuário. Rotas não-mistas (ex: 11101)
+    // montam normal com todas as cidades da rota.
     let groupsExcludedFromFiorino = [];
 
-    // Verifica se alguma das rotas atuais está no mapa especial (usa window para incluir overrides do Admin)
     const currentFiorinoMap = window.rotasEspeciaisFiorino || rotasEspeciaisFiorino;
-    const rotaEspecialEncontrada = routes.find(r => currentFiorinoMap[r]);
+    const rotaEspecialEncontrada = routes.find(r => rotasFiorinoMistas.includes(r) && currentFiorinoMap[r]);
 
     if (rotaEspecialEncontrada) {
         const cidadesPermitidasFiorino = new Set(currentFiorinoMap[rotaEspecialEncontrada]);
@@ -10710,39 +10692,12 @@ function isGeographicallyCompatible(load, groupToAdd, vehicleType) {
     if (!load || !load.pedidos || load.pedidos.length === 0) return true;
     if (!groupToAdd || !groupToAdd.pedidos || groupToAdd.pedidos.length === 0) return true;
 
-    const vType = load.vehicleType || vehicleType || 'van';
-    const maxDistKm = (vType === 'fiorino' ? 70 : (vType === 'van' ? 120 : (vType === 'tresQuartos' ? 150 : 180)));
-    const rotasCombinadas115 = ['11501', '11502', '11511'];
-
     for (const p1 of load.pedidos) {
-        const c1 = p1._coords || getCityCoordinatesSafe(p1.Cidade, p1.UF);
-        const r1 = String(p1.Cod_Rota || '').trim();
         const uf1 = String(p1.UF || '').trim().toUpperCase();
-        const cid1 = normalizeCityName(p1.Cidade);
-
         for (const p2 of groupToAdd.pedidos) {
-            const c2 = p2._coords || getCityCoordinatesSafe(p2.Cidade, p2.UF);
-            const r2 = String(p2.Cod_Rota || '').trim();
             const uf2 = String(p2.UF || '').trim().toUpperCase();
-            const cid2 = normalizeCityName(p2.Cidade);
-
             // Bloqueia junção entre estados diferentes
             if (uf1 && uf2 && uf1 !== uf2) return false;
-
-            const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-            const limitKm = ehGrupo115 ? 230 : maxDistKm;
-
-            if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
-                const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
-                if (dist > limitKm) return false;
-            } else {
-                // Sem coordenadas conhecidas: permite se for da mesma rota ou rotas parceiras 115 no mesmo estado
-                if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
-                    // Permitido
-                } else if (cid1 !== cid2) {
-                    return false;
-                }
-            }
         }
     }
     return true;
@@ -11755,7 +11710,9 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
         let vType = getRouteVehicleCategory(rota);
 
         // Regra do Painel do Super Usuário: Cidades Permitidas Fiorino por Rota
-        if (vType === 'fiorino' && currentSpecialFiorinoMap[rota]) {
+        // Aplica somente para rotas mistas (rotasFiorinoMistas). As demais rotas
+        // de Fiorino montam normal com todas as cidades da rota.
+        if (vType === 'fiorino' && rotasFiorinoMistas.includes(rota) && currentSpecialFiorinoMap[rota]) {
             const cidadesPermitidas = currentSpecialFiorinoMap[rota];
             const normCidade = normalizeCityName(p.Cidade);
             const ehPermitida = Array.isArray(cidadesPermitidas) && cidadesPermitidas.some(c => normalizeCityName(c) === normCidade);
@@ -11839,8 +11796,6 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
         }
 
         const cfg = getEffectiveVehicleLimits(vType);
-        const maxDist = vType === 'fiorino' ? 50 : (vType === 'van' ? 75 : (vType === 'tresQuartos' ? 100 : 130));
-        const rotasCombinadas115 = ['11501', '11502', '11511'];
 
         const unplaced = deepClone(leftoverGroups);
         unplaced.sort((a, b) => {
@@ -11874,50 +11829,12 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                 if (usedIndices.has(j)) continue;
                 const candidateGroup = unplaced[j];
 
-                if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
+if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
                 if ((candidateLoad.totalCubagem + candidateGroup.totalCubagem) > cfg.hardMaxCubage) continue;
                 if (!isMoveValid(candidateLoad, candidateGroup, vType)) continue;
 
-                let isCloseToAll = true;
-                for (const p1 of candidateLoad.pedidos) {
-                    const c1 = p1._coords || getCityCoordinatesSafe(p1.Cidade, p1.UF);
-                    const r1 = String(p1.Cod_Rota || '').trim();
-                    const uf1 = String(p1.UF || '').trim().toUpperCase();
-                    const cid1 = normalizeCityName(p1.Cidade);
+                {
 
-                    for (const p2 of candidateGroup.pedidos) {
-                        const c2 = p2._coords || getCityCoordinatesSafe(p2.Cidade, p2.UF);
-                        const r2 = String(p2.Cod_Rota || '').trim();
-                        const uf2 = String(p2.UF || '').trim().toUpperCase();
-                        const cid2 = normalizeCityName(p2.Cidade);
-
-                        if (uf1 && uf2 && uf1 !== uf2) {
-                            isCloseToAll = false;
-                            break;
-                        }
-
-                        const ehGrupo115 = rotasCombinadas115.includes(r1) && rotasCombinadas115.includes(r2);
-                        const effectiveMax = ehGrupo115 ? 230 : maxDist;
-
-                        if (c1 && c2 && typeof c1.lat === 'number' && typeof c2.lat === 'number') {
-                            const dist = calculateDistance(c1.lat, c1.lng, c2.lat, c2.lng);
-                            if (dist > effectiveMax) {
-                                isCloseToAll = false;
-                                break;
-                            }
-                        } else {
-                            if ((r1 === r2 || ehGrupo115) && uf1 === uf2) {
-                                // Permitido
-                            } else if (cid1 !== cid2) {
-                                isCloseToAll = false;
-                                break;
-                            }
-                        }
-                    }
-                    if (!isCloseToAll) break;
-                }
-
-                if (isCloseToAll) {
                     candidateLoad.pedidos.push(...candidateGroup.pedidos);
                     candidateLoad.totalKg += candidateGroup.totalKg;
                     candidateLoad.totalCubagem += candidateGroup.totalCubagem;
@@ -11960,9 +11877,7 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
             stageCitiesMap[key].pedidos.push(p);
         });
 
-        // Diâmetro máximo fechado estrito
-        const maxClusterDist = (type === 'fiorino' ? 50 : (type === 'van' ? 75 : (type === 'tresQuartos' ? 100 : 130)));
-        const rotasCombinadas115 = ['11501', '11502', '11511'];
+        // Clusterização sem limite de distância (apenas separa por estado)
         const clusters = [];
         const assignedCities = new Set();
         const cityKeys = Object.keys(stageCitiesMap);
@@ -11988,39 +11903,9 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
 
                 if (seedCity.uf && candCity.uf && seedCity.uf !== candCity.uf) continue;
 
-                let canJoin = false;
-                if (seedCity.coords && candCity.coords) {
-                    const ehGrupo115 = seedCity.pedidos.some(p1 => rotasCombinadas115.includes(String(p1.Cod_Rota || '').trim())) &&
-                                       candCity.pedidos.some(p2 => rotasCombinadas115.includes(String(p2.Cod_Rota || '').trim()));
-                    const effectiveMaxDist = ehGrupo115 ? 230 : maxClusterDist;
-
-                    canJoin = currentCluster.cities.every(c => {
-                        if (!c.coords) return false;
-                        const d = calculateDistance(c.coords.lat, c.coords.lng, candCity.coords.lat, candCity.coords.lng);
-                        return d <= effectiveMaxDist;
-                    });
-
-                    if (!ehGrupo115 && canJoin && currentCluster.cities.length > 1) {
-                        const lats = currentCluster.cities.map(c => c.coords.lat);
-                        const lngs = currentCluster.cities.map(c => c.coords.lng);
-                        const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length;
-                        const avgLng = lngs.reduce((a, b) => a + b, 0) / lngs.length;
-                        const dCentroid = calculateDistance(avgLat, avgLng, candCity.coords.lat, candCity.coords.lng);
-                        if (dCentroid > (effectiveMaxDist * 0.7)) {
-                            canJoin = false;
-                        }
-                    }
-                } else {
-                    const ehGrupo115 = seedCity.pedidos.some(p1 => rotasCombinadas115.includes(String(p1.Cod_Rota || '').trim())) &&
-                                       candCity.pedidos.some(p2 => rotasCombinadas115.includes(String(p2.Cod_Rota || '').trim()));
-                    canJoin = (seedCity.cidade === candCity.cidade) || (ehGrupo115 && seedCity.uf === candCity.uf);
-                }
-
-                if (canJoin) {
-                    currentCluster.cities.push(candCity);
-                    currentCluster.pedidos.push(...candCity.pedidos);
-                    assignedCities.add(candidateKey);
-                }
+                currentCluster.cities.push(candCity);
+                currentCluster.pedidos.push(...candCity.pedidos);
+                assignedCities.add(candidateKey);
             }
             clusters.push(currentCluster);
         }
