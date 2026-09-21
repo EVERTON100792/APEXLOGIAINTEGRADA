@@ -5335,63 +5335,88 @@ window.reaplicarRegrasPainelInterno = function() {
     // CORREÇÃO: Processa explicitamente os grupos de cidades não permitidas para Fiorino
     // em cascata Van -> 3/4 -> Toco, independente do tipo de veículo principal.
     // Isso garante que sobras por "cidades" não param no fiorino e continuam sendo processadas.
-    if (groupsExcludedFromFiorino.length > 0) {
-        console.log(`CASCATA CIDADES: Processando ${groupsExcludedFromFiorino.length} grupos excluídos do Fiorino por cidade.`);
-        const vanResultForExcluded = runCascadeOptimization(groupsExcludedFromFiorino, 'van');
-        secondaryLoads.push(...vanResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'van' })));
+    // NOVO: Nas ROTAS MISTAS, as sobras (permitidas + cidades não permitidas) são unificadas
+    // num único pool e a cascata monta Van JUNTANDO os pedidos pequenos até atingir o minKg.
+    // A capacidade mínima de cada veículo continua sendo respeitada (heuristic normal).
+    if (rotaEspecialEncontrada) {
+        const poolSobrasMistas = [...groupsExcludedFromFiorino, ...leftoverGroups];
+        const totalKgSobrasMistas = poolSobrasMistas.reduce((acc, g) => acc + (g.totalKg || 0), 0);
+        console.log(`CASCATA ROTA MISTA ${rotaEspecialEncontrada}: Unificando ${poolSobrasMistas.length} grupos (${formatNumber(totalKgSobrasMistas)} kg) para montar Van juntando os pedidos.`);
 
-        const tqResultForExcluded = runCascadeOptimization(vanResultForExcluded.leftovers, 'tresQuartos');
-        tertiaryLoads.push(...tqResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
+        if (poolSobrasMistas.length > 0) {
+            // 1. Monta o máximo de Van possível (heurística normal, respeita minKg)
+            const vanMista = runCascadeOptimization(poolSobrasMistas, 'van');
+            secondaryLoads.push(...vanMista.loads.map(l => ({ ...l, vehicleType: 'van' })));
 
-        const tocoResultForExcluded = runCascadeOptimization(tqResultForExcluded.leftovers, 'toco');
-        quaternaryLoads.push(...tocoResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'toco' })));
+            // 2. Sobras acima da capacidade da Van tentam 3/4
+            const tqResultMista = runCascadeOptimization(vanMista.leftovers, 'tresQuartos');
+            tertiaryLoads.push(...tqResultMista.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
 
-        // Quaisquer sobras finais dos grupos excluídos se juntam às sobras gerais do processamento principal
-        leftoverGroups.push(...tocoResultForExcluded.leftovers);
-    }
+            // 3. Sobras de 3/4 tentam Toco
+            const tocoResultMista = runCascadeOptimization(tqResultMista.leftovers, 'toco');
+            quaternaryLoads.push(...tocoResultMista.loads.map(l => ({ ...l, vehicleType: 'toco' })));
 
-    primaryLoads.forEach(l => l.vehicleType = l.vehicleType || vehicleType);
+            leftoverGroups = tocoResultMista.leftovers;
+        }
+    } else {
+        if (groupsExcludedFromFiorino.length > 0) {
+            console.log(`CASCATA CIDADES: Processando ${groupsExcludedFromFiorino.length} grupos excluídos do Fiorino por cidade.`);
+            const vanResultForExcluded = runCascadeOptimization(groupsExcludedFromFiorino, 'van');
+            secondaryLoads.push(...vanResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'van' })));
 
-    switch (vehicleType) {
-        case 'fiorino':
-            // Sobras do Fiorino (pedidos de cidades permitidas que não couberam) tentam virar Van
-            const vanResult = runCascadeOptimization(leftoverGroups, 'van');
-            secondaryLoads.push(...vanResult.loads.map(l => ({ ...l, vehicleType: 'van' })));
-            leftoverGroups = vanResult.leftovers;
+            const tqResultForExcluded = runCascadeOptimization(vanResultForExcluded.leftovers, 'tresQuartos');
+            tertiaryLoads.push(...tqResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
 
-            // Sobras de Van tentam virar 3/4
-            const tqResultFromFiorino = runCascadeOptimization(leftoverGroups, 'tresQuartos');
-            tertiaryLoads.push(...tqResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
-            leftoverGroups = tqResultFromFiorino.leftovers;
+            const tocoResultForExcluded = runCascadeOptimization(tqResultForExcluded.leftovers, 'toco');
+            quaternaryLoads.push(...tocoResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'toco' })));
 
-            // Sobras de 3/4 tentam virar Toco
-            const tocoResultFromFiorino = runCascadeOptimization(leftoverGroups, 'toco');
-            quaternaryLoads.push(...tocoResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'toco' })));
-            leftoverGroups = tocoResultFromFiorino.leftovers;
-            break;
+            // Quaisquer sobras finais dos grupos excluídos se juntam às sobras gerais do processamento principal
+            leftoverGroups.push(...tocoResultForExcluded.leftovers);
+        }
 
-        case 'van':
-            // Sobras de Van tentam virar 3/4
-            const tqResultFromVan = runCascadeOptimization(leftoverGroups, 'tresQuartos');
-            secondaryLoads = tqResultFromVan.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' }));
-            leftoverGroups = tqResultFromVan.leftovers;
+        primaryLoads.forEach(l => l.vehicleType = l.vehicleType || vehicleType);
 
-            if (!isSP) {
-                // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
-                const tocoResultFromVan = runCascadeOptimization(leftoverGroups, 'toco');
-                tertiaryLoads = tocoResultFromVan.loads.map(l => ({ ...l, vehicleType: 'toco' }));
-                leftoverGroups = tocoResultFromVan.leftovers;
-            }
-            break;
+        switch (vehicleType) {
+            case 'fiorino':
+                // Sobras do Fiorino (pedidos de cidades permitidas que não couberam) tentam virar Van
+                const vanResult = runCascadeOptimization(leftoverGroups, 'van');
+                secondaryLoads.push(...vanResult.loads.map(l => ({ ...l, vehicleType: 'van' })));
+                leftoverGroups = vanResult.leftovers;
 
-        case 'tresQuartos':
-            if (!isSP) {
-                // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
-                const tocoResultFromTQ = runCascadeOptimization(leftoverGroups, 'toco');
-                secondaryLoads = tocoResultFromTQ.loads.map(l => ({ ...l, vehicleType: 'toco' }));
-                leftoverGroups = tocoResultFromTQ.leftovers;
-            }
-            break;
+                // Sobras de Van tentam virar 3/4
+                const tqResultFromFiorino = runCascadeOptimization(leftoverGroups, 'tresQuartos');
+                tertiaryLoads.push(...tqResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
+                leftoverGroups = tqResultFromFiorino.leftovers;
+
+                // Sobras de 3/4 tentam virar Toco
+                const tocoResultFromFiorino = runCascadeOptimization(leftoverGroups, 'toco');
+                quaternaryLoads.push(...tocoResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'toco' })));
+                leftoverGroups = tocoResultFromFiorino.leftovers;
+                break;
+
+            case 'van':
+                // Sobras de Van tentam virar 3/4
+                const tqResultFromVan = runCascadeOptimization(leftoverGroups, 'tresQuartos');
+                secondaryLoads = tqResultFromVan.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' }));
+                leftoverGroups = tqResultFromVan.leftovers;
+
+                if (!isSP) {
+                    // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
+                    const tocoResultFromVan = runCascadeOptimization(leftoverGroups, 'toco');
+                    tertiaryLoads = tocoResultFromVan.loads.map(l => ({ ...l, vehicleType: 'toco' }));
+                    leftoverGroups = tocoResultFromVan.leftovers;
+                }
+                break;
+
+            case 'tresQuartos':
+                if (!isSP) {
+                    // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
+                    const tocoResultFromTQ = runCascadeOptimization(leftoverGroups, 'toco');
+                    secondaryLoads = tocoResultFromTQ.loads.map(l => ({ ...l, vehicleType: 'toco' }));
+                    leftoverGroups = tocoResultFromTQ.leftovers;
+                }
+                break;
+        }
     }
 
     // ========================================================================
@@ -12052,7 +12077,7 @@ if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
         return { loads: stageLoads, leftovers: stageLeftovers };
     };
 
-    // 6. Execução sequencial por categorias
+    // 6. Execução sequencial por categorias (CASCATA: sobras de um estágio passam ao próximo veículo)
     const allCreatedLoads = [];
     const allFinalLeftovers = [];
 
@@ -12063,17 +12088,27 @@ if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
         { key: 'toco', name: 'Toco', progressPct: '95%' }
     ];
 
+    let sobrasEmCascata = [];
+
     for (const cat of categories) {
-        if (buckets[cat.key] && buckets[cat.key].length > 0) {
+        const pedidosDoEstagio = [
+            ...(buckets[cat.key] || []),
+            ...sobrasEmCascata
+        ];
+
+        if (pedidosDoEstagio.length > 0) {
             if (progressBar) progressBar.style.width = cat.progressPct;
             if (thinkingText) thinkingText.textContent = `Otimizando sobras para ${cat.name}...`;
-            if (detailsText) detailsText.textContent = `Processando ${buckets[cat.key].length} pedido(s) de ${cat.name}...`;
+            if (detailsText) detailsText.textContent = `Processando ${pedidosDoEstagio.length} pedido(s) de ${cat.name} (inclui sobras de estágios anteriores)...`;
 
-            const res = await optimizeSobrasStage(buckets[cat.key], cat.key);
+            const res = await optimizeSobrasStage(pedidosDoEstagio, cat.key);
             allCreatedLoads.push(...res.loads.map(l => ({ ...l, vehicleType: cat.key })));
-            allFinalLeftovers.push(...res.leftovers.flatMap(g => g.pedidos));
+            // Sobras deste estágio tentam o próximo veículo
+            sobrasEmCascata = res.leftovers.flatMap(g => g.pedidos);
         }
     }
+
+    allFinalLeftovers.push(...sobrasEmCascata);
 
     // 7. Sequenciamento TSP partindo de Rolândia/Selmi
     allCreatedLoads.forEach(load => {
