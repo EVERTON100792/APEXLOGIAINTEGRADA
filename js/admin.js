@@ -845,6 +845,7 @@
         await sb.from('apex_admin_config').update({ config_value: clients, updated_at: new Date().toISOString() }).eq('config_key', 'special_clients_extra');
         // Apply locally
         if (window.specialClientNames) window.specialClientNames.push(input);
+        if (window.specialClientPrefixes && !window.specialClientPrefixes.includes(input)) window.specialClientPrefixes.push(input);
         renderSpecialClients(clients);
         document.getElementById('acc-sc-new').value = '';
         await logAction('Adicionar cliente especial: ' + input, 0);
@@ -860,6 +861,10 @@
         if (window.specialClientNames) {
             const li = window.specialClientNames.indexOf(removed);
             if (li >= 0) window.specialClientNames.splice(li, 1);
+        }
+        if (window.specialClientPrefixes) {
+            const pi = window.specialClientPrefixes.indexOf(removed);
+            if (pi >= 0) window.specialClientPrefixes.splice(pi, 1);
         }
         renderSpecialClients(clients);
         await logAction('Remover cliente especial: ' + removed, 0);
@@ -1208,6 +1213,11 @@
                 if (window.specialClientNames) {
                     scData.config_value.forEach(n => {
                         if (!window.specialClientNames.includes(n)) window.specialClientNames.push(n);
+                    });
+                }
+                if (window.specialClientPrefixes) {
+                    scData.config_value.forEach(n => {
+                        if (!window.specialClientPrefixes.includes(n)) window.specialClientPrefixes.push(n);
                     });
                 }
             }

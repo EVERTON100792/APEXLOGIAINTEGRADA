@@ -14,6 +14,10 @@ self.onmessage = async function (e) {
         pedidosRecall
     } = e.data;
 
+    if (Array.isArray(e.data.specialClientPrefixes) && e.data.specialClientPrefixes.length > 0) {
+        specialClientPrefixes = e.data.specialClientPrefixes;
+    }
+
     if (command === 'start-optimization') {
         try {
             let optimizationResult;
@@ -155,7 +159,7 @@ async function getCityCoordinates(cidade, uf, apiKey) {
 
 
 
-const specialClientPrefixes = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA'];
+let specialClientPrefixes = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA'];
 
 const rotaVeiculoMap = {
     // Novas rotas de São Paulo (Varejo - Van/3/4)
@@ -261,18 +265,15 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
             }
         }
 
-        // REGRA 1: Não misturar diferentes clientes especiais (ex: Viscardi e Muffato)
-        if (Object.keys(specialOrdersGroupedByPrefix).length > 1) {
-            return false; // INVÁLIDO: Mistura de diferentes empresas especiais na mesma carga.
+        // REGRA 1: Não misturar mais de 2 clientes especiais diferentes (ex: Viscardi e Muffato)
+        if (Object.keys(specialOrdersGroupedByPrefix).length > 2) {
+            return false; // INVÁLIDO: Mais de 2 empresas especiais diferentes na mesma carga.
         }
 
-        // REGRA 2: Para a única empresa especial na carga, limitar a 2 lojas distintas.
-        for (const prefix in specialOrdersGroupedByPrefix) {
-            const ordersForThisSpecialClient = specialOrdersGroupedByPrefix[prefix];
-            const distinctStores = new Set(ordersForThisSpecialClient.map(p => normalizeClientId(p.Cliente)));
-            if (distinctStores.size > 2) {
-                return false; // INVÁLIDO: Mais de 2 lojas para este cliente especial na mesma carga.
-            }
+        // REGRA 2: No total da carga (todas as empresas especiais combinadas), limitar a 2 lojas distintas.
+        const allDistinctStores = new Set(specialPedidos.map(p => normalizeClientId(p.Cliente)));
+        if (allDistinctStores.size > 2) {
+            return false; // INVÁLIDO: Mais de 2 lojas de clientes especiais no total da carga.
         }
     }
 

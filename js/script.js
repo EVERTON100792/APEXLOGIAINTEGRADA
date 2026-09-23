@@ -449,6 +449,7 @@ async function loadRouteOverrides() {
         if (configs['special_clients_extra']) {
             const extraClients = configs['special_clients_extra'] || [];
             window.specialClientNames = [...new Set([...(window.specialClientNames || []), ...extraClients])];
+            window.specialClientPrefixes = [...new Set([...window.specialClientPrefixes, ...extraClients])];
         }
 
         // 5. Apply Agendamento Overrides
@@ -5118,6 +5119,7 @@ window.reaplicarRegrasPainelInterno = function() {
 
     // PREPROCESSAMENTO: Trata upgrades de veículos quando algum grupo excede a capacidade do veículo padrão da rota
     const upgradeLoads = [];
+    const upgradeRemovedGroups = [];
     const vehicleTypesOrder = ['fiorino', 'van', 'tresQuartos', 'toco'];
     const defaultVehicleIndex = vehicleTypesOrder.indexOf(vehicleType);
 
@@ -5204,8 +5206,10 @@ window.reaplicarRegrasPainelInterno = function() {
                             changed = true;
                         } else {
                             // Grupo excede hardMax do veículo padrão mas não atingiu minKg do upgrade.
-                            // Remove de packableGroups para que vá para sobras e seja processado pela cascata.
+                            // CORREÇÃO: preserva o grupo para que seja processado pela cascata
+                            // (fica como sobra e tenta Van/3/4/Toco junto com os demais pedidos).
                             console.log(`Grupo de ${groupToUpgrade.totalKg}kg precisava de upgrade para ${requiredType}, mas não atingiu o mínimo de ${reqCfg.minKg}kg. Enviado para cascata.`);
+                            upgradeRemovedGroups.push(groupToUpgrade);
                             packableGroups = tempRemainingGroups;
                             skippedUpgradeIndices.clear();
                             changed = true;
@@ -5281,7 +5285,8 @@ window.reaplicarRegrasPainelInterno = function() {
         optimizationLevel: optimizationLevel,
         configs: vehicleConfigs,
         pedidosPrioritarios: pedidosPrioritarios,
-        pedidosRecall: pedidosRecall
+        pedidosRecall: pedidosRecall,
+        specialClientPrefixes: window.specialClientPrefixes
     });
 
     optimizationResult = await new Promise((resolve, reject) => {
@@ -5315,7 +5320,7 @@ window.reaplicarRegrasPainelInterno = function() {
         ...initialRefinedLoads.map(l => ({ ...l, vehicleType: l.vehicleType || vehicleType })),
         ...upgradeLoads
     ];
-    let leftoverGroups = initialLeftovers;
+    let leftoverGroups = [...upgradeRemovedGroups, ...initialLeftovers];
     let secondaryLoads = [];
     let tertiaryLoads = [];
     let quaternaryLoads = [];
@@ -12003,7 +12008,8 @@ if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
                 optimizationLevel: '2',
                 configs: vehicleConfigs,
                 pedidosPrioritarios: pedidosPrioritarios,
-                pedidosRecall: pedidosRecall
+                pedidosRecall: pedidosRecall,
+                specialClientPrefixes: window.specialClientPrefixes
             });
 
             return new Promise((resolve, reject) => {
