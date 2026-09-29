@@ -569,10 +569,10 @@
             toco: { minKg: 'tocoMinCapacity', softMaxKg: 'tocoMaxCapacity', hardMaxKg: 'tocoHardMaxCapacity', cubage: 'tocoCubage', hardCubage: 'tocoHardCubage' }
         };
                 const defaultConfigs = {
-            fiorino: { minKg: 600, softMaxKg: 650, hardMaxKg: 700, cubage: 3.5, hardCubage: 4.5 },
-            van: { minKg: 1300, softMaxKg: 1400, hardMaxKg: 1550, cubage: 9.5, hardCubage: 12.0 },
-            tresQuartos: { minKg: 3000, softMaxKg: 3500, hardMaxKg: 4000, cubage: 18.0, hardCubage: 22.0 },
-            toco: { minKg: 5000, softMaxKg: 5500, hardMaxKg: 6000, cubage: 30.0, hardCubage: 35.0 }
+            fiorino: { minKg: 600, softMaxKg: 650, hardMaxKg: 700, cubage: 3.5, hardCubage: 4.5, askThreshold: 350 },
+            van: { minKg: 1300, softMaxKg: 1400, hardMaxKg: 1550, cubage: 9.5, hardCubage: 12.0, askThreshold: 1000 },
+            tresQuartos: { minKg: 3000, softMaxKg: 3500, hardMaxKg: 4000, cubage: 18.0, hardCubage: 22.0, askThreshold: 2500 },
+            toco: { minKg: 5000, softMaxKg: 5500, hardMaxKg: 6000, cubage: 30.0, hardCubage: 35.0, askThreshold: 4500 }
         };
 
         vehicles.forEach(v => {
@@ -584,6 +584,7 @@
             if (el('hardMax')) el('hardMax').value = cfg.hardMaxKg || def.hardMaxKg || '';
             if (el('cubage')) el('cubage').value = cfg.softMaxCubage || def.cubage || '';
             if (el('hardCubage')) el('hardCubage').value = cfg.hardMaxCubage || def.hardCubage || '';
+            if (el('askThreshold')) el('askThreshold').value = cfg.askThreshold || def.askThreshold || '';
         });
 
         // Load modules
@@ -607,7 +608,8 @@
                 hardMaxKg: parseFloat(el('hardMax')?.value) || 0,
                 minCubage: 0,
                 softMaxCubage: parseFloat(el('cubage')?.value) || 0,
-                hardMaxCubage: parseFloat(el('hardCubage')?.value) || 0
+                hardMaxCubage: parseFloat(el('hardCubage')?.value) || 0,
+                askThreshold: parseFloat(el('askThreshold')?.value) || 0
             };
         });
 
@@ -625,8 +627,8 @@
         
         // NOVO: Aplica na interface imediatamente se houver planilha processada usando update in-place
         if (typeof reaplicarRegrasPainelInterno === 'function') {
-        reaplicarRegrasPainelInterno();
-    }
+            reaplicarRegrasPainelInterno();
+        }
     };
 
     window.accSalvarModulos = async function () {

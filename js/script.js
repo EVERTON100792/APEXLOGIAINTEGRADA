@@ -351,6 +351,10 @@ const specialClientPrefixes_fallback = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM 
 window.specialClientPrefixes = [...specialClientPrefixes_fallback];
 window.agendamentoClientCodes = agendamentoClientCodes;
 
+// Thresholds para pergunta de carga abaixo do mínimo (defaults, sobrescritos pelo loadRouteOverrides)
+const vehicleAskThresholdsDefaults = { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
+window.vehicleAskThresholds = { ...vehicleAskThresholdsDefaults };
+
 // ================================================================================================
 //  INáCIO DO SEU CÓDIGO JAVASCRIPT ORIGINAL (SEM MODIFICAÇÕES NA LÓGICA)
 // ================================================================================================
@@ -463,6 +467,19 @@ async function loadRouteOverrides() {
             window._apexClientObservations = configs['client_observations'];
             if (typeof window._apexApplyClientObservations === 'function') {
                 window._apexApplyClientObservations();
+            }
+        }
+
+        // 7. Apply Vehicle Config (incl. askThreshold)
+        if (configs['vehicle_config']) {
+            window._apexAdminVehicleConfig = configs['vehicle_config'];
+            // Build global askThresholds map with defaults
+            const defaults = { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
+            window.vehicleAskThresholds = {};
+            for (const v of ['fiorino', 'van', 'tresQuartos', 'toco']) {
+                const cfg = (configs['vehicle_config'] || {})[v] || {};
+                window.vehicleAskThresholds[v] = typeof cfg.askThreshold === 'number' && cfg.askThreshold > 0
+                    ? cfg.askThreshold : defaults[v];
             }
         }
 
@@ -672,7 +689,7 @@ function getVehicleConfig(vehicleType) {
 // APEX ADMIN: reads Supabase vehicle config overrides if available
 function getVehicleConfigSafe(vehicleType) {
     if (vehicleType === 'especial') {
-        return { minKg: 0, softMaxKg: 99999, softMaxCubage: 99999, hardMaxKg: 99999, hardMaxCubage: 99999 };
+        return { minKg: 0, softMaxKg: 99999, softMaxCubage: 99999, hardMaxKg: 99999, hardMaxCubage: 99999, askThreshold: 0 };
     }
     const baseConfig = getVehicleConfig(vehicleType);
     const adminCfg = window._apexAdminVehicleConfig;
@@ -684,16 +701,21 @@ function getVehicleConfigSafe(vehicleType) {
         const cubV = parseFloat(override.softMaxCubage || override.cubage);
         const hardV = parseFloat(override.hardMaxKg);
         const hardCubV = parseFloat(override.hardMaxCubage || override.hardCubage);
+        const askV = parseFloat(override.askThreshold);
 
         return {
             minKg: (!isNaN(minV) && minV > 0) ? minV : baseConfig.minKg,
             softMaxKg: (!isNaN(softV) && softV > 0) ? softV : baseConfig.softMaxKg,
             softMaxCubage: (!isNaN(cubV) && cubV > 0) ? cubV : baseConfig.softMaxCubage,
             hardMaxKg: (!isNaN(hardV) && hardV > 0) ? hardV : baseConfig.hardMaxKg,
-            hardMaxCubage: (!isNaN(hardCubV) && hardCubV > 0) ? hardCubV : baseConfig.hardMaxCubage
+            hardMaxCubage: (!isNaN(hardCubV) && hardCubV > 0) ? hardCubV : baseConfig.hardMaxCubage,
+            askThreshold: (!isNaN(askV) && askV > 0) ? askV : (window.vehicleAskThresholds?.[vehicleType] || 0)
         };
     }
-    return baseConfig;
+    return {
+        ...baseConfig,
+        askThreshold: window.vehicleAskThresholds?.[vehicleType] || 0
+    };
 }
 
 let saveStateTimeout = null;
@@ -4461,6 +4483,395 @@ function runHeuristicOptimization(packableGroups, vehicleType) {
     return bestResult;
 }
 
+// ================================================================================================
+// NOVO: Sistema de Confirmação de Cargas Abaixo do Mínimo + Loop de Re-montagem
+// ================================================================================================
+
+// Estado global para o modal de confirmação
+let _confirmacaoCallback = null;
+let _confirmacaoResultado = null;
+let _cargasParaConfirmar = [];
+
+/**
+ * Abre modal de confirmação em lote para cargas abaixo do minKg mas acima do threshold
+ * @param {Array} cargas - Array de {load, threshold, minKg, vehicleType, contexto}
+ * @param {Function} callback - Recebe Set de loads confirmadas
+ */
+async function confirmarCargasAbaixoThreshold(cargas, vehicleType, sobrasPedidos = []) {
+    return new Promise((resolve) => {
+        if (!cargas || cargas.length === 0) {
+            resolve(new Set());
+            return;
+        }
+
+        _cargasParaConfirmar = cargas;
+        const tbody = document.getElementById('tbodyCargasConfirmar');
+        const countEl = document.getElementById('confirmCount');
+        const sobrasInfoEl = document.getElementById('sobrasInfoConfirm');
+        if (!tbody || !countEl) {
+            console.error('Modal de confirmação não encontrado no DOM');
+            resolve(new Set());
+            return;
+        }
+
+        // Seção informativa: pedidos que NÃO serão montados (abaixo do gatilho) e viram sobra
+        if (sobrasInfoEl) {
+            if (sobrasPedidos && sobrasPedidos.length > 0) {
+                const totalSobraKg = sobrasPedidos.reduce((s, p) => s + (p.Quilos_Saldo || 0), 0);
+                const sobraBadges = sobrasPedidos.map(p =>
+                    `<span class="badge bg-dark border border-secondary mb-1 me-1">${p.Num_Pedido} <span class="text-warning">(${formatNumber(p.Quilos_Saldo)}kg)</span></span>`
+                ).join('');
+                sobrasInfoEl.innerHTML = `
+                    <div class="alert alert-secondary mb-0 mt-3 py-2 px-3" style="background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(255,255,255,0.1);">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <i class="bi bi-box-seam text-secondary"></i>
+                            <strong class="text-light small">Abaixo do gatilho — continuarão como SOBRA (não montam):</strong>
+                            <span class="badge bg-secondary">${sobrasPedidos.length} pedido(s)</span>
+                            <span class="badge bg-warning text-dark">${formatNumber(totalSobraKg)} kg</span>
+                        </div>
+                        <div class="d-flex flex-wrap" style="max-height: 120px; overflow-y: auto;">${sobraBadges}</div>
+                    </div>`;
+                sobrasInfoEl.style.display = '';
+            } else {
+                sobrasInfoEl.innerHTML = '';
+                sobrasInfoEl.style.display = 'none';
+            }
+        }
+
+        countEl.textContent = cargas.length;
+        tbody.innerHTML = cargas.map((item, idx) => {
+            const load = item.load;
+            const threshold = item.threshold;
+            const minKg = item.minKg;
+            const vt = item.vehicleType;
+            
+            // Coletar info dos pedidos/rotas
+            const rotas = [...new Set(load.pedidos.map(p => p.Cod_Rota).filter(Boolean))].join(', ');
+            const pedidosInfo = load.pedidos.map(p => `<span class="badge bg-dark border border-secondary mb-1 me-1">${p.Num_Pedido} <span class="text-warning">(${formatNumber(p.Quilos_Saldo)}kg)</span></span>`).join('');
+            
+            return `
+                <tr data-load-idx="${idx}">
+                    <td class="text-center"><input class="form-check-input cargo-check" type="checkbox" value="${idx}" checked></td>
+                    <td><span class="badge bg-${vt === 'fiorino' ? 'success' : vt === 'van' ? 'primary' : vt === 'tresQuartos' ? 'warning' : 'secondary'}">${vt.toUpperCase()}</span></td>
+                    <td class="text-center fw-bold text-${load.totalKg >= minKg ? 'success' : 'warning'}">${formatNumber(load.totalKg)}</td>
+                    <td class="text-center text-secondary">${formatNumber(minKg)}</td>
+                    <td class="text-center text-info">${formatNumber(threshold)}</td>
+                    <td class="small">
+                        <div class="mb-1"><strong class="text-light">Qtd Pedidos:</strong> <span class="badge bg-info text-dark">${load.pedidos.length}</span> &nbsp;|&nbsp; <strong>Rotas:</strong> ${rotas || '—'}</div>
+                        <div class="d-flex flex-wrap mt-1" style="max-height: 80px; overflow-y: auto;">
+                            ${pedidosInfo}
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="toggleCargaCheck(${idx}, true)" title="Confirmar"><i class="bi bi-check"></i></button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="toggleCargaCheck(${idx}, false)" title="Recusar"><i class="bi bi-x"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        _confirmacaoCallback = resolve;
+        _confirmacaoResultado = null;
+
+        const modalEl = document.getElementById('modalConfirmarCargasAbaixoMinimo');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+        // Resolve SOMENTE quando o modal termina de fechar (evento 'hidden'):
+        // - se o usuário usou os botões de ação → entrega _confirmacaoResultado;
+        // - se fechou pelo X / "Cancelar Tudo" → nenhuma confirmada (tudo vira sobra).
+        const onHidden = () => {
+            modalEl.removeEventListener('hidden.bs.modal', onHidden);
+            if (!_confirmacaoCallback) return;
+            const cb = _confirmacaoCallback;
+            const res = _confirmacaoResultado || new Set();
+            _confirmacaoCallback = null;
+            _confirmacaoResultado = null;
+            cb(res);
+        };
+        modalEl.removeEventListener('hidden.bs.modal', onHidden);
+        modalEl.addEventListener('hidden.bs.modal', onHidden);
+
+        modal.show();
+    });
+}
+
+/**
+ * Toggle individual checkbox
+ */
+function toggleCargaCheck(idx, checked) {
+    const cb = document.querySelector(`#tbodyCargasConfirmar tr[data-load-idx="${idx}"] .cargo-check`);
+    if (cb) cb.checked = checked;
+}
+
+/**
+ * Toggle all checkboxes
+ */
+function toggleAllCargasConfirm(source) {
+    document.querySelectorAll('#tbodyCargasConfirmar .cargo-check').forEach(cb => {
+        cb.checked = source.checked;
+    });
+}
+
+/**
+ * Processa a seleção do usuário no modal
+ * @param {boolean} confirmar - true = confirmar selecionadas, false = recusar selecionadas
+ */
+function confirmarCargasSelecionadas(confirmar) {
+    const selecionados = new Set();
+    document.querySelectorAll('#tbodyCargasConfirmar .cargo-check:checked').forEach(cb => {
+        selecionados.add(parseInt(cb.value, 10));
+    });
+
+    const confirmadas = new Set();
+    _cargasParaConfirmar.forEach((item, idx) => {
+        const isChecked = selecionados.has(idx);
+        if (confirmar && isChecked) {
+            confirmadas.add(item.load);
+        } else if (!confirmar && !isChecked) {
+            // Recusar selecionadas = não adicionar à confirmadas
+        } else if (confirmar && !isChecked) {
+            // Confirmar tudo menos desmarcadas
+            confirmadas.add(item.load);
+        }
+        // Se !confirmar && isChecked => recusar selecionadas (não adiciona)
+    });
+
+    const modalEl = document.getElementById('modalConfirmarCargasAbaixoMinimo');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    _confirmacaoResultado = confirmadas;
+    if (modal) {
+        // A promessa só resolve no evento 'hidden' (modal totalmente fechado),
+        // para que a próxima confirmação possa abrir o modal sem conflito.
+        modal.hide();
+    } else if (_confirmacaoCallback) {
+        const cb = _confirmacaoCallback;
+        _confirmacaoCallback = null;
+        _confirmacaoResultado = null;
+        cb(confirmadas);
+    }
+}
+
+/**
+ * REGRA DO SUPER USUÁRIO — Cidades Permitidas Fiorino por Rota.
+ * Aplica somente às ROTAS MISTAS cadastradas no painel (rotasFiorinoMistas).
+ * As demais rotas de Fiorino montam normal com todas as cidades da rota.
+ * Retorna true se o pedido pode ser montado de Fiorino; caso contrário ele
+ * sai da montagem de Fiorino e a cascata tenta Van somando as sobras.
+ */
+function pedidoPermitidoFiorino(p) {
+    const rota = String((p && p.Cod_Rota) || '').trim();
+    if (!rotasFiorinoMistas.includes(rota)) return true;
+    const mapa = window.rotasEspeciaisFiorino || (typeof rotasEspeciaisFiorino !== 'undefined' ? rotasEspeciaisFiorino : null);
+    const lista = mapa && mapa[rota];
+    if (!Array.isArray(lista) || lista.length === 0) return true;
+    const cidadeNorm = normalizeCityName(String((p && p.Cidade) || '').split(',')[0]);
+    return lista.some(c => normalizeCityName(String(c).split(',')[0]) === cidadeNorm);
+}
+
+/**
+ * Função principal: monta cargas com loop contínuo + confirmação em lote
+ * @param {Array} gruposIniciais - Grupos iniciais para montar
+ * @param {string} vehicleType - Tipo de veículo
+ * @param {Object} contexto - Contexto opcional (rota, etc.)
+ * @returns {Promise<{loads: Array, leftovers: Array}>}
+ */
+async function montarComLoopECaminho(gruposIniciais, vehicleType, contexto = {}) {
+    const config = getVehicleConfigSafe(vehicleType);
+    const threshold = config.askThreshold || (window.vehicleAskThresholds?.[vehicleType] || 0);
+    const minKg = config.minKg;
+
+    // NOTA: sem threshold configurado (<= 0) NÃO monta automaticamente —
+    // todas as cargas abaixo do mínimo vão para confirmação (nunca monta sem perguntar).
+
+    // --- REGRA DO SUPER USUÁRIO (rotas mistas de Fiorino) ---
+    // Só monta Fiorino com as cidades cadastradas no painel. Grupos de outras
+    // cidades (ex: Senges, muito longe) ficam FORA do packing de Fiorino e
+    // voltam nas leftovers — a cascata do acordeão soma tudo e tenta VAN.
+    let gruposBloqueadosCidade = [];
+    let gruposElegiveis = gruposIniciais;
+    if (vehicleType === 'fiorino') {
+        gruposElegiveis = [];
+        for (const g of gruposIniciais) {
+            if ((g.pedidos || []).every(p => pedidoPermitidoFiorino(p))) {
+                gruposElegiveis.push(g);
+            } else {
+                gruposBloqueadosCidade.push(g);
+            }
+        }
+        if (gruposBloqueadosCidade.length > 0) {
+            const kgBloqueado = gruposBloqueadosCidade.reduce((s, g) => s + (g.totalKg || 0), 0);
+            console.log(`[Fiorino Cidades] ${gruposBloqueadosCidade.length} grupo(s) (${formatNumber(kgBloqueado)} kg) fora das cidades permitidas do Super Usuário — seguem para Van/sobras`);
+        }
+    }
+
+    let leftovers = gruposElegiveis.filter(g => g.totalKg <= config.hardMaxKg && g.totalCubagem <= config.hardMaxCubage);
+    let oversized = gruposElegiveis.filter(g => g.totalKg > config.hardMaxKg || g.totalCubagem > config.hardMaxCubage);
+    
+    let allLoads = [];
+    let cargasPendentesConfirmacao = [];
+
+    // Loop principal: tenta montar enquanto houver grupos para processar
+    while (leftovers.length > 0) {
+        const resultado = createSolutionFromHeuristicWithThreshold(leftovers, vehicleType, threshold, minKg);
+
+        if (resultado.loads.length === 0) {
+            leftovers = resultado.leftovers;
+            break;
+        }
+
+        let montaveis = 0;
+        const abaixoDoGatilho = [];
+
+        // Separa cargas formadas
+        for (const load of resultado.loads) {
+            if (load.totalKg >= minKg) {
+                // Carga válida (atende mínimo) → trava
+                allLoads.push({ ...load, confirmed: true, locked: true });
+                montaveis++;
+            } else if (load.totalKg >= threshold) {
+                // Abaixo do minKg mas >= threshold (gatilho do painel) → fila de confirmação (modal do sistema)
+                cargasPendentesConfirmacao.push({ load, threshold, minKg, vehicleType, contexto });
+                montaveis++;
+            } else {
+                // Abaixo do threshold → volta para o pool como sobra (não monta sem perguntar)
+                abaixoDoGatilho.push(...load.pedidos.map(p => ({ 
+                    pedidos: [p], 
+                    totalKg: p.Quilos_Saldo, 
+                    totalCubagem: p.Cubagem,
+                    isSpecial: isSpecialClient(p),
+                    oldestDate: p.Dat_Ped || p.Predat
+                })));
+            }
+        }
+
+        // Acumula as sobras abaixo do gatilho ANTES de reatribuir leftovers
+        // (corrige bug em que essas sobras eram descartadas)
+        leftovers = [...resultado.leftovers, ...abaixoDoGatilho];
+
+        // Nenhuma carga montável neste passe → evita loop infinito
+        if (montaveis === 0) break;
+    }
+
+    // Adicionar oversized e grupos bloqueados pela regra de cidades ANTES da
+    // confirmação: aparecem em "continuam como sobra" quando este é o último
+    // nível e são devolvidos nas leftovers para a cascata seguir (Van, 3/4...).
+    leftovers.push(...oversized);
+    leftovers.push(...gruposBloqueadosCidade);
+
+    // CONFIRMAÇÃO EM LOTE (modal escuro do sistema, lista pedidos + pesos)
+    if (cargasPendentesConfirmacao.length > 0) {
+        let confirmadas;
+
+        if (contexto.jaPerguntou === true) {
+            // Já perguntou antes (recusa) → não repete o diálogo, vira sobra
+            confirmadas = new Set();
+        } else {
+            // Pedidos abaixo do gatilho — só são listados como "continuam como sobra"
+            // na avaliação final (fluxo de sobras). Na cascata, o que não encaixa
+            // neste veículo ainda pode ser montado no próximo nível.
+            const pedidosAbaixoGatilho = contexto.mostrarSobrasNoModal === true
+                ? leftovers.flatMap(g => (g.pedidos || []))
+                : [];
+            confirmadas = await confirmarCargasAbaixoThreshold(cargasPendentesConfirmacao, vehicleType, pedidosAbaixoGatilho);
+        }
+        
+        let novasSobras = [];
+        for (const item of cargasPendentesConfirmacao) {
+            if (confirmadas.has(item.load)) {
+                allLoads.push({ ...item.load, confirmed: true, locked: true });
+            } else {
+                // Recusada → vira sobra para próxima iteração
+                novasSobras.push(...item.load.pedidos.map(p => ({ 
+                    pedidos: [p], 
+                    totalKg: p.Quilos_Saldo, 
+                    totalCubagem: p.Cubagem,
+                    isSpecial: isSpecialClient(p),
+                    oldestDate: p.Dat_Ped || p.Predat
+                })));
+            }
+        }
+        
+        // Re-tentar montar com as sobras das recusadas (apenas uma vez, sem repetir pergunta)
+        if (novasSobras.length > 0) {
+            if (contexto.jaPerguntou === true) {
+                leftovers.push(...novasSobras);
+            } else {
+                const extra = await montarComLoopECaminho(novasSobras, vehicleType, { ...contexto, jaPerguntou: true });
+                allLoads.push(...extra.loads);
+                leftovers = [...leftovers, ...extra.leftovers];
+            }
+        }
+    }
+
+    return { loads: allLoads, leftovers };
+}
+
+/**
+ * Versão de createSolutionFromHeuristic que respeita threshold (não finaliza cargas < minKg)
+ * Retorna todas as cargas formadas (incluindo < minKg) para decisão posterior
+ */
+function createSolutionFromHeuristicWithThreshold(itemsParaEmpacotar, vehicleType, threshold, minKg) {
+    const config = getVehicleConfigSafe(vehicleType);
+    let loads = [];
+    let leftoverItems = [];
+
+    const getOldestDateTimestamp = (items) => {
+        if (items.length > 0 && items[0].oldestDate) {
+            const date = new Date(items[0].oldestDate);
+            if (!isNaN(date.getTime())) return date.getTime();
+        }
+        return null;
+    };
+    const oldestItemTimestamp = getOldestDateTimestamp(itemsParaEmpacotar);
+
+    itemsParaEmpacotar.forEach(item => {
+        if (item.totalKg > config.hardMaxKg || item.totalCubagem > config.hardMaxCubage) {
+            leftoverItems.push(item); return;
+        }
+
+        let bestFit = null;
+        for (const load of loads) {
+            if (isMoveValid(load, item, vehicleType)) {
+                const remainingCapacity = config.hardMaxKg - (load.totalKg + item.totalKg);
+                if (bestFit === null || remainingCapacity < bestFit.remainingCapacity) {
+                    bestFit = { load: load, remainingCapacity: remainingCapacity };
+                }
+            }
+        }
+
+        if (bestFit) {
+            bestFit.load.pedidos.push(...item.pedidos);
+            bestFit.load.totalKg += item.totalKg;
+            bestFit.load.totalCubagem += item.totalCubagem;
+            bestFit.load.usedHardLimit = bestFit.load.totalKg > config.softMaxKg || bestFit.load.totalCubagem > config.softMaxCubage;
+        } else {
+            loads.push({
+                pedidos: [...item.pedidos],
+                totalKg: item.totalKg,
+                totalCubagem: item.totalCubagem,
+                isSpecial: item.isSpecial,
+                usedHardLimit: (item.totalKg > config.softMaxKg || item.totalCubagem > config.softMaxCubage),
+                oldestDate: item.oldestDate,
+                vehicleType: vehicleType
+            });
+        }
+    });
+
+    // IMPORTANTE: Não filtra por minKg aqui — retorna TODAS as cargas formadas
+    // A decisão de aceitar/recusar < minKg é feita em montarComLoopECaminho
+    const allLoads = loads.filter(l => l.pedidos.length > 0);
+    
+    // Calcula oldestDate para leftovers
+    const leftovers = [...leftoverItems];
+    allLoads.forEach(load => {
+        load.oldestDate = calculateOldestDate(load.pedidos);
+    });
+
+    return { loads: allLoads, leftovers };
+}
+
 function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType) {
     const config = getVehicleConfigSafe(vehicleType);
     let loads = [];
@@ -5286,7 +5697,8 @@ window.reaplicarRegrasPainelInterno = function() {
         configs: vehicleConfigs,
         pedidosPrioritarios: pedidosPrioritarios,
         pedidosRecall: pedidosRecall,
-        specialClientPrefixes: window.specialClientPrefixes
+        specialClientPrefixes: window.specialClientPrefixes,
+        askThresholds: window.vehicleAskThresholds
     });
 
     optimizationResult = await new Promise((resolve, reject) => {
@@ -5299,6 +5711,80 @@ window.reaplicarRegrasPainelInterno = function() {
         processingWorker.onerror = function (e) { reject(new Error(`Erro no Worker: ${e.message}`)); };
     });
     processingWorker.terminate();
+
+    // ========================================================================
+    // NOVO: Processar confirmações pendentes do worker (cargas < minKg mas >= threshold)
+    // ========================================================================
+    // DEBUG
+    console.log('[separarCargasGeneric] optimizationResult.loads:', optimizationResult.loads.map(l => ({
+        kg: l.totalKg, vt: l.vehicleType, needsConf: l.needsConfirmation, thresh: l.thresholdKg, minKg: l.minKg
+    })));
+
+    // As cargas que precisam de confirmação vêm com needsConfirmation: true em optimizationResult.loads
+    const pendingLoads = optimizationResult.loads.filter(l => l.needsConfirmation);
+    console.log('[separarCargasGeneric] pendingLoads:', pendingLoads.length);
+
+    // DEBUG
+    console.log('[separarCargasGeneric] isBatchMode:', isBatchMode, 'optimizationLevel:', optimizationLevel, 'pendingLoads:', pendingLoads.length);
+
+    // Esconder modal de processamento ANTES de abrir confirmação (evita stacking de modals)
+    if (optimizationLevel !== '1') {
+        stopThinkingText();
+        modal.hide();
+        await new Promise(r => setTimeout(r, 300)); // espera animação do modal fechar
+    }
+
+    if (pendingLoads.length > 0 && !isBatchMode) {
+        // Modo normal (rota a rota): mostra confirmação
+        const pending = pendingLoads.map(load => ({
+            load: load,
+            threshold: load.thresholdKg,
+            minKg: load.minKg,
+            vehicleType: vehicleType,
+            contexto: { rota: routesKey }
+        }));
+        const confirmadas = await confirmarCargasAbaixoThreshold(pending, vehicleType);
+        
+        let novasSobras = [];
+        for (const item of pending) {
+            if (confirmadas.has(item.load)) {
+                // Usuário confirmou → adiciona às cargas válidas
+                optimizationResult.loads.push({ ...item.load, confirmed: true, locked: true, needsConfirmation: false });
+            } else {
+                // Usuário recusou → vira sobra
+                novasSobras.push(...item.load.pedidos.map(p => ({ 
+                    pedidos: [p], 
+                    totalKg: p.Quilos_Saldo, 
+                    totalCubagem: p.Cubagem,
+                    isSpecial: isSpecialClient(p),
+                    oldestDate: p.Dat_Ped || p.Predat
+                })));
+            }
+        }
+        // Remove as cargas pendentes originais da lista de loads
+        optimizationResult.loads = optimizationResult.loads.filter(l => !l.needsConfirmation);
+        // Re-tenta montar com as sobras das recusadas
+        if (novasSobras.length > 0) {
+            const extra = await montarComLoopECaminho(novasSobras, vehicleType, { rota: routesKey, jaPerguntou: true });
+            optimizationResult.loads.push(...extra.loads);
+            optimizationResult.leftovers = [...optimizationResult.leftovers, ...extra.leftovers];
+        }
+    } else if (pendingLoads.length > 0 && isBatchMode) {
+        // Modo batch (auto-montar): converte pendentes em sobras para processamento final único
+        console.log('[separarCargasGeneric] Modo batch: convertendo', pendingLoads.length, 'cargas pendentes em sobras para processamento final - isBatchMode=true');
+        const novasSobras = [];
+        for (const load of pendingLoads) {
+            novasSobras.push(...load.pedidos.map(p => ({ 
+                pedidos: [p], 
+                totalKg: p.Quilos_Saldo, 
+                totalCubagem: p.Cubagem,
+                isSpecial: isSpecialClient(p),
+                oldestDate: p.Dat_Ped || p.Predat
+            })));
+        }
+        optimizationResult.leftovers = [...optimizationResult.leftovers, ...novasSobras];
+        optimizationResult.loads = optimizationResult.loads.filter(l => !l.needsConfirmation);
+    }
 
     // Limpeza após o término
     allRouteButtons.forEach(btn => { if (!btn.classList.contains('active')) btn.disabled = false; });
@@ -5325,12 +5811,12 @@ window.reaplicarRegrasPainelInterno = function() {
     let tertiaryLoads = [];
     let quaternaryLoads = [];
 
-    // Função auxiliar para chamar a otimização (usando a heurística rápida para as cascatas)
-    const runCascadeOptimization = (groups, cascadeVehicleType) => {
+    // Função auxiliar assíncrona para cascata com loop de re-montagem e confirmação
+    const runCascadeOptimization = async (groups, cascadeVehicleType, contexto = {}) => {
         if (groups.length === 0) return { loads: [], leftovers: [] };
         console.log(`CASCATA: Tentando montar ${cascadeVehicleType} com ${groups.length} grupos de sobras.`);
-        // Usamos a heurística simples (Nível 1) para as etapas da cascata para manter a velocidade.
-        const res = runHeuristicOptimization(groups, cascadeVehicleType);
+        // Usa o novo loop com confirmação em lote
+        const res = await montarComLoopECaminho(groups, cascadeVehicleType, contexto);
         if (res && res.loads) {
             res.loads = res.loads.map(l => ({ ...l, vehicleType: l.vehicleType || cascadeVehicleType }));
         }
@@ -5350,15 +5836,15 @@ window.reaplicarRegrasPainelInterno = function() {
 
         if (poolSobrasMistas.length > 0) {
             // 1. Monta o máximo de Van possível (heurística normal, respeita minKg)
-            const vanMista = runCascadeOptimization(poolSobrasMistas, 'van');
+            const vanMista = await runCascadeOptimization(poolSobrasMistas, 'van', { rota: routesKey });
             secondaryLoads.push(...vanMista.loads.map(l => ({ ...l, vehicleType: 'van' })));
 
             // 2. Sobras acima da capacidade da Van tentam 3/4
-            const tqResultMista = runCascadeOptimization(vanMista.leftovers, 'tresQuartos');
+            const tqResultMista = await runCascadeOptimization(vanMista.leftovers, 'tresQuartos', { rota: routesKey });
             tertiaryLoads.push(...tqResultMista.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
 
             // 3. Sobras de 3/4 tentam Toco
-            const tocoResultMista = runCascadeOptimization(tqResultMista.leftovers, 'toco');
+            const tocoResultMista = await runCascadeOptimization(tqResultMista.leftovers, 'toco', { rota: routesKey });
             quaternaryLoads.push(...tocoResultMista.loads.map(l => ({ ...l, vehicleType: 'toco' })));
 
             leftoverGroups = tocoResultMista.leftovers;
@@ -5366,13 +5852,13 @@ window.reaplicarRegrasPainelInterno = function() {
     } else {
         if (groupsExcludedFromFiorino.length > 0) {
             console.log(`CASCATA CIDADES: Processando ${groupsExcludedFromFiorino.length} grupos excluídos do Fiorino por cidade.`);
-            const vanResultForExcluded = runCascadeOptimization(groupsExcludedFromFiorino, 'van');
+            const vanResultForExcluded = await runCascadeOptimization(groupsExcludedFromFiorino, 'van', { rota: routesKey });
             secondaryLoads.push(...vanResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'van' })));
 
-            const tqResultForExcluded = runCascadeOptimization(vanResultForExcluded.leftovers, 'tresQuartos');
+            const tqResultForExcluded = await runCascadeOptimization(vanResultForExcluded.leftovers, 'tresQuartos', { rota: routesKey });
             tertiaryLoads.push(...tqResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
 
-            const tocoResultForExcluded = runCascadeOptimization(tqResultForExcluded.leftovers, 'toco');
+            const tocoResultForExcluded = await runCascadeOptimization(tqResultForExcluded.leftovers, 'toco', { rota: routesKey });
             quaternaryLoads.push(...tocoResultForExcluded.loads.map(l => ({ ...l, vehicleType: 'toco' })));
 
             // Quaisquer sobras finais dos grupos excluídos se juntam às sobras gerais do processamento principal
@@ -5384,30 +5870,30 @@ window.reaplicarRegrasPainelInterno = function() {
         switch (vehicleType) {
             case 'fiorino':
                 // Sobras do Fiorino (pedidos de cidades permitidas que não couberam) tentam virar Van
-                const vanResult = runCascadeOptimization(leftoverGroups, 'van');
+                const vanResult = await runCascadeOptimization(leftoverGroups, 'van', { rota: routesKey });
                 secondaryLoads.push(...vanResult.loads.map(l => ({ ...l, vehicleType: 'van' })));
                 leftoverGroups = vanResult.leftovers;
 
                 // Sobras de Van tentam virar 3/4
-                const tqResultFromFiorino = runCascadeOptimization(leftoverGroups, 'tresQuartos');
+                const tqResultFromFiorino = await runCascadeOptimization(leftoverGroups, 'tresQuartos', { rota: routesKey });
                 tertiaryLoads.push(...tqResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' })));
                 leftoverGroups = tqResultFromFiorino.leftovers;
 
                 // Sobras de 3/4 tentam virar Toco
-                const tocoResultFromFiorino = runCascadeOptimization(leftoverGroups, 'toco');
+                const tocoResultFromFiorino = await runCascadeOptimization(leftoverGroups, 'toco', { rota: routesKey });
                 quaternaryLoads.push(...tocoResultFromFiorino.loads.map(l => ({ ...l, vehicleType: 'toco' })));
                 leftoverGroups = tocoResultFromFiorino.leftovers;
                 break;
 
             case 'van':
                 // Sobras de Van tentam virar 3/4
-                const tqResultFromVan = runCascadeOptimization(leftoverGroups, 'tresQuartos');
+                const tqResultFromVan = await runCascadeOptimization(leftoverGroups, 'tresQuartos', { rota: routesKey });
                 secondaryLoads = tqResultFromVan.loads.map(l => ({ ...l, vehicleType: 'tresQuartos' }));
                 leftoverGroups = tqResultFromVan.leftovers;
 
                 if (!isSP) {
                     // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
-                    const tocoResultFromVan = runCascadeOptimization(leftoverGroups, 'toco');
+                    const tocoResultFromVan = await runCascadeOptimization(leftoverGroups, 'toco', { rota: routesKey });
                     tertiaryLoads = tocoResultFromVan.loads.map(l => ({ ...l, vehicleType: 'toco' }));
                     leftoverGroups = tocoResultFromVan.leftovers;
                 }
@@ -5416,7 +5902,7 @@ window.reaplicarRegrasPainelInterno = function() {
             case 'tresQuartos':
                 if (!isSP) {
                     // Sobras de 3/4 tentam virar Toco (São Paulo não usa Toco)
-                    const tocoResultFromTQ = runCascadeOptimization(leftoverGroups, 'toco');
+                    const tocoResultFromTQ = await runCascadeOptimization(leftoverGroups, 'toco', { rota: routesKey });
                     secondaryLoads = tocoResultFromTQ.loads.map(l => ({ ...l, vehicleType: 'toco' }));
                     leftoverGroups = tocoResultFromTQ.leftovers;
                 }
@@ -5468,7 +5954,10 @@ window.reaplicarRegrasPainelInterno = function() {
         const containsSP = isSP || load.pedidos.some(isSaoPauloOrder);
 
         let isValid = false;
-        if (containsSP) {
+        if (load.confirmed === true) {
+            // Carga confirmada explicitamente pelo usuário no modal de baixo mínimo → válida
+            isValid = true;
+        } else if (containsSP) {
             if (load.vehicleType === 'toco' || load.vehicleType === 'fiorino') {
                 isValid = false;
             } else {
@@ -5479,7 +5968,9 @@ window.reaplicarRegrasPainelInterno = function() {
         }
 
         let isFinalValid = false;
-        if (onlyPriority) {
+        if (load.confirmed === true) {
+            isFinalValid = true;
+        } else if (onlyPriority) {
             isFinalValid = isValid && containsPriority;
         } else {
             isFinalValid = isValid;
@@ -5780,6 +6271,19 @@ function roteirizarSobrasSP(leftoverPedidos) {
 
 function handlePostProcessingUI(sobras, rotasProcessadas, tituloRota, divId) {
     const allSobrasPedidos = sobras.flatMap(g => g.pedidos);
+    
+    // COMPREHENSIVE CHECK: Also check pedidosGeraisAtuais for any unallocated orders
+    // for the processed routes that might not be in the `sobras` parameter
+    const rotas = Array.isArray(rotasProcessadas) ? rotasProcessadas : [String(rotasProcessadas)];
+    const unallocatedInGerais = pedidosGeraisAtuais.filter(p => 
+        rotas.includes(String(p.Cod_Rota))
+    );
+    
+    // Combine both sources of leftovers
+    const allLeftoverPedidos = [
+        ...allSobrasPedidos,
+        ...unallocatedInGerais.filter(p => !allSobrasPedidos.some(sp => sp.Num_Pedido === p.Num_Pedido))
+    ];
 
     const resultadoDiv = document.getElementById(divId);
     if (!resultadoDiv) return;
@@ -5794,13 +6298,12 @@ function handlePostProcessingUI(sobras, rotasProcessadas, tituloRota, divId) {
     // NOVO: Verifica se alguma carga foi realmente criada para esta rota.
     // Se nenhuma carga foi criada, não mostra o card de sobras, apenas abre o acordeão.
     const loadsForThisRoute = Object.values(activeLoads).filter(load =>
-        load.pedidos.some(p => rotasProcessadas.includes(String(p.Cod_Rota)))
+        load.pedidos.some(p => rotas.includes(String(p.Cod_Rota)))
     );
     const noLoadsCreated = loadsForThisRoute.length === 0;
 
-    if (allSobrasPedidos.length > 0) {
-        currentLeftoversForPrinting = allSobrasPedidos; // Atualiza a variável global de sobras
-        const rotas = Array.isArray(rotasProcessadas) ? rotasProcessadas : [String(rotasProcessadas)];
+    if (allLeftoverPedidos.length > 0) {
+        currentLeftoversForPrinting = allLeftoverPedidos; // Atualiza a variável global de sobras
 
         // CORREÇÃO DEFINITIVA: Identifica uma rota de SP se ela começar com '25', '26' ou '27'.
         // Isso garante que todas as rotas de varejo de SP, incluindo as novas, sejam capturadas.
@@ -5809,11 +6312,11 @@ function handlePostProcessingUI(sobras, rotasProcessadas, tituloRota, divId) {
 
         // NOVO: Acumula as sobras de SP e habilita o botão de exportação
         if (isSaoPauloRoute) {
-            allSaoPauloLeftovers.push(...allSobrasPedidos);
+            allSaoPauloLeftovers.push(...allLeftoverPedidos);
             const exportBtn = document.getElementById('export-sobras-sp-btn');
             if (exportBtn) exportBtn.disabled = false;
         }
-        const finalLeftoverKg = allSobrasPedidos.reduce((sum, p) => sum + p.Quilos_Saldo, 0);
+        const finalLeftoverKg = allLeftoverPedidos.reduce((sum, p) => sum + p.Quilos_Saldo, 0);
         const printButtonHtml = `<button class="btn btn-info ms-2 no-print" onclick="imprimirSobras('Sobras Finais de ${tituloRota}')"><i class="bi bi-printer-fill me-1"></i>Imprimir Sobras</button>`;
 
         // O card de sobras foi removido conforme solicitado. As sobras já estão visíveis na lista de "Disponíveis Varejo".
@@ -5827,7 +6330,7 @@ function handlePostProcessingUI(sobras, rotasProcessadas, tituloRota, divId) {
         }
 
     } else {
-        // Se não sobrou nada, significa que todos os pedidos foram alocados.
+        // Se não sobrou nada (nem em sobras, nem em pedidosGeraisAtuais), significa que todos os pedidos foram alocados.
         // Mostra a mensagem de sucesso apenas se alguma carga foi criada.
         if (!noLoadsCreated) {
             const resultContainer = document.getElementById(divId);
@@ -11191,6 +11694,190 @@ function iniciarAutoMontagemSelecionadas() {
 }
 
 /**
+ * Verifica sobras do auto-montar e oferece montagem adicional por tipo de veículo adequado
+ * Agrupa sobras pelo tipo de veículo que comporta o peso total, respeitando rotas combinadas
+ */
+async function verificarEMontarSobrasAutoMontar(rotasProcessadas) {
+
+    // 1. Coleta todos os pedidos NÃO alocados das rotas processadas
+    const pedidosAlocadosIds = new Set();
+    Object.values(activeLoads).forEach(load => {
+        if (load.pedidos) {
+            load.pedidos.forEach(p => pedidosAlocadosIds.add(String(p.Num_Pedido)));
+        }
+    });
+
+    const sobrasPedidosAll = pedidosGeraisAtuais.filter(p =>
+        rotasProcessadas.includes(String(p.Cod_Rota)) &&
+        !pedidosAlocadosIds.has(String(p.Num_Pedido))
+    );
+
+    if (sobrasPedidosAll.length === 0) {
+        console.log('[AutoMontar] Nenhuma sobra para processar');
+        return;
+    }
+
+    // 2. Agrupa rotas combinadas (ex: 11501+11502+11511) em um único grupo para avaliação
+    const rotasCombinadas = new Map(); // chave canônica → Set de rotas irmãs
+    const rotaParaGrupo = {};          // rota → chave canônica do grupo
+
+    rotasProcessadas.forEach(rota => {
+        const r = String(rota);
+        if (rotaParaGrupo[r]) return; // já processada
+        const cfg = window.rotaVeiculoMap?.[r];
+        if (cfg?.combined && cfg.combined.length > 0) {
+            const grupo = [r, ...cfg.combined.map(String)].sort();
+            const chave = grupo.join('+');
+            rotasCombinadas.set(chave, new Set(grupo));
+            grupo.forEach(ri => { rotaParaGrupo[ri] = chave; });
+        } else {
+            rotaParaGrupo[r] = r;
+            if (!rotasCombinadas.has(r)) rotasCombinadas.set(r, new Set([r]));
+        }
+    });
+
+    // 3. Para cada grupo (rota simples ou combinada), agrupa pedidos e avalia
+    const vehicleNames = { fiorino: 'Fiorino', van: 'Van', tresQuartos: '3/4', toco: 'Toco' };
+    const thresholdsConfig = window.vehicleAskThresholds || { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
+    const processadosIds = new Set();
+
+    for (const [chave, rotasDoGrupo] of rotasCombinadas) {
+        const rotasGrupoArr = Array.from(rotasDoGrupo);
+
+        // Pedidos deste grupo ainda não alocados
+        const pedidosGrupo = sobrasPedidosAll.filter(p =>
+            rotasGrupoArr.includes(String(p.Cod_Rota)) &&
+            !processadosIds.has(String(p.Num_Pedido))
+        );
+        if (pedidosGrupo.length === 0) continue;
+
+        const totalSobraKg = pedidosGrupo.reduce((sum, p) => sum + (p.Quilos_Saldo || 0), 0);
+        if (totalSobraKg === 0) continue;
+
+        // Determina o tipo de veículo da rota (usa o tipo configurado, não o peso)
+        const rotaPrincipal = rotasGrupoArr[0];
+        const vehicleType = getRouteVehicleCategory(rotaPrincipal);
+        const threshold = window.vehicleAskThresholds?.[vehicleType] || thresholdsConfig[vehicleType] || 0;
+        const config = getVehicleConfigSafe(vehicleType);
+        const vehicleName = vehicleNames[vehicleType] || vehicleType;
+
+        console.log(`[AutoMontar Sobras] Grupo "${chave}": ${totalSobraKg}kg | threshold=${threshold} | minKg=${config.minKg} | hardMax=${config.hardMaxKg}`);
+
+        // A montagem normal já rodou. Aqui só o que sobrou é reavaliado:
+        // - cargas >= minKg montam normalmente (sem perguntar);
+        // - cargas >= threshold mas < minKg vão ao MODAL DE CONFIRMAÇÃO (escura, do sistema)
+        //   listando todos os pedidos com pesos para o usuário decidir;
+        // - abaixo do threshold (ex: Fiorino de 235kg) NUNCA monta — vira sobra.
+        const rotaLabel = rotasGrupoArr.join(' + ');
+
+        // Marca os pedidos desse grupo como processados
+        pedidosGrupo.forEach(p => processadosIds.add(String(p.Num_Pedido)));
+
+        // 5. Monta grupos por cliente
+        const gruposPorCliente = {};
+        pedidosGrupo.forEach(p => {
+            const clienteId = normalizeClientId(p.Cliente);
+            if (!gruposPorCliente[clienteId]) {
+                gruposPorCliente[clienteId] = {
+                    pedidos: [], totalKg: 0, totalCubagem: 0,
+                    isSpecial: isSpecialClient(p),
+                    oldestDate: p.Dat_Ped || p.Predat
+                };
+            }
+            gruposPorCliente[clienteId].pedidos.push(p);
+            gruposPorCliente[clienteId].totalKg += p.Quilos_Saldo || 0;
+            gruposPorCliente[clienteId].totalCubagem += p.Cubagem || 0;
+        });
+
+        const gruposIniciais = Object.values(gruposPorCliente).filter(g => g.totalKg > 0);
+
+        // 6. CASCATA DE SOBRAS SEGUINDO O ACORDEÃO (Fiorino → Van → 3/4 → Toco)
+        // Cada nível usa os valores do Super Usuário (minKg/gatilho do painel) via getVehicleConfigSafe.
+        // - Rota Fiorino: monta os Fiorinos primeiro; se as sobras não fecharem (ex: 235kg),
+        //   soma tudo e tenta Van; se não der, 3/4; depois Toco.
+        // - Rota Van: monta as Vans; se não der, soma tudo e tenta 3/4 (+ Toco fora de SP).
+        // - Rotas 3/4 e Toco: mantêm a lógica atual (apenas o próprio veículo).
+        const isSPRota = rotasGrupoArr.some(r =>
+            String(r).startsWith('25') || String(r).startsWith('26') || String(r).startsWith('27') ||
+            (rotaVeiculoMap[r] && rotaVeiculoMap[r].title && String(rotaVeiculoMap[r].title).includes('São Paulo'))
+        );
+        let cadeiaVeiculos;
+        if (vehicleType === 'fiorino') {
+            cadeiaVeiculos = ['fiorino', 'van', 'tresQuartos'];
+            if (!isSPRota) cadeiaVeiculos.push('toco');
+        } else if (vehicleType === 'van') {
+            cadeiaVeiculos = ['van', 'tresQuartos'];
+            if (!isSPRota) cadeiaVeiculos.push('toco');
+        } else {
+            cadeiaVeiculos = [vehicleType];
+        }
+
+        let gruposAtuais = gruposIniciais;
+        const loadsDoGrupo = [];
+
+        for (let ni = 0; ni < cadeiaVeiculos.length; ni++) {
+            const vtNivel = cadeiaVeiculos[ni];
+            const ehUltimoNivel = ni === cadeiaVeiculos.length - 1;
+            // Em cada nível monta o máximo possível (>= minKg monta direto; >= gatilho
+            // abre o modal de confirmação do sistema; abaixo do gatilho vira sobra e
+            // segue para o próximo nível do acordeão somando com as demais).
+            const resNivel = await montarComLoopECaminho(gruposAtuais, vtNivel, {
+                rotasOriginais: rotasGrupoArr,
+                mostrarSobrasNoModal: ehUltimoNivel
+            });
+            (resNivel.loads || []).forEach(l => {
+                l.vehicleType = l.vehicleType || vtNivel;
+                loadsDoGrupo.push(l);
+            });
+            gruposAtuais = resNivel.leftovers || [];
+            if (gruposAtuais.length === 0) break;
+        }
+
+        if (loadsDoGrupo.length > 0) {
+            const routesKeyStr = rotasGrupoArr.join(',');
+            const alocatedInThisRun = new Set();
+
+            loadsDoGrupo.forEach((load, idx) => {
+                if (!load.id) {
+                    const ts = Date.now().toString().slice(-4);
+                    const sf = Math.floor(Math.random() * 100);
+                    load.id = `sobra-${Date.now()}-${sf}-${idx}`;
+                    load.numero = `SBR-${ts}-${idx + 1}`;
+                }
+                if (!load.vehicleType) load.vehicleType = vehicleType;
+                // routesKey é fundamental para getLoadTabDestination colocar o card na aba certa
+                load.routesKey = routesKeyStr;
+                load.isSobrasJuncao = true;
+
+                // Registra a carga globalmente
+                activeLoads[load.id] = load;
+
+                // Marca os pedidos alocados nesta carga
+                load.pedidos.forEach(p => alocatedInThisRun.add(String(p.Num_Pedido)));
+            });
+
+            // Remove os pedidos alocados da lista de "disponíveis varejo"
+            if (alocatedInThisRun.size > 0) {
+                pedidosGeraisAtuais = pedidosGeraisAtuais.filter(p => !alocatedInThisRun.has(String(p.Num_Pedido)));
+            }
+
+            const contagem = {};
+            loadsDoGrupo.forEach(l => { contagem[l.vehicleType] = (contagem[l.vehicleType] || 0) + 1; });
+            const partes = Object.entries(contagem).map(([vt, n]) => `${n} ${vehicleNames[vt] || vt}`).join(' + ');
+            showToast(`${partes} montado(s) nas sobras das rotas ${rotaLabel}!`, 'success');
+            console.log(`[AutoMontar] Montados ${loadsDoGrupo.length} carga(s) (${partes}) no grupo "${chave}"`);
+        } else {
+            const cadeiaLabel = cadeiaVeiculos.map(v => vehicleNames[v] || v).join(' → ');
+            showToast(`Sobras das rotas ${rotaLabel}: ${formatNumber(totalSobraKg)} kg — abaixo do gatilho em todos os níveis (${cadeiaLabel}). Nada montado, segue como sobra.`, 'info');
+        }
+    }
+    
+    // Re-renderiza UI para mostrar os novos cards e atualizar disponíveis
+    renderAllUI();
+}
+
+
+/**
  * Executa a auto montagem normal caso o usuário não queira priorizar nada
  */
 function processarSemPriorizar() {
@@ -11558,7 +12245,7 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
         }
     });
 
-    const pedidosNasRotas = pedidosGeraisAtuais.filter(p => rotasSelecionadasStr.includes(String(p.Cod_Rota)));
+    const pedidosNasRotas = pedidosGeraisAtuais.filter(p => selectedRoutesExpanded.includes(String(p.Cod_Rota)));
     const pedidosNaoAlocados = pedidosNasRotas.filter(p => !pedIdsAlocados.has(String(p.Num_Pedido)));
     const totalPedidosSobra = pedidosNaoAlocados.length;
 
@@ -11585,6 +12272,11 @@ async function processarAutoMontarSelecionadas(selectedRoutes, onlyPriority = fa
     if (prioritariosRestantes.length > 0) {
         showToast(`Auto Montagem concluída! Atenção: ${prioritariosRestantes.length} pedido(s) prioritário(s) selecionado(s) não pôde(ram) ser montado(s) e está(ão) em destaque vermelho nos disponíveis.`, "warning");
     }
+
+    // ========================================================================
+    // NOVO: Verificar sobras e oferecer montagem adicional por tipo de veículo
+    // ========================================================================
+    await verificarEMontarSobrasAutoMontar(selectedRoutesExpanded);
 
     // Limpa filtro de rotas para exibir todas as cargas montadas nas abas em sequência
     window.currentActiveRouteKey = null;
@@ -12009,14 +12701,66 @@ if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
                 configs: vehicleConfigs,
                 pedidosPrioritarios: pedidosPrioritarios,
                 pedidosRecall: pedidosRecall,
-                specialClientPrefixes: window.specialClientPrefixes
+                specialClientPrefixes: window.specialClientPrefixes,
+                askThresholds: window.vehicleAskThresholds
             });
 
             return new Promise((resolve, reject) => {
-                processingWorker.onmessage = (e) => {
+                processingWorker.onmessage = async (e) => {
                     if (e.data.status === 'complete') {
                         processingWorker.terminate();
-                        const res = e.data.result || { loads: [], leftovers: [] };
+                        let res = e.data.result || { loads: [], leftovers: [] };
+                        
+                        // DEBUG
+                        console.log('[junção geográfica] res.loads:', res.loads.map(l => ({
+                            kg: l.totalKg, vt: l.vehicleType, needsConf: l.needsConfirmation, thresh: l.thresholdKg, minKg: l.minKg
+                        })));
+                        
+                        // NOVO: Processar confirmações pendentes do worker
+                        // As cargas que precisam de confirmação vêm com needsConfirmation: true em res.loads
+                        const pendingLoads = res.loads.filter(l => l.needsConfirmation);
+                        console.log('[junção geográfica] pendingLoads:', pendingLoads.length);
+                        
+                        // Esconder modal de processamento ANTES de abrir confirmação
+                        // (assumindo que há um modal de processamento ativo aqui)
+                        const processingModal = bootstrap.Modal.getInstance(document.getElementById('processing-modal'));
+                        if (processingModal) {
+                            processingModal.hide();
+                            await new Promise(r => setTimeout(r, 300));
+                        }
+                        
+                        if (pendingLoads.length > 0) {
+                            const pending = pendingLoads.map(load => ({
+                                load: load,
+                                threshold: load.thresholdKg,
+                                minKg: load.minKg,
+                                vehicleType: type,
+                                contexto: { cluster }
+                            }));
+                            const confirmadas = await confirmarCargasAbaixoThreshold(pending, type);
+                            
+                            let novasSobras = [];
+                            for (const item of pending) {
+                                if (confirmadas.has(item.load)) {
+                                    res.loads.push({ ...item.load, confirmed: true, locked: true, needsConfirmation: false });
+                                } else {
+                                    novasSobras.push(...item.load.pedidos.map(p => ({ 
+                                        pedidos: [p], 
+                                        totalKg: p.Quilos_Saldo, 
+                                        totalCubagem: p.Cubagem,
+                                        isSpecial: isSpecialClient(p),
+                                        oldestDate: p.Dat_Ped || p.Predat
+                                    })));
+                                }
+                            }
+                            res.loads = res.loads.filter(l => !l.needsConfirmation);
+                            if (novasSobras.length > 0) {
+                                const extra = await montarComLoopECaminho(novasSobras, type, { cluster, jaPerguntou: true });
+                                res.loads.push(...extra.loads);
+                                res.leftovers = [...res.leftovers, ...extra.leftovers];
+                            }
+                        }
+                        
                         if (immediateLeftovers.length > 0) {
                             res.leftovers = [...(res.leftovers || []), ...immediateLeftovers];
                         }
@@ -16819,3 +17563,4 @@ function parseSobrasToPrint(html) {
     });
     return output;
 }
+

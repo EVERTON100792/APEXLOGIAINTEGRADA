@@ -17,6 +17,9 @@ self.onmessage = async function (e) {
     if (Array.isArray(e.data.specialClientPrefixes) && e.data.specialClientPrefixes.length > 0) {
         specialClientPrefixes = e.data.specialClientPrefixes;
     }
+    if (e.data.askThresholds && typeof e.data.askThresholds === 'object') {
+        askThresholds = e.data.askThresholds;
+    }
 
     if (command === 'start-optimization') {
         try {
@@ -160,6 +163,7 @@ async function getCityCoordinates(cidade, uf, apiKey) {
 
 
 let specialClientPrefixes = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA'];
+let askThresholds = { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
 
 const rotaVeiculoMap = {
     // Novas rotas de São Paulo (Varejo - Van/3/4)
@@ -308,6 +312,8 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
 
 function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, pedidosPrioritarios, pedidosRecall) {
     const config = getVehicleConfig(vehicleType, configs);
+    const threshold = (askThresholds && askThresholds[vehicleType]) || 0;
+    console.log('[Heuristic Worker] vehicleType:', vehicleType, 'threshold:', threshold, 'minKg:', config.minKg);
     let loads = [];
     let leftoverItems = [];
 
@@ -346,13 +352,15 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
                 totalKg: item.totalKg,
                 totalCubagem: item.totalCubagem,
                 isSpecial: item.isSpecial,
-                usedHardLimit: (item.totalKg > config.softMaxKg || item.totalCubagem > config.softMaxCubage)
+                usedHardLimit: (item.totalKg > config.softMaxKg || item.totalCubagem > config.softMaxCubage),
+                vehicleType: vehicleType
             });
         }
     });
 
     let finalLoads = [];
     let unplacedGroups = [];
+    const pendingConfirmations = [];
 
     loads.forEach(load => {
         // Adicionado: Verifica se a carga contém um pedido que é do dia mais antigo.
@@ -387,6 +395,10 @@ function createSolutionFromHeuristic(itemsParaEmpacotar, vehicleType, configs, p
 
         if (load.pedidos.length > 0 && isValid) {
             finalLoads.push(load);
+        } else if (load.pedidos.length > 0 && threshold > 0 && load.totalKg >= threshold && load.totalKg < config.minKg) {
+            // Carga abaixo do mínimo mas >= threshold → marca para confirmação
+            console.log('[Heuristic Worker] FLAGGED load:', load.totalKg, 'kg', vehicleType, 'threshold:', threshold, 'minKg:', config.minKg);
+            finalLoads.push({ ...load, needsConfirmation: true, thresholdKg: threshold, minKg: config.minKg });
         } else if (load.pedidos.length > 0) {
             const clientGroupsInFailedLoad = Object.values(load.pedidos.reduce((acc, p) => {
                 const clienteId = normalizeClientId(p.Cliente);
@@ -794,6 +806,29 @@ async function runSimulatedAnnealing(packableGroups, vehicleType, configs, pedid
                 finalLeftovers.push(...groups);
             }
         });
+        
+        // ========================================================================
+        // PÓS-PROCESSAMENTO: Adicionar flags de threshold para cargas entre threshold e minKg
+        // Isso garante que o Simulated Annealing preserve a lógica de confirmação
+        // ========================================================================
+        const threshold = (askThresholds && askThresholds[vehicleType]) || 0;
+        console.log('[SA Worker] vehicleType:', vehicleType, 'threshold:', threshold, 'askThresholds:', askThresholds);
+        if (threshold > 0) {
+            let flaggedCount = 0;
+            finalLoads.forEach(load => {
+                const effectiveVehicleType = load.vehicleType || vehicleType;
+                const config = getVehicleConfig(effectiveVehicleType, configs);
+                if (config && load.totalKg >= threshold && load.totalKg < config.minKg) {
+                    load.needsConfirmation = true;
+                    load.thresholdKg = threshold;
+                    load.minKg = config.minKg;
+                    flaggedCount++;
+                    console.log('[SA Worker] FLAGGED load:', load.totalKg, 'kg', effectiveVehicleType, 'threshold:', threshold, 'minKg:', config.minKg);
+                }
+            });
+            console.log('[SA Worker] Total flagged for confirmation:', flaggedCount);
+        }
+        
         resolve({ loads: finalLoads, leftovers: finalLeftovers });
     });
 }
