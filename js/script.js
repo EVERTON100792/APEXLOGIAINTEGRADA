@@ -2583,9 +2583,9 @@ function processar() {
 function getLoadTabDestination(load) {
     if (!load) return { tabVehicleType: 'van', region: 'SP', containerId: 'resultado-van-sp' };
 
-    // Tocos ESTÁTICOS da planilha: IDs como 'toco-CF123' (não 'toco-auto-...')
-    // Tocos AUTO-MONTADOS: IDs como 'toco-auto-1234567890-0' - devem ir para aba VAN
-    const isStaticToco = typeof load.id === 'string' && load.id.startsWith('toco-') && !load.id.startsWith('toco-auto-');
+    // Tocos ESTÁTICOS da planilha: IDs como 'toco-CF123' (sem routesKey associado a uma rota específica)
+    // Cargas de rotas que foram montadas como Toco (ex: rota 11311) possuem routesKey ou pedidos com Cod_Rota
+    const isStaticToco = typeof load.id === 'string' && load.id.startsWith('toco-') && !load.routesKey && !load.id.startsWith('toco-auto-');
     if (isStaticToco || (typeof load.id === 'string' && load.id.startsWith('roteiro-'))) {
         return { tabVehicleType: 'toco', region: 'SP', containerId: 'resultado-toco' };
     }
@@ -2613,15 +2613,23 @@ function getLoadTabDestination(load) {
     }
 
     let tabVehicleType = load.vehicleType;
-    // Tocos auto-montados são exibidos na aba VAN (SP/PR/MS) junto com as demais cargas da rota
-    if (tabVehicleType === 'toco') tabVehicleType = 'van';
     let region = 'SP'; // Default para Van SP
 
+    // Obtém a chave de rota (routesKey) diretamente do load ou do primeiro pedido
+    let routeKeyStr = '';
     if (load.routesKey) {
-        const firstRoute = load.routesKey.split(',')[0];
+        routeKeyStr = String(load.routesKey);
+    } else if (load.pedidos && load.pedidos.length > 0 && load.pedidos[0].Cod_Rota) {
+        routeKeyStr = String(load.pedidos[0].Cod_Rota);
+    }
+
+    if (routeKeyStr) {
+        const firstRoute = routeKeyStr.split(',')[0].trim();
         const routeConfig = rotaVeiculoMap[firstRoute];
         if (routeConfig) {
-            tabVehicleType = routeConfig.type === 'toco' ? 'van' : routeConfig.type;
+            // Se a carga foi gerada para uma rota específica (ex: rota de Fiorino ou Van),
+            // a aba destino é a aba daquela rota (Fiorino para 11311, Van para 11341/2555, etc.)
+            tabVehicleType = routeConfig.type;
             
             if (tabVehicleType === 'van' || tabVehicleType === 'tresQuartos') {
                 const isPR = routeConfig.title.startsWith('Rota 1') || firstRoute.startsWith('1');
@@ -2631,6 +2639,8 @@ function getLoadTabDestination(load) {
                 else region = 'SP';
             }
         }
+    } else if (tabVehicleType === 'toco') {
+        tabVehicleType = 'van';
     }
 
     // Se for Van/3.4 e não tem routesKey ou a rota não definiu região (ex: cargas manuais)
@@ -2691,7 +2701,7 @@ function renderActiveLoadCards() {
 
     for (const loadId in activeLoads) {
         const load = activeLoads[loadId];
-        // Ignora cargas roteirizadas (os tocos auto-montados PRECISAM ser processados aqui)
+        // Ignora cargas roteirizadas
         if (load.id.startsWith('roteiro-')) continue;
 
         const { containerId } = getLoadTabDestination(load);
@@ -2818,7 +2828,7 @@ function renderAllUI() {
     const gruposGerais = pedidosGeraisAtuais.reduce((acc, p) => { const rota = p.Cod_Rota; if (!acc[rota]) { acc[rota] = { pedidos: [], totalKg: 0 }; } acc[rota].pedidos.push(p); acc[rota].totalKg += p.Quilos_Saldo; return acc; }, {});
     displayGerais(document.getElementById('resultado-geral'), gruposGerais);
 
-    renderActiveLoadCards(); // NOVO: Renderiza os cards de cargas ativas (Fiorino, Van, 3/4)
+    renderActiveLoadCards(); // Renderiza os cards de cargas ativas (Fiorino, Van, 3/4)
     renderRoteiroLoads(); // Renderiza cargas da aba Roteirizados
     // 2. Renderiza as outras seções da Mesa de Trabalho
     displayToco(document.getElementById('resultado-toco'), gruposToco);
@@ -2855,10 +2865,12 @@ function updateTabCounts() {
     const roteirizadosLoads = Object.values(activeLoads).filter(l => l.id.startsWith('roteiro-'));
 
     Object.values(activeLoads).forEach(l => {
-        // Tocos AUTO-MONTADOS (ex: toco-auto-...) devem entrar na contagem da aba VAN
-        const isStaticToco = l.id.startsWith('toco-') && !l.id.startsWith('toco-auto-');
-        if (isStaticToco || l.id.startsWith('roteiro-')) return;
-        
+        // Cargas roteirizadas ignoradas aqui
+        if (typeof l.id === 'string' && l.id.startsWith('roteiro-')) return;
+        // Tocos ESTÁTICOS da planilha (sem routesKey associado a uma rota): ignorados aqui (têm aba própria)
+        const isStaticToco = typeof l.id === 'string' && l.id.startsWith('toco-') && !l.routesKey && !l.id.startsWith('toco-auto-');
+        if (isStaticToco) return;
+
         const { containerId } = getLoadTabDestination(l);
         if (containerId === 'resultado-fiorino-geral') fiorinoLoads.push(l);
         else if (containerId === 'resultado-van-pr') vanPRLoads.push(l);
@@ -2896,10 +2908,10 @@ function updateTabCounts() {
         if (comp.truck) parts.push(`${comp.truck} Truck`);
         if (comp.especial) parts.push(`${comp.especial} Esp`);
 
-        if (parts.length <= 1) {
+        if (parts.length === 0) {
             return { text: `${total}`, show: true };
         } else {
-            return { text: `${total} (${parts.join(' | ')})`, show: true };
+            return { text: parts.join(' | '), show: true };
         }
     };
 
@@ -6833,11 +6845,30 @@ function renderLoadCard(load, vehicleType, vInfo) {
     const urgentLoadBadge = load.isUrgentLoad && maxPredatAgeInLoad >= 3
         ? `<span class="badge-neon-urgente" title="Carga urgente: pedidos com Predat atrasado ${maxPredatAgeInLoad} dia(s)"><i class="bi bi-clock-history me-1"></i>Urgente ${maxPredatAgeInLoad}d</span>`
         : '';
-    const isSaoPauloRoute = load.pedidos.some(p => 
+    const dest = typeof getLoadTabDestination === 'function' ? getLoadTabDestination(load) : null;
+    const isMSRoute = (
+        (dest && dest.containerId === 'resultado-van-ms') ||
+        (load.routesKey && String(load.routesKey).split(',').some(r => r.trim().startsWith('3'))) ||
+        (load.pedidos && load.pedidos.some(p => String(p.Cod_Rota || '').startsWith('3') || String(p.UF || '').trim().toUpperCase() === 'MS'))
+    );
+    const isSaoPauloRoute = !isMSRoute && load.pedidos.some(p => 
         ['2555', '2560', '2561', '2565', '2566', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)) ||
         String(p.UF || '').trim().toUpperCase() === 'SP'
     );
-    const spDescription = isSaoPauloRoute ? ' <span class="badge-neon-info">SP</span>' : '';
+    const spDescription = isMSRoute 
+        ? ' <span class="badge-neon-info" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">MS</span>' 
+        : (isSaoPauloRoute ? ' <span class="badge-neon-info">SP</span>' : '');
+
+    let vehiclePrintLabel = vInfo.name.toUpperCase();
+    if (isMSRoute) {
+        if (vehicleType === 'tresQuartos' || vehicleType === '3/4') vehiclePrintLabel = '3/4-MS';
+        else if (vehicleType === 'van') vehiclePrintLabel = 'VAN-MS';
+        else vehiclePrintLabel = `${vInfo.name.toUpperCase()}-MS`;
+    } else if (isSaoPauloRoute) {
+        if (vehicleType === 'tresQuartos' || vehicleType === '3/4') vehiclePrintLabel = '3/4-SP';
+        else if (vehicleType === 'van') vehiclePrintLabel = 'VAN-SP';
+        else vehiclePrintLabel = `${vInfo.name.toUpperCase()}-SP`;
+    }
 
     const config = getVehicleConfigSafe(vehicleType);
     const maxKg = config.hardMaxKg;
@@ -7202,7 +7233,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                 <div class="print-info-row print-info-top" style="display: none;">
                     ${oldestDateHtml}
                     <div class="print-vehicle-footer print-footer-top">
-                        <span class="footer-vehicle-type">VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}</span>
+                        <span class="footer-vehicle-type">VEÍCULO: ${vehiclePrintLabel}</span>
                     </div>
                 </div>
 
@@ -7225,7 +7256,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
             </div>
             
             <div class="print-vehicle-footer print-footer-bottom">
-                <span class="footer-vehicle-type">VEÍCULO: ${isSaoPauloRoute ? (vehicleType === 'tresQuartos' ? '3/4-SP' : (vehicleType === 'van' ? 'VAN-SP' : vInfo.name.toUpperCase() + '-SP')) : vInfo.name.toUpperCase()}</span>
+                <span class="footer-vehicle-type">VEÍCULO: ${vehiclePrintLabel}</span>
             </div>
             <div class="card-footer-neon"></div>
         </div>`;
@@ -13441,7 +13472,8 @@ function reRenderActiveLoads(processedRouteContexts) {
     const vehicleInfo = {
         fiorino: { name: 'Fiorino', colorClass: 'bg-success', textColor: 'text-white', icon: 'bi-box-seam-fill' },
         van: { name: 'Van', colorClass: 'bg-primary', textColor: 'text-white', icon: 'bi-truck-front-fill' },
-        tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' }
+        tresQuartos: { name: '3/4', colorClass: 'bg-warning', textColor: 'text-dark', icon: 'bi-truck-flatbed' },
+        toco: { name: 'Toco', colorClass: 'bg-secondary', textColor: 'text-white', icon: 'bi-inboxes-fill' }
     };
 
     // Agrupa as cargas por contexto de rota (divId)
@@ -13453,8 +13485,13 @@ function reRenderActiveLoads(processedRouteContexts) {
         const resultadoDiv = document.getElementById(context.divId);
         if (!resultadoDiv) continue;
 
-        // Limpa e prepara o container da rota
-        resultadoDiv.innerHTML = `<div class="resultado-container"><h5 class="mt-3">Cargas para <strong>${context.title}</strong></h5></div>`;
+        // Se o container já foi preenchido por renderActiveLoadCards, não limpa novamente.
+        // Apenas garante que existe um .resultado-container para inserir as cargas.
+        let container = resultadoDiv.querySelector('.resultado-container');
+        if (!container) {
+            // Container ainda não foi criado — cria agora (modo restauração de estado)
+            resultadoDiv.innerHTML = `<div class="resultado-container"><h5 class="mt-3">Cargas para <strong>${context.title}</strong></h5></div>`;
+        }
 
         // Reativa o botão da rota processada
         const routeButton = document.getElementById(context.buttonId);
@@ -13469,6 +13506,7 @@ function reRenderActiveLoads(processedRouteContexts) {
     }
 
     // Renderiza cada carga no seu respectivo container
+    // FOCO: garante que tocos-auto (e qualquer outra carga da rota) estejam presentes
     for (const loadId in activeLoads) {
         const load = activeLoads[loadId];
         if (!load.id || !load.vehicleType || !vehicleInfo[load.vehicleType] || load.id.startsWith('manual-') || load.id.startsWith('venda-antecipada') || load.id.startsWith('especial') || load.id.includes('especial') || load.isManualLoad || load.isManual || load.vehicleType === 'especial') continue;
@@ -13477,7 +13515,12 @@ function reRenderActiveLoads(processedRouteContexts) {
         if (context) {
             const resultadoDiv = document.getElementById(context.divId);
             const container = resultadoDiv?.querySelector('.resultado-container');
-            if (container) container.insertAdjacentHTML('beforeend', renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType]));
+            if (container) {
+                // Evita duplicar card que já foi inserido por renderActiveLoadCards
+                if (!container.querySelector(`#${CSS.escape(load.id)}`)) {
+                    container.insertAdjacentHTML('beforeend', renderLoadCard(load, load.vehicleType, vehicleInfo[load.vehicleType]));
+                }
+            }
         }
     }
 
@@ -15040,11 +15083,26 @@ window.imprimirRelatorioPedagios = async function () {
     // Tenta achar veículo da carga atual
     if (window.currentMapLoadId && activeLoads[window.currentMapLoadId]) {
         const load = activeLoads[window.currentMapLoadId];
-        const isSaoPauloRoute = load.pedidos && load.pedidos.some(p => 
+        const dest = typeof getLoadTabDestination === 'function' ? getLoadTabDestination(load) : null;
+        const isMSRoute = (
+            (dest && dest.containerId === 'resultado-van-ms') ||
+            (load.routesKey && String(load.routesKey).split(',').some(r => r.trim().startsWith('3'))) ||
+            (load.pedidos && load.pedidos.some(p => String(p.Cod_Rota || '').startsWith('3') || String(p.UF || '').trim().toUpperCase() === 'MS'))
+        );
+        const isSaoPauloRoute = !isMSRoute && load.pedidos && load.pedidos.some(p => 
             ['2555', '2560', '2561', '2565', '2566', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)) ||
             String(p.UF || '').trim().toUpperCase() === 'SP'
         );
-        if (isSaoPauloRoute) {
+        if (isMSRoute) {
+            const vType = load.vehicleType || "Não definido";
+            if (vType === 'tresQuartos') vehicle = '3/4-MS';
+            else if (vType === 'van') vehicle = 'VAN-MS';
+            else if (vType === 'fiorino') vehicle = 'FIORINO-MS';
+            else if (vType === 'toco') vehicle = 'TOCO-MS';
+            else if (vType === 'truck') vehicle = 'TRUCK-MS';
+            else if (vType === 'especial') vehicle = 'ESPECIAL-MS';
+            else vehicle = `${vType.toUpperCase()}-MS`;
+        } else if (isSaoPauloRoute) {
             const vType = load.vehicleType || "Não definido";
             if (vType === 'tresQuartos') vehicle = '3/4-SP';
             else if (vType === 'van') vehicle = 'VAN-SP';
@@ -15275,16 +15333,32 @@ window.generateTextPDF = async function () {
         let vehicle = "VEÍCULO";
         if (window.currentMapLoadId && activeLoads[window.currentMapLoadId]) {
             const load = activeLoads[window.currentMapLoadId];
-            const isSaoPauloRoute = load.pedidos && load.pedidos.some(p => 
+            const dest = typeof getLoadTabDestination === 'function' ? getLoadTabDestination(load) : null;
+            const isMSRoute = (
+                (dest && dest.containerId === 'resultado-van-ms') ||
+                (load.routesKey && String(load.routesKey).split(',').some(r => r.trim().startsWith('3'))) ||
+                (load.pedidos && load.pedidos.some(p => String(p.Cod_Rota || '').startsWith('3') || String(p.UF || '').trim().toUpperCase() === 'MS'))
+            );
+            const isSaoPauloRoute = !isMSRoute && load.pedidos && load.pedidos.some(p => 
                 ['2555', '2560', '2561', '2565', '2566', '2571', '2575', '2705', '2735', '2745'].includes(String(p.Cod_Rota)) ||
                 String(p.UF || '').trim().toUpperCase() === 'SP'
             );
-            if (isSaoPauloRoute) {
+            if (isMSRoute) {
                 const vType = load.vehicleType || "VEÍCULO";
-                if (vType === 'tresQuartos') vehicle = '3/4-SP';
+                if (vType === 'tresQuartos' || vType === '3/4') vehicle = '3/4-MS';
+                else if (vType === 'van') vehicle = 'VAN-MS';
+                else if (vType === 'fiorino') vehicle = 'FIORINO-MS';
+                else if (vType === 'toco') vehicle = 'TOCO-MS';
+                else if (vType === 'truck') vehicle = 'TRUCK-MS';
+                else if (vType === 'especial') vehicle = 'ESPECIAL-MS';
+                else vehicle = `${vType.toUpperCase()}-MS`;
+            } else if (isSaoPauloRoute) {
+                const vType = load.vehicleType || "VEÍCULO";
+                if (vType === 'tresQuartos' || vType === '3/4') vehicle = '3/4-SP';
                 else if (vType === 'van') vehicle = 'VAN-SP';
                 else if (vType === 'fiorino') vehicle = 'FIORINO-SP';
                 else if (vType === 'toco') vehicle = 'TOCO-SP';
+                else if (vType === 'truck') vehicle = 'TRUCK-SP';
                 else if (vType === 'especial') vehicle = 'ESPECIAL-SP';
                 else vehicle = `${vType.toUpperCase()}-SP`;
             } else {
