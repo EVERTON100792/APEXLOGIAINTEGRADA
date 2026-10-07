@@ -4519,29 +4519,42 @@ async function confirmarCargasAbaixoThreshold(cargas, vehicleType, sobrasPedidos
         _cargasParaConfirmar = cargas;
         const tbody = document.getElementById('tbodyCargasConfirmar');
         const countEl = document.getElementById('confirmCount');
+        const totalCountEl = document.getElementById('totalCountDisplay');
+        const selectedCountEl = document.getElementById('selectedCountDisplay');
+        const btnConfirmCountEl = document.getElementById('btnConfirmCount');
         const sobrasInfoEl = document.getElementById('sobrasInfoConfirm');
+        
         if (!tbody || !countEl) {
             console.error('Modal de confirmação não encontrado no DOM');
             resolve(new Set());
             return;
         }
 
+        // Atualizar contadores no header e toolbar
+        countEl.textContent = cargas.length;
+        if (totalCountEl) totalCountEl.textContent = cargas.length;
+        if (selectedCountEl) selectedCountEl.textContent = cargas.length;
+        if (btnConfirmCountEl) btnConfirmCountEl.textContent = cargas.length;
+
         // Seção informativa: pedidos que NÃO serão montados (abaixo do gatilho) e viram sobra
         if (sobrasInfoEl) {
             if (sobrasPedidos && sobrasPedidos.length > 0) {
                 const totalSobraKg = sobrasPedidos.reduce((s, p) => s + (p.Quilos_Saldo || 0), 0);
                 const sobraBadges = sobrasPedidos.map(p =>
-                    `<span class="badge bg-dark border border-secondary mb-1 me-1">${p.Num_Pedido} <span class="text-warning">(${formatNumber(p.Quilos_Saldo)}kg)</span></span>`
+                    `<span class="order-chip-hud me-1 mb-1">
+                        <span class="text-light">${p.Num_Pedido}</span>
+                        <span class="text-warning font-monospace">(${formatNumber(p.Quilos_Saldo)}kg)</span>
+                     </span>`
                 ).join('');
                 sobrasInfoEl.innerHTML = `
-                    <div class="alert alert-secondary mb-0 mt-3 py-2 px-3" style="background: rgba(148, 163, 184, 0.12); border: 1px solid rgba(255,255,255,0.1);">
-                        <div class="d-flex align-items-center gap-2 mb-1">
-                            <i class="bi bi-box-seam text-secondary"></i>
-                            <strong class="text-light small">Abaixo do gatilho — continuarão como SOBRA (não montam):</strong>
-                            <span class="badge bg-secondary">${sobrasPedidos.length} pedido(s)</span>
-                            <span class="badge bg-warning text-dark">${formatNumber(totalSobraKg)} kg</span>
+                    <div class="threshold-info-banner mt-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-box-seam text-secondary fs-5"></i>
+                            <strong class="text-light small">Abaixo do gatilho — continuarão como SOBRA (não montam nesta rodada):</strong>
+                            <span class="badge bg-secondary-subtle text-light border border-secondary border-opacity-25 ms-auto">${sobrasPedidos.length} pedido(s)</span>
+                            <span class="badge bg-warning-subtle text-warning border border-warning border-opacity-25">${formatNumber(totalSobraKg)} kg</span>
                         </div>
-                        <div class="d-flex flex-wrap" style="max-height: 120px; overflow-y: auto;">${sobraBadges}</div>
+                        <div class="d-flex flex-wrap" style="max-height: 100px; overflow-y: auto;">${sobraBadges}</div>
                     </div>`;
                 sobrasInfoEl.style.display = '';
             } else {
@@ -4550,34 +4563,104 @@ async function confirmarCargasAbaixoThreshold(cargas, vehicleType, sobrasPedidos
             }
         }
 
-        countEl.textContent = cargas.length;
         tbody.innerHTML = cargas.map((item, idx) => {
             const load = item.load;
             const threshold = item.threshold;
             const minKg = item.minKg;
-            const vt = item.vehicleType;
+            const vt = (item.vehicleType || load.vehicleType || 'van').toLowerCase();
             
-            // Coletar info dos pedidos/rotas
-            const rotas = [...new Set(load.pedidos.map(p => p.Cod_Rota).filter(Boolean))].join(', ');
-            const pedidosInfo = load.pedidos.map(p => `<span class="badge bg-dark border border-secondary mb-1 me-1">${p.Num_Pedido} <span class="text-warning">(${formatNumber(p.Quilos_Saldo)}kg)</span></span>`).join('');
-            
+            // Format Vehicle Badge Label and Icon
+            let vLabel = vt.toUpperCase();
+            let vIcon = 'bi-truck';
+            let vCssClass = 'van';
+
+            if (vt === 'fiorino') {
+                vLabel = 'FIORINO';
+                vIcon = 'bi-speedometer2';
+                vCssClass = 'fiorino';
+            } else if (vt === 'van') {
+                vLabel = 'VAN';
+                vIcon = 'bi-truck';
+                vCssClass = 'van';
+            } else if (vt === 'tresquartos' || vt === 'van34' || vt === 'van3/4') {
+                vLabel = '3/4 (MS)';
+                vIcon = 'bi-truck-front-fill';
+                vCssClass = 'tresQuartos';
+            } else if (vt === 'toco') {
+                vLabel = 'TOCO';
+                vIcon = 'bi-truck';
+                vCssClass = 'toco';
+            } else if (vt === 'truck') {
+                vLabel = 'TRUCK';
+                vIcon = 'bi-truck-flatbed';
+                vCssClass = 'truck';
+            }
+
+            const totalKg = load.totalKg || 0;
+            const pctMin = Math.min(100, Math.round((totalKg / (minKg || 1)) * 100));
+
+            // Rotas e Pedidos Info
+            const rotasArr = [...new Set(load.pedidos.map(p => p.Cod_Rota).filter(Boolean))];
+            const rotasBadges = rotasArr.length > 0 
+                ? rotasArr.map(r => `<span class="route-chip-hud"><i class="bi bi-geo-alt-fill me-1"></i>Rota ${r}</span>`).join(' ')
+                : '<span class="text-secondary small">—</span>';
+
+            const pedidosBadges = load.pedidos.map(p => `
+                <span class="order-chip-hud me-1 mb-1">
+                    <span class="text-light">${p.Num_Pedido}</span>
+                    <span class="text-warning font-monospace">(${formatNumber(p.Quilos_Saldo)}kg)</span>
+                </span>
+            `).join('');
+
             return `
-                <tr data-load-idx="${idx}">
-                    <td class="text-center"><input class="form-check-input cargo-check" type="checkbox" value="${idx}" checked></td>
-                    <td><span class="badge bg-${vt === 'fiorino' ? 'success' : vt === 'van' ? 'primary' : vt === 'tresQuartos' ? 'warning' : 'secondary'}">${vt.toUpperCase()}</span></td>
-                    <td class="text-center fw-bold text-${load.totalKg >= minKg ? 'success' : 'warning'}">${formatNumber(load.totalKg)}</td>
-                    <td class="text-center text-secondary">${formatNumber(minKg)}</td>
-                    <td class="text-center text-info">${formatNumber(threshold)}</td>
-                    <td class="small">
-                        <div class="mb-1"><strong class="text-light">Qtd Pedidos:</strong> <span class="badge bg-info text-dark">${load.pedidos.length}</span> &nbsp;|&nbsp; <strong>Rotas:</strong> ${rotas || '—'}</div>
-                        <div class="d-flex flex-wrap mt-1" style="max-height: 80px; overflow-y: auto;">
-                            ${pedidosInfo}
+                <tr class="threshold-row row-selected" data-load-idx="${idx}" id="threshold-row-${idx}">
+                    <td class="text-center">
+                        <input class="form-check-input cargo-check cargo-custom-checkbox" type="checkbox" value="${idx}" checked onchange="onThresholdRowCheckChange(${idx}, this.checked)">
+                    </td>
+                    <td>
+                        <div class="vehicle-badge-hud ${vCssClass}">
+                            <i class="bi ${vIcon}"></i>
+                            <span>${vLabel}</span>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <div class="weight-progress-wrapper px-2">
+                            <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                <span class="fw-bold fs-6 text-warning font-monospace">${formatNumber(totalKg)} <small class="fw-normal fs-7 text-secondary">kg</small></span>
+                                <span class="badge ${totalKg >= minKg ? 'bg-success-subtle text-success border-success' : 'bg-warning-subtle text-warning border-warning'} border border-opacity-25 py-0 px-1" style="font-size: 0.68rem;">
+                                    ${pctMin}% da Meta
+                                </span>
+                            </div>
+                            <div class="weight-progress-bar-bg" title="Mínimo: ${formatNumber(minKg)} kg | Gatilho: ${formatNumber(threshold)} kg">
+                                <div class="weight-progress-bar-fill ${totalKg < minKg ? 'warning' : ''}" style="width: ${pctMin}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-flex flex-column align-items-center justify-content-center gap-1">
+                            <span class="small text-secondary" style="font-size: 0.75rem;">Mín: <strong class="text-light">${formatNumber(minKg)} kg</strong></span>
+                            <span class="small text-info" style="font-size: 0.75rem;">Gatilho: <strong class="text-info">${formatNumber(threshold)} kg</strong></span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <span class="badge bg-secondary-subtle text-light border border-secondary border-opacity-25">
+                                <i class="bi bi-boxes me-1 text-info"></i>${load.pedidos.length} pedido(s)
+                            </span>
+                            <div class="d-flex gap-1 flex-wrap">${rotasBadges}</div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-1 mt-1" style="max-height: 75px; overflow-y: auto;">
+                            ${pedidosBadges}
                         </div>
                     </td>
                     <td class="text-center">
                         <div class="btn-group btn-group-sm" role="group">
-                            <button type="button" class="btn btn-outline-success btn-sm" onclick="toggleCargaCheck(${idx}, true)" title="Confirmar"><i class="bi bi-check"></i></button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" onclick="toggleCargaCheck(${idx}, false)" title="Recusar"><i class="bi bi-x"></i></button>
+                            <button type="button" id="btn-check-yes-${idx}" class="btn btn-success btn-sm text-white shadow-sm" onclick="setThresholdRowDecision(${idx}, true)" title="Confirmar Carga">
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+                            <button type="button" id="btn-check-no-${idx}" class="btn btn-outline-danger btn-sm" onclick="setThresholdRowDecision(${idx}, false)" title="Recusar Carga">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -4590,9 +4673,6 @@ async function confirmarCargasAbaixoThreshold(cargas, vehicleType, sobrasPedidos
         const modalEl = document.getElementById('modalConfirmarCargasAbaixoMinimo');
         const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-        // Resolve SOMENTE quando o modal termina de fechar (evento 'hidden'):
-        // - se o usuário usou os botões de ação → entrega _confirmacaoResultado;
-        // - se fechou pelo X / "Cancelar Tudo" → nenhuma confirmada (tudo vira sobra).
         const onHidden = () => {
             modalEl.removeEventListener('hidden.bs.modal', onHidden);
             if (!_confirmacaoCallback) return;
@@ -4606,24 +4686,92 @@ async function confirmarCargasAbaixoThreshold(cargas, vehicleType, sobrasPedidos
         modalEl.addEventListener('hidden.bs.modal', onHidden);
 
         modal.show();
+        updateThresholdSelectionSummary();
     });
 }
 
 /**
- * Toggle individual checkbox
+ * Atualiza o estado visual da linha quando o checkbox individual muda
+ */
+function onThresholdRowCheckChange(idx, isChecked) {
+    const rowEl = document.getElementById(`threshold-row-${idx}`);
+    const yesBtn = document.getElementById(`btn-check-yes-${idx}`);
+    const noBtn = document.getElementById(`btn-check-no-${idx}`);
+
+    if (rowEl) {
+        if (isChecked) {
+            rowEl.classList.remove('row-unselected');
+            rowEl.classList.add('row-selected');
+        } else {
+            rowEl.classList.remove('row-selected');
+            rowEl.classList.add('row-unselected');
+        }
+    }
+
+    if (yesBtn && noBtn) {
+        if (isChecked) {
+            yesBtn.className = 'btn btn-success btn-sm text-white shadow-sm';
+            noBtn.className = 'btn btn-outline-danger btn-sm';
+        } else {
+            yesBtn.className = 'btn btn-outline-success btn-sm';
+            noBtn.className = 'btn btn-danger btn-sm text-white shadow-sm';
+        }
+    }
+
+    updateThresholdSelectionSummary();
+}
+
+/**
+ * Define a decisão para uma linha de carga via botão de check/X
+ */
+function setThresholdRowDecision(idx, isConfirmed) {
+    const cb = document.querySelector(`#tbodyCargasConfirmar tr[data-load-idx="${idx}"] .cargo-check`);
+    if (cb) {
+        cb.checked = isConfirmed;
+        onThresholdRowCheckChange(idx, isConfirmed);
+    }
+}
+
+/**
+ * Toggle individual checkbox (Compatibilidade)
  */
 function toggleCargaCheck(idx, checked) {
-    const cb = document.querySelector(`#tbodyCargasConfirmar tr[data-load-idx="${idx}"] .cargo-check`);
-    if (cb) cb.checked = checked;
+    setThresholdRowDecision(idx, checked);
 }
 
 /**
- * Toggle all checkboxes
+ * Marcar / Desmarcar todos os checkboxes
  */
 function toggleAllCargasConfirm(source) {
+    const isChecked = source.checked;
     document.querySelectorAll('#tbodyCargasConfirmar .cargo-check').forEach(cb => {
-        cb.checked = source.checked;
+        cb.checked = isChecked;
+        const idx = cb.value;
+        onThresholdRowCheckChange(idx, isChecked);
     });
+    updateThresholdSelectionSummary();
+}
+
+/**
+ * Atualiza resumo numérico de seleção (ex: 2 de 5 cargas selecionadas)
+ */
+function updateThresholdSelectionSummary() {
+    const total = document.querySelectorAll('#tbodyCargasConfirmar .cargo-check').length;
+    const selected = document.querySelectorAll('#tbodyCargasConfirmar .cargo-check:checked').length;
+    
+    const selEl = document.getElementById('selectedCountDisplay');
+    const totEl = document.getElementById('totalCountDisplay');
+    const btnEl = document.getElementById('btnConfirmCount');
+    const mainCheck = document.getElementById('confirmAllCargas');
+    const headCheck = document.getElementById('checkAllConfirm');
+
+    if (selEl) selEl.textContent = selected;
+    if (totEl) totEl.textContent = total;
+    if (btnEl) btnEl.textContent = selected;
+
+    const allChecked = total > 0 && selected === total;
+    if (mainCheck) mainCheck.checked = allChecked;
+    if (headCheck) headCheck.checked = allChecked;
 }
 
 /**
@@ -4642,20 +4790,14 @@ function confirmarCargasSelecionadas(confirmar) {
         if (confirmar && isChecked) {
             confirmadas.add(item.load);
         } else if (!confirmar && !isChecked) {
-            // Recusar selecionadas = não adicionar à confirmadas
-        } else if (confirmar && !isChecked) {
-            // Confirmar tudo menos desmarcadas
             confirmadas.add(item.load);
         }
-        // Se !confirmar && isChecked => recusar selecionadas (não adiciona)
     });
 
     const modalEl = document.getElementById('modalConfirmarCargasAbaixoMinimo');
     const modal = bootstrap.Modal.getInstance(modalEl);
     _confirmacaoResultado = confirmadas;
     if (modal) {
-        // A promessa só resolve no evento 'hidden' (modal totalmente fechado),
-        // para que a próxima confirmação possa abrir o modal sem conflito.
         modal.hide();
     } else if (_confirmacaoCallback) {
         const cb = _confirmacaoCallback;
@@ -9211,6 +9353,9 @@ function finalizeManualLoad() {
     };
 
     activeLoads[newLoad.id] = newLoad;
+    if (typeof refreshLoadFreight === 'function') {
+        refreshLoadFreight(newLoad.id);
+    }
 
     // NOVO: Remove os pedidos da lista de disponíveis para manter a consistência da UI.
     const usedOrderIds = new Set(newLoad.pedidos.map(p => String(p.Num_Pedido)));
@@ -11885,6 +12030,11 @@ async function verificarEMontarSobrasAutoMontar(rotasProcessadas) {
 
                 // Marca os pedidos alocados nesta carga
                 load.pedidos.forEach(p => alocatedInThisRun.add(String(p.Num_Pedido)));
+
+                // Dispara o cálculo automático de frete background
+                if (typeof refreshLoadFreight === 'function') {
+                    refreshLoadFreight(load.id);
+                }
             });
 
             // Remove os pedidos alocados da lista de "disponíveis varejo"

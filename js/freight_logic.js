@@ -506,8 +506,7 @@ function calculateFreightValue(vehicleType, distanceKm) {
 
 function updateLoadFreightDisplay(loadId, distanceKm = null) {
     const load = activeLoads[loadId];
-    const containerEl = document.getElementById(`freight-container-${loadId}`);
-    if (!load || !containerEl) return;
+    if (!load) return;
 
     // Atualiza a distância no objeto load se fornecida
     if (distanceKm !== null) {
@@ -523,16 +522,22 @@ function updateLoadFreightDisplay(loadId, distanceKm = null) {
         else saveStateToLocalStorage();
     }
 
-    containerEl.innerHTML = generateFreightContainerHtml(load, load.vehicleType);
+    const containerEl = document.getElementById(`freight-container-${loadId}`);
+    if (containerEl) {
+        containerEl.innerHTML = generateFreightContainerHtml(load, load.vehicleType);
+    }
 }
-
-
 
 function recalcAllFreights() {
     Object.keys(activeLoads).forEach(loadId => {
         const load = activeLoads[loadId];
+        if (!load) return;
         if (load.distanceKm) {
             updateLoadFreightDisplay(loadId);
+        } else if (!load.isCalculatingFreight && load.pedidos && load.pedidos.length > 0) {
+            if (typeof refreshLoadFreight === 'function') {
+                refreshLoadFreight(loadId);
+            }
         }
     });
 }

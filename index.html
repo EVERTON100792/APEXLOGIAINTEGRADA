@@ -2923,45 +2923,81 @@
     <!-- Modal de Confirmação em Lote: Cargas Abaixo do Mínimo -->
     <div class="modal fade" id="modalConfirmarCargasAbaixoMinimo" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content" style="background: rgba(20, 25, 40, 0.98); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);">
-                <div class="modal-header border-bottom border-warning border-opacity-30">
-                    <h5 class="modal-title text-warning"><i class="bi bi-exclamation-triangle-fill me-2"></i>Cargas Abaixo do Peso Mínimo</h5>
+            <div class="modal-content threshold-modal-content">
+                <div class="modal-header threshold-modal-header d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="threshold-modal-icon">
+                            <i class="bi bi-shield-exclamation text-warning"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title fw-bold text-light mb-0 d-flex align-items-center gap-2">
+                                Cargas Abaixo do Peso Mínimo
+                                <span class="badge threshold-count-pill" id="confirmCount">0</span>
+                            </h5>
+                            <span class="text-secondary small">Cargas formadas entre o limiar de tolerância (gatilho) e o peso mínimo oficial</span>
+                        </div>
+                    </div>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <p class="text-light mb-3">Foram formadas <strong id="confirmCount" class="text-warning">0</strong> carga(s) com peso entre o threshold de pergunta e o mínimo oficial. Deseja montá-las mesmo assim?</p>
-                    <p class="text-secondary small mb-4">Cargas confirmadas ficarão <strong>travadas</strong> (não serão desmontadas nas reiterações). Cargas recusadas voltarão para as sobras e o sistema tentará remontar.</p>
-
-                    <div class="d-flex align-items-center gap-3 mb-3">
-                        <input type="checkbox" class="form-check-input" id="confirmAllCargas" onchange="toggleAllCargasConfirm(this)">
-                        <label class="form-check-label text-light mb-0" for="confirmAllCargas"><strong>Marcar/Desmarcar Todas</strong></label>
+                    <!-- Banner Informativo Tático -->
+                    <div class="threshold-info-banner mb-4">
+                        <div class="d-flex gap-3 align-items-center">
+                            <i class="bi bi-info-circle-fill text-warning fs-4 flex-shrink-0"></i>
+                            <div class="small text-secondary">
+                                <span class="text-light fw-semibold">Diretriz de Montagem:</span> 
+                                Cargas <span class="text-success fw-semibold">confirmadas</span> serão travadas e incluídas no plano. 
+                                Cargas <span class="text-danger fw-semibold">recusadas</span> retornarão para as sobras para tentativa de remontagem em outros veículos.
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="table-responsive border border-secondary border-opacity-10 rounded" style="max-height: 50vh; overflow-y: auto;">
-                        <table class="table table-dark table-striped table-hover align-middle mb-0" id="tabelaCargasConfirmar">
-                            <thead class="table-light text-uppercase font-monospace" style="font-size: 0.7rem; position: sticky; top: 0; z-index: 5;">
+                    <!-- Toolbar de Controles e Estatística de Seleção -->
+                    <div class="d-flex justify-content-between align-items-center mb-3 px-1">
+                        <div class="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                            <input type="checkbox" class="form-check-input cargo-custom-checkbox me-1" id="confirmAllCargas" onchange="toggleAllCargasConfirm(this)" checked>
+                            <label class="form-check-label text-light fw-medium cursor-pointer mb-0" for="confirmAllCargas">
+                                Marcar / Desmarcar Todas as Cargas
+                            </label>
+                        </div>
+                        <div class="threshold-selection-summary text-secondary small">
+                            Cargas Selecionadas: <strong id="selectedCountDisplay" class="text-warning fs-6">0</strong> de <span id="totalCountDisplay">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Tabela Estilizada Glass HUD -->
+                    <div class="table-responsive threshold-table-container">
+                        <table class="table align-middle mb-0 threshold-table" id="tabelaCargasConfirmar">
+                            <thead>
                                 <tr>
-                                    <th style="width: 50px;" class="text-center"><input class="form-check-input" type="checkbox" id="checkAllConfirm" onclick="toggleAllCargasConfirm(this)"></th>
-                                    <th>Veículo</th>
-                                    <th class="text-center">Peso (kg)</th>
-                                    <th class="text-center">Mín. Oficial</th>
-                                    <th class="text-center">Threshold</th>
-                                    <th>Pedidos / Rotas</th>
-                                    <th style="width: 120px;" class="text-center">Ação</th>
+                                    <th style="width: 45px;" class="text-center">
+                                        <input class="form-check-input cargo-custom-checkbox" type="checkbox" id="checkAllConfirm" onclick="toggleAllCargasConfirm(this)" checked>
+                                    </th>
+                                    <th style="width: 140px;">VEÍCULO</th>
+                                    <th style="width: 230px;" class="text-center">CARGA vs MÍNIMO</th>
+                                    <th style="width: 150px;" class="text-center">REGRAS DE PESO</th>
+                                    <th>PEDIDOS & ROTAS</th>
+                                    <th style="width: 110px;" class="text-center">AÇÃO</th>
                                 </tr>
                             </thead>
                             <tbody id="tbodyCargasConfirmar"></tbody>
                         </table>
                     </div>
+
                     <!-- Pedidos abaixo do gatilho que continuam como sobra (informativo) -->
                     <div id="sobrasInfoConfirm"></div>
                 </div>
-                <div class="modal-footer border-top border-secondary border-opacity-10 d-flex justify-content-between p-3">
-                    <button type="button" class="btn btn-outline-secondary px-3 text-light" data-bs-dismiss="modal">Cancelar Tudo (Todas Viram Sobras)</button>
+
+                <div class="modal-footer threshold-modal-footer d-flex justify-content-between">
+                    <button type="button" class="btn btn-dark-glass px-3 py-2" data-bs-dismiss="modal">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Cancelar Tudo (Virar Sobras)
+                    </button>
                     <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-danger px-3" onclick="confirmarCargasSelecionadas(false)">Recusar Selecionadas</button>
-                        <button type="button" class="btn btn-magic px-3 py-2" onclick="confirmarCargasSelecionadas(true)">
-                            <i class="bi bi-check-lg me-1"></i>Confirmar Selecionadas
+                        <button type="button" class="btn btn-outline-danger px-3 py-2" onclick="confirmarCargasSelecionadas(false)">
+                            <i class="bi bi-x-circle me-1"></i> Recusar Selecionadas
+                        </button>
+                        <button type="button" class="btn btn-magic px-4 py-2 shadow" onclick="confirmarCargasSelecionadas(true)">
+                            <i class="bi bi-check2-circle me-1"></i> Confirmar Selecionadas (<span id="btnConfirmCount">0</span>)
                         </button>
                     </div>
                 </div>

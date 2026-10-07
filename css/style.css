@@ -5745,3 +5745,256 @@ tr.search-highlight > td, tr.search-highlight > th {
     background: linear-gradient(135deg, var(--dark-accent-secondary), #059669) !important;
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3) !important;
 }
+
+/* ==========================================================================
+   ESTILIZAÇÃO HUD GLASS - MODAL DE CARGAS ABAIXO DO MÍNIMO (THRESHOLD)
+   ========================================================================== */
+.threshold-modal-content {
+    background: rgba(11, 17, 32, 0.98) !important;
+    border: 1px solid rgba(245, 158, 11, 0.35) !important;
+    border-radius: 18px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(245, 158, 11, 0.2) !important;
+    backdrop-filter: blur(16px);
+    overflow: hidden;
+}
+
+.threshold-modal-header {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.14) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border-bottom: 1px solid rgba(245, 158, 11, 0.25) !important;
+    padding: 1.25rem 1.5rem !important;
+}
+
+.threshold-modal-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+}
+
+.threshold-count-pill {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #0b1120 !important;
+    font-weight: 800;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+}
+
+.threshold-info-banner {
+    background: rgba(15, 23, 42, 0.85);
+    border-left: 4px solid #f59e0b;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 0.9rem 1.25rem;
+}
+
+.threshold-table-container {
+    max-height: 52vh;
+    overflow-y: auto;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.threshold-table {
+    color: #f1f5f9;
+    border-collapse: separate;
+    border-spacing: 0 6px;
+    padding: 0 0.5rem;
+    width: 100%;
+}
+
+.threshold-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #0f172a;
+}
+
+.threshold-table thead th {
+    background: #0f172a !important;
+    color: #94a3b8 !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.08em;
+    padding: 0.85rem 0.75rem !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+    text-transform: uppercase;
+}
+
+.threshold-row {
+    background: rgba(30, 41, 59, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 10px;
+}
+
+.threshold-row:hover {
+    background: rgba(30, 41, 59, 0.8) !important;
+    border-color: rgba(245, 158, 11, 0.4) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+.threshold-row.row-selected {
+    background: rgba(245, 158, 11, 0.08) !important;
+    border: 1px solid rgba(245, 158, 11, 0.45) !important;
+}
+
+.threshold-row.row-unselected {
+    opacity: 0.55;
+    background: rgba(15, 23, 42, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.threshold-row td {
+    padding: 0.85rem 0.75rem !important;
+    border-top: none !important;
+    border-bottom: none !important;
+}
+
+.threshold-row td:first-child {
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+}
+
+.threshold-row td:last-child {
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+/* Gauge / Progress Bar de Peso */
+.weight-progress-wrapper {
+    width: 100%;
+}
+
+.weight-progress-bar-bg {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.weight-progress-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.4s ease;
+    background: linear-gradient(90deg, #38bdf8 0%, #10b981 100%);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.weight-progress-bar-fill.warning {
+    background: linear-gradient(90deg, #d97706 0%, #f59e0b 100%);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+
+/* Vehicle Badges */
+.vehicle-badge-hud {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.vehicle-badge-hud.fiorino {
+    background: rgba(20, 184, 166, 0.15);
+    color: #2dd4bf;
+    border: 1px solid rgba(45, 212, 191, 0.35);
+}
+
+.vehicle-badge-hud.van {
+    background: rgba(14, 165, 233, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.vehicle-badge-hud.tresQuartos {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.vehicle-badge-hud.toco {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border: 1px solid rgba(192, 132, 252, 0.35);
+}
+
+.vehicle-badge-hud.truck {
+    background: rgba(236, 72, 153, 0.15);
+    color: #f472b6;
+    border: 1px solid rgba(244, 114, 182, 0.35);
+}
+
+/* Custom Checkbox */
+.cargo-custom-checkbox {
+    width: 19px !important;
+    height: 19px !important;
+    cursor: pointer;
+    accent-color: #f59e0b;
+    border-radius: 5px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    background-color: rgba(15, 23, 42, 0.8) !important;
+}
+
+.cargo-custom-checkbox:checked {
+    background-color: #f59e0b !important;
+    border-color: #f59e0b !important;
+}
+
+/* Route & Order Chips */
+.route-chip-hud {
+    background: rgba(14, 165, 233, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.order-chip-hud {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #f1f5f9;
+    padding: 0.25rem 0.55rem;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.threshold-modal-footer {
+    background: rgba(15, 23, 42, 0.98);
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding: 1.1rem 1.5rem !important;
+}
+
+.btn-dark-glass {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #94a3b8;
+    transition: all 0.2s ease;
+}
+
+.btn-dark-glass:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #f1f5f9;
+}
