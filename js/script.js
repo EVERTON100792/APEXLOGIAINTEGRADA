@@ -4372,23 +4372,40 @@ function imprimirCargaIndividual(loadId) {
 
 
 function isMoveValid(load, groupToAdd, vehicleType) {
+    if (!load || !groupToAdd) return false;
     const config = getVehicleConfigSafe(vehicleType);
 
-    if ((load.totalKg + groupToAdd.totalKg) > config.hardMaxKg) return false;
-    if ((load.totalCubagem + groupToAdd.totalCubagem) > config.hardMaxCubage) return false;
+    const loadKg = Number(load.totalKg) || 0;
+    const loadCub = Number(load.totalCubagem) || 0;
+    const groupKg = Number(groupToAdd.totalKg) || 0;
+    const groupCub = Number(groupToAdd.totalCubagem) || 0;
 
-    // Para o veículo do tipo Truck, flexibilizamos as regras de clientes especiais
-    // e agendamento na validação estática de movimentação. As validações de agendamento
-    // com permissão do usuário ocorrerão nos fluxos interativos (drop e montagem manual).
+    if ((loadKg + groupKg) > config.hardMaxKg) return false;
+    if ((loadCub + groupCub) > config.hardMaxCubage) return false;
+
+    const groupPedidos = Array.isArray(groupToAdd.pedidos) ? groupToAdd.pedidos : [];
+    const loadPedidos = Array.isArray(load.pedidos) ? load.pedidos : [];
+
+    // Se o grupo a ser adicionado não tem pedidos (ex: grupo dummy para validação de capacidade da carga), a checagem de limite já passou acima.
+    if (groupPedidos.length === 0) {
+        return true;
+    }
+
     if (vehicleType === 'truck') {
         return true;
     }
 
+    const firstGroupPedido = groupPedidos[0];
+    if (!firstGroupPedido) return true;
+
     // Se o grupo a ser adicionado é um cliente especial ou a carga já contém um, aplicam-se regras especiais.
-    if (groupToAdd.isSpecial || load.pedidos.some(isSpecialClient)) {
-        const clientIdsInLoad = new Set(load.pedidos.map(p => normalizeClientId(p.Cliente)));
-        const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
-        clientIdsInLoad.add(newClientId);
+    const groupIsSpecial = Boolean(groupToAdd.isSpecial) || isSpecialClient(firstGroupPedido);
+    const loadHasSpecial = loadPedidos.some(isSpecialClient);
+
+    if (groupIsSpecial || loadHasSpecial) {
+        const clientIdsInLoad = new Set(loadPedidos.map(p => p && normalizeClientId(p.Cliente)).filter(Boolean));
+        const newClientId = normalizeClientId(firstGroupPedido.Cliente);
+        if (newClientId) clientIdsInLoad.add(newClientId);
 
         // REGRA: Se a carga contém um cliente especial, ela não pode ter mais de 2 clientes distintos no total.
         if (clientIdsInLoad.size > 2) {
@@ -4396,31 +4413,35 @@ function isMoveValid(load, groupToAdd, vehicleType) {
         }
     }
 
-    // REGRA DE AGENDAMENTO CORRIGIDA:
-    const groupHasAgendamento = groupToAdd.pedidos.some(p => p.Agendamento === 'Sim');
+    // REGRA DE AGENDAMENTO (MÁXIMO 2 CLIENTES COM AGENDAMENTO NA CARGA):
+    const groupHasAgendamento = groupPedidos.some(p => p && p.Agendamento === 'Sim');
     if (groupHasAgendamento) {
-        // O grupo que estamos tentando adicionar precisa de agendamento.
-        // Vamos verificar se já existe um cliente com agendamento na carga.
-        const agendamentoClientIdsInLoad = new Set(
-            load.pedidos.filter(p => p.Agendamento === 'Sim').map(p => normalizeClientId(p.Cliente))
-        );
+        const agendamentoPedidosInLoad = loadPedidos.filter(p => p && p.Agendamento === 'Sim');
 
-        if (agendamentoClientIdsInLoad.size > 0) {
-            // A carga já tem um cliente com agendamento.
-            // Só podemos adicionar o novo grupo se ele for do mesmo cliente.
-            const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
-            if (!agendamentoClientIdsInLoad.has(newClientId)) {
-                // É um cliente DIFERENTE com agendamento. Bloqueia.
-                return false;
+        if (agendamentoPedidosInLoad.length > 0) {
+            const agendamentoClientIdsInLoad = new Set(agendamentoPedidosInLoad.map(p => normalizeClientId(p.Cliente)).filter(Boolean));
+            const newClientId = normalizeClientId(firstGroupPedido.Cliente);
+
+            if (newClientId && !agendamentoClientIdsInLoad.has(newClientId)) {
+                // É um código de cliente diferente com agendamento.
+                // REGRA: Permite misturar clientes agendados (ex: Primato + Muffato) desde que NÃO exceda 2 clientes com agendamento no total na carga.
+                const projectedDistinctClientIds = new Set([...agendamentoClientIdsInLoad, newClientId]).size;
+
+                if (projectedDistinctClientIds > 2) {
+                    // Bloqueia se a carga for ficar com mais de 2 clientes distintos com agendamento
+                    return false;
+                }
             }
         }
     }
 
-    // REGRA GEOGRÁFICA: bloqueia apenas entrega em estados distintos (alinhada com worker.js)
-    if (vehicleType !== 'truck' && load.pedidos && load.pedidos.length > 0 && groupToAdd.pedidos && groupToAdd.pedidos.length > 0) {
-        for (const p1 of load.pedidos) {
+    // REGRA GEOGRÁFICA: bloqueia apenas entrega em estados distintos
+    if (vehicleType !== 'truck' && loadPedidos.length > 0 && groupPedidos.length > 0) {
+        for (const p1 of loadPedidos) {
+            if (!p1) continue;
             const uf1 = String(p1.UF || '').trim().toUpperCase();
-            for (const p2 of groupToAdd.pedidos) {
+            for (const p2 of groupPedidos) {
+                if (!p2) continue;
                 const uf2 = String(p2.UF || '').trim().toUpperCase();
                 if (uf1 && uf2 && uf1 !== uf2) return false;
             }
