@@ -2220,16 +2220,22 @@ function garantirPlanilhaProcessada(pedidos) {
             cargasFechadasPR.push(p);
         }
         else if (isNumeric(p.CF)) {
-            const isPR = String(p.UF || '').trim().toUpperCase() === 'PR';
-            const isCondor = col5.includes('CONDOR (TRUCK)') || col5.includes('CONDOR TOD TRUC');
-            if (isPR || isCondor) {
-                cargasFechadasPR.push(p);
+            const cf = String(p.CF).trim();
+            if (gruposToco && gruposToco[cf]) {
+                gruposToco[cf].pedidos.push(p);
+                gruposToco[cf].totalKg += (Number(p.Quilos_Saldo) || 0);
+                gruposToco[cf].totalCubagem += (Number(p.Cubagem) || 0);
             } else {
-                const cf = String(p.CF).trim();
-                if (!gruposPorCFGlobais[cf]) gruposPorCFGlobais[cf] = { pedidos: [], totalKg: 0, totalCubagem: 0 };
-                gruposPorCFGlobais[cf].pedidos.push(p);
-                gruposPorCFGlobais[cf].totalKg += p.Quilos_Saldo;
-                gruposPorCFGlobais[cf].totalCubagem += p.Cubagem;
+                const isPR = String(p.UF || '').trim().toUpperCase() === 'PR';
+                const isCondor = col5.includes('CONDOR (TRUCK)') || col5.includes('CONDOR TOD TRUC');
+                if (isPR || isCondor) {
+                    cargasFechadasPR.push(p);
+                } else {
+                    if (!gruposPorCFGlobais[cf]) gruposPorCFGlobais[cf] = { pedidos: [], totalKg: 0, totalCubagem: 0 };
+                    gruposPorCFGlobais[cf].pedidos.push(p);
+                    gruposPorCFGlobais[cf].totalKg += (Number(p.Quilos_Saldo) || 0);
+                    gruposPorCFGlobais[cf].totalCubagem += (Number(p.Cubagem) || 0);
+                }
             }
         } else {
             const bloq = p['BLOQ.'];
@@ -2418,25 +2424,42 @@ function processar() {
             pedidosParaProcessamentoGeral = [...outrosPedidos, ...pedidosDeVarejo];
 
             // Adiciona os grupos toco antigos (baseados em flag) se existirem
-            const pedidosTocoPorFlag = pedidosParaProcessamentoGeral.filter(p => (p.Coluna4 && String(p.Coluna4).toUpperCase().includes('TOCO')) || (p.Coluna5 && String(p.Coluna5).toUpperCase().includes('TOCO')));
-            
-            // Agrupa pedidos com flag para validar capacidade
+            const pedidosTocoPorFlag = pedidosParaProcessamentoGeral.filter(p =>
+                (p.Coluna4 && String(p.Coluna4).toUpperCase().includes('TOCO')) ||
+                (p.Coluna5 && String(p.Coluna5).toUpperCase().includes('TOCO'))
+            );
+
+            // CORREÇÃO: Agrupa pedidos com flag TOCO por CF.
+            // Pedidos do mesmo CF DEVEM ficar juntos — independente do peso mínimo.
+            // Se um pedido não tem CF, usa o número de cliente como chave para garantir
+            // que pedidos do mesmo cliente fiquem juntos na aba Toco.
             const gruposFlagToco = pedidosTocoPorFlag.reduce((acc, p) => {
-                const cf = p.CF || `FLAG-${p.Num_Pedido}`;
-                if (!acc[cf]) { acc[cf] = { pedidos: [], totalKg: 0, totalCubagem: 0 }; }
-                acc[cf].pedidos.push(p);
-                acc[cf].totalKg += p.Quilos_Saldo;
-                acc[cf].totalCubagem += p.Cubagem;
+                // Chave: prioriza CF numérico; se não tiver, agrupa por código de cliente para não fragmentar
+                let chave;
+                if (p.CF && String(p.CF).trim()) {
+                    chave = String(p.CF).trim();
+                } else {
+                    chave = `FLAG-CLIENTE-${normalizeClientId(p.Cliente) || p.Num_Pedido}`;
+                }
+                if (!acc[chave]) { acc[chave] = { pedidos: [], totalKg: 0, totalCubagem: 0 }; }
+                acc[chave].pedidos.push(p);
+                acc[chave].totalKg += (Number(p.Quilos_Saldo) || 0);
+                acc[chave].totalCubagem += (Number(p.Cubagem) || 0);
                 return acc;
             }, {});
 
-            const pedidosTocoPorFlagIds = new Set();
+            // CORREÇÃO CRÍTICA: Todos os pedidos com flag TOCO são SEMPRE removidos do
+            // processamento geral, independente de atingir o peso mínimo ou não.
+            // Isso evita que pedidos do mesmo CF fiquem espalhados entre as listas.
+            const pedidosTocoPorFlagIds = new Set(pedidosTocoPorFlag.map(p => String(p.Num_Pedido)));
+
             Object.entries(gruposFlagToco).forEach(([cf, grupo]) => {
-                // Valida limites do Toco do Super Usuário
-                if (grupo.totalKg >= tocoMin && grupo.totalKg <= tocoMax && grupo.totalCubagem <= tocoMaxCubage) {
-                    gruposToco[cf] = grupo;
-                    grupo.pedidos.forEach(p => pedidosTocoPorFlagIds.add(String(p.Num_Pedido)));
-                }
+                // Registra o grupo na aba Toco sempre — o usuário verá os pedidos agrupados
+                // mesmo que o peso total seja abaixo do mínimo (para que ele possa visualizar e decidir).
+                // Se estiver dentro dos limites, vai para gruposToco normalmente.
+                // Se estiver fora dos limites (acima do máximo), ainda assim vai para gruposToco
+                // para não perder os pedidos.
+                gruposToco[cf] = grupo;
             });
 
             pedidosParaProcessamentoGeral = pedidosParaProcessamentoGeral.filter(p => !pedidosTocoPorFlagIds.has(String(p.Num_Pedido)));
@@ -2454,6 +2477,28 @@ function processar() {
                     clientesComBloqueio.add(normalizeClientId(p.Cliente));
                 }
             });
+
+            // CORREÇÃO: Antes de classificar PR Fechado, verifica se algum pedido restante
+            // compartilha o mesmo CF de um grupo Toco já montado. Se sim, esse pedido deve
+            // ir para o Toco — e NÃO para PR Fechado — para manter todos os pedidos do CF juntos.
+            const cfsDeToco = new Set(Object.keys(gruposToco));
+            const pedidosExtraTocoIds = new Set();
+            pedidosParaProcessamentoGeral.forEach(p => {
+                const cfPedido = p.CF && String(p.CF).trim();
+                if (cfPedido && cfsDeToco.has(cfPedido)) {
+                    // Esse pedido pertence ao mesmo CF de um grupo TOCO — adiciona ao grupo
+                    gruposToco[cfPedido].pedidos.push(p);
+                    gruposToco[cfPedido].totalKg += (Number(p.Quilos_Saldo) || 0);
+                    gruposToco[cfPedido].totalCubagem += (Number(p.Cubagem) || 0);
+                    pedidosExtraTocoIds.add(String(p.Num_Pedido));
+                }
+            });
+            // Remove esses pedidos do processamento geral para não aparecerem em PR Fechado ou outro lugar
+            if (pedidosExtraTocoIds.size > 0) {
+                pedidosParaProcessamentoGeral = pedidosParaProcessamentoGeral.filter(p => !pedidosExtraTocoIds.has(String(p.Num_Pedido)));
+                // Re-renderiza Toco com os novos pedidos incluídos
+                displayToco(resultadoTocoDiv, gruposToco);
+            }
 
             // Separa Cargas Fechadas PR (Condor e CFs numéricos do PR)
             cargasFechadasPR = pedidosParaProcessamentoGeral.filter(p => {
