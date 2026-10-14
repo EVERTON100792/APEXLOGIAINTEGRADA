@@ -4966,6 +4966,55 @@
             margin-right: 0.25rem;
         }
 
+        /* APEX - Motorista contratado (rodapé do card; tela) */
+        .apex-driver-block {
+            margin: 0.5rem 0.25rem 0.25rem;
+            background: rgba(251, 191, 36, 0.05);
+            border: 1px dashed rgba(251, 191, 36, 0.35);
+            border-radius: 6px;
+            padding: 0.4rem 0.65rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .apex-driver-label {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #fbbf24;
+            white-space: nowrap;
+        }
+
+        .apex-driver-input {
+            flex: 1 1 auto;
+            min-width: 0;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(251, 191, 36, 0.5);
+            color: #fde68a;
+            font-family: 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive;
+            font-size: 1.05rem;
+            padding: 0 0.25rem;
+            outline: none;
+        }
+
+        .apex-driver-input::placeholder {
+            color: #64748b;
+            font-family: 'Inter', system-ui, sans-serif;
+            font-size: 0.75rem;
+            font-style: italic;
+        }
+
+        .apex-driver-block .apex-driver-print {
+            display: none;
+        }
+
+        @media print {
+            .apex-driver-block .apex-driver-print {
+                display: inline;
+            }
+        }
+
         @media print {
             .apex-obs-block {
                 display: flex !important;

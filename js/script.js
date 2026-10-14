@@ -3003,6 +3003,7 @@ function renderActiveLoadCards() {
     }
 
     if (typeof renderBotoesManuais === 'function') renderBotoesManuais();
+    if (typeof window.apexDedupeDriverBlocks === 'function') window.apexDedupeDriverBlocks();
 }
 
 function renderRoteiroLoads() {
@@ -3027,6 +3028,7 @@ function renderRoteiroLoads() {
         const vInfo = vehicleInfo[load.vehicleType] || vehicleInfo['van'];
         container.insertAdjacentHTML('beforeend', renderLoadCard(load, load.vehicleType, vInfo));
     });
+    if (typeof window.apexDedupeDriverBlocks === 'function') window.apexDedupeDriverBlocks();
 }
 
 /**
@@ -3861,6 +3863,7 @@ function createPrintWindow(title, bodyContent) {
     const formattedDateTime = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
     let processedBodyContent = bodyContent;
+    const apexDriverFallbackHtml = `<div class="apex-driver-block"><span class="apex-driver-label">Motorista contratado:</span><span class="apex-driver-print">_______________________________________________________________</span></div>`;
     
     try {
         const parser = new DOMParser();
@@ -3885,6 +3888,10 @@ function createPrintWindow(title, bodyContent) {
                     <span>Relatório impresso em: ${formattedDateTime}</span>
                 </div>`;
             processedBodyContent = globalTimestampHtml + bodyContent;
+        }
+        // APEX: impressões sem bloco do card (CF, fechadas, sobras, resumos) ganham a linha p/ caneta
+        if (!doc.querySelector('.apex-driver-block')) {
+            processedBodyContent += apexDriverFallbackHtml;
         }
     } catch (e) {
         console.error("Erro ao injetar timestamp na impressão:", e);
@@ -4360,6 +4367,37 @@ function createPrintWindow(title, bodyContent) {
                     margin-right: 4px !important;
                     font-weight: 700 !important;
                 }
+                /* APEX Motorista contratado (rodapé da impressão) */
+                .apex-driver-block {
+                    display: block !important;
+                    margin-top: 10px !important;
+                    padding: 8px 12px !important;
+                    border: 1px solid #0f172a !important;
+                    border-radius: 6px !important;
+                    background: #fff !important;
+                    page-break-inside: avoid !important;
+                }
+                /* O bloco do card (tela) nunca aparece no papel: só a linha injetada na impressão */
+                .apex-driver-block[data-driver-for] {
+                    display: none !important;
+                }
+                .apex-driver-label {
+                    display: block !important;
+                    font-size: 7pt !important;
+                    font-weight: 700 !important;
+                    text-transform: uppercase !important;
+                    color: #475569 !important;
+                    margin-bottom: 2px !important;
+                }
+                .apex-driver-print {
+                    display: block !important;
+                    font-family: 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive !important;
+                    font-size: 13pt !important;
+                    color: #0f172a !important;
+                    border-bottom: 1px solid #0f172a !important;
+                    min-height: 20px !important;
+                    padding-bottom: 2px !important;
+                }
             </style>
             <script>
                 function fixTableHeaders() {
@@ -4438,6 +4476,11 @@ function imprimirGeneric(source, title) {
                     clonePrintDiv.style.display = 'none';
                 }
             }
+            // APEX: linha do motorista só na impressão (nunca duplicada na tela)
+            try {
+                const bodyBox = cardClone.querySelector('.premium-card-body');
+                if (bodyBox && typeof apexDriverPrintHtml === 'function') bodyBox.insertAdjacentHTML('beforeend', apexDriverPrintHtml(load?.motoristaContratado));
+            } catch (e) {}
         });
         htmlContent = clone.outerHTML;
     }
@@ -4494,6 +4537,11 @@ function imprimirCargasGeneric(divId, title) {
                 clonePrintDiv.style.display = 'block';
             }
         }
+        // APEX: linha do motorista só na impressão (nunca duplicada na tela)
+        try {
+            const bodyBox = cardClone.querySelector('.premium-card-body');
+            if (bodyBox && typeof apexDriverPrintHtml === 'function') bodyBox.insertAdjacentHTML('beforeend', apexDriverPrintHtml(activeLoads[loadId]?.motoristaContratado));
+        } catch (e) {}
         containerClone.appendChild(cardClone);
     });
 
@@ -4504,6 +4552,12 @@ function imprimirCargasGeneric(divId, title) {
     createPrintWindow(cleanTitle, containerClone.innerHTML);
 }
 
+// APEX: linha de impressão do motorista contratado (injetada só na hora de imprimir).
+function apexDriverPrintHtml(nome) {
+    const esc = String(nome == null ? '' : nome).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const txt = esc || '_______________________________________________________________';
+    return `<div class="apex-driver-block"><span class="apex-driver-label">Motorista contratado:</span><span class="apex-driver-print">${txt}</span></div>`;
+}
 function imprimirTocoIndividual(cf) {
     if (!gruposToco[cf]) { showToast(`Nenhuma carga Toco encontrada para o CF: ${cf}`, 'warning'); return; }
     const grupo = gruposToco[cf];
@@ -4528,13 +4582,14 @@ function imprimirTocoIndividual(cf) {
         pedidos: grupo.pedidos,
         collapsed: false,
         observation: activeLoad.observation || "",
+        motoristaContratado: activeLoad.motoristaContratado || "",
         distanceKm: activeLoad.distanceKm,
         freightValue: activeLoad.freightValue,
         isCalculatingFreight: activeLoad.isCalculatingFreight
     };
     
     if (typeof renderLoadCard === 'function') {
-        const contentToPrint = renderLoadCard(loadFake, 'toco', vInfo);
+        const contentToPrint = renderLoadCard(loadFake, 'toco', vInfo) + apexDriverPrintHtml(loadFake.motoristaContratado);
         createPrintWindow('Imprimir Carga Toco CF: ' + cf, contentToPrint);
     } else {
         const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -4560,6 +4615,11 @@ function imprimirCargaManualIndividual(loadId) {
             clonePrintDiv.style.display = 'block';
         }
     }
+    // APEX: linha do motorista só na impressão (nunca duplicada na tela)
+    try {
+        const bodyBox = cardClone.querySelector('.premium-card-body');
+        if (bodyBox) bodyBox.insertAdjacentHTML('beforeend', apexDriverPrintHtml(load?.motoristaContratado));
+    } catch (e) {}
 
     const title = `Impressão - Carga Manual ${load.numero} (${load.vehicleType})`;
     createPrintWindow(title, cardClone.outerHTML);
@@ -4580,6 +4640,11 @@ function imprimirCargaIndividual(loadId) {
     }
     
     const cardClone = cardToPrint.cloneNode(true);
+    // APEX: linha do motorista só na impressão (nunca duplicada na tela)
+    try {
+        const bodyBox = cardClone.querySelector('.premium-card-body');
+        if (bodyBox) bodyBox.insertAdjacentHTML('beforeend', apexDriverPrintHtml(load?.motoristaContratado));
+    } catch (e) {}
     const title = `Relatório de Carga - #${load.shortId} (${load.numero || 'S/N'})`;
     createPrintWindow(title, cardClone.outerHTML);
 }
@@ -7732,6 +7797,8 @@ function renderLoadCard(load, vehicleType, vInfo) {
 
                 <!-- APEX Client Observation Notes -->
                 ${apexObsBlockHtml}
+                <!-- APEX Motorista Contratado (rodapé: tela editável + impressão) -->
+                ${(() => { const drv = (load.motoristaContratado || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); return `<div class="apex-driver-block" data-driver-for="${load.id}"><span class="apex-driver-label no-print"><i class="bi bi-person-badge me-1"></i>Motorista contratado:</span><input class="apex-driver-input no-print" type="text" value="${drv}" maxlength="80" placeholder="preencher ou deixar p/ caneta..." oninput="apexSalvarMotorista('${load.id}', this.value)" autocomplete="off"></div>`; })()}
                 <div class="text-end mt-2 me-2 mb-1" style="font-size: 0.7rem; opacity: 0.6;">
                     ID: ${load.id}
                 </div>
@@ -8738,6 +8805,50 @@ const apiQueue = {
             }, 1200);
         }
     }
+};
+
+// APEX: salva o motorista contratado digitado no card (persiste no estado como frete/KM).
+window.apexSalvarMotorista = function (loadId, val) {
+    const load = (typeof activeLoads !== 'undefined' && activeLoads) ? activeLoads[loadId] : null;
+    const clean = String(val == null ? '' : val).slice(0, 80);
+    if (load) load.motoristaContratado = clean;
+    try {
+        const card = document.getElementById(loadId);
+        const sp = card ? card.querySelector('.apex-driver-print') : null;
+        if (sp) sp.textContent = clean || '_______________________________________________________________';
+    } catch (e) {}
+    if (!load) return;
+    if (typeof debouncedSaveState === 'function') debouncedSaveState();
+    else if (typeof saveStateToLocalStorage === 'function') saveStateToLocalStorage();
+};
+
+// APEX: faxineiro anti-duplicação da linha do motorista (1 bloco por card, sem span na tela).
+// Também remove cards duplicados do mesmo load dentro do mesmo container.
+window.apexDedupeDriverBlocks = function () {
+    try {
+        // 1) Remove cards repetidos do MESMO load dentro do MESMO container de resultado
+        document.querySelectorAll('[id^="resultado-"], .accordion-body').forEach(cont => {
+            const seen = {};
+            Array.from(cont.children).forEach(ch => {
+                const lid = ch.getAttribute && ch.getAttribute('data-load-id');
+                if (!lid) return;
+                if (seen[lid]) { ch.parentNode.removeChild(ch); }
+                else seen[lid] = true;
+            });
+        });
+        document.querySelectorAll('.premium-load-card, div[data-load-id]').forEach(card => {
+            const blocks = card.querySelectorAll(':scope .apex-driver-block');
+            blocks.forEach((b, i) => { if (i > 0 && b.parentNode) b.parentNode.removeChild(b); });
+            const first = card.querySelector(':scope .apex-driver-block');
+            if (first) {
+                first.querySelectorAll('.apex-driver-print').forEach(s => { if (s.parentNode) s.parentNode.removeChild(s); });
+                if (!first.querySelector('.apex-driver-input')) {
+                    const lid = card.dataset ? (card.dataset.loadId || card.id) : card.id;
+                    first.insertAdjacentHTML('beforeend', `<input class="apex-driver-input no-print" type="text" value="" maxlength="80" placeholder="preencher ou deixar p/ caneta..." oninput="apexSalvarMotorista('${lid}', this.value)" autocomplete="off">`);
+                }
+            }
+        });
+    } catch (e) {}
 };
 
 async function refreshLoadFreight(loadId) {
@@ -14018,6 +14129,7 @@ function reRenderManualLoads() {
     });
 
     if (typeof renderBotoesManuais === 'function') renderBotoesManuais();
+    if (typeof window.apexDedupeDriverBlocks === 'function') window.apexDedupeDriverBlocks();
 }
 
 function reRenderActiveLoads(processedRouteContexts) {
@@ -14079,13 +14191,16 @@ function reRenderActiveLoads(processedRouteContexts) {
     }
 
     // Renderiza as sobras na última aba ativa (ou na primeira, como fallback)
-    // REMOVIDO: O card de sobras foi removido da interface conforme solicitação.
+    // REMOVIDO: O card de sobras foi removido da interface conforme solicitaçao.
     /*
     if (currentLeftoversForPrinting.length > 0) {
          ... (código removido) ...
     }
     */
+    if (typeof window.apexDedupeDriverBlocks === 'function') window.apexDedupeDriverBlocks();
 }
+
+// --- Script para a nova animação "Holographic Nexus" (V9) ---
 
 // --- Script para a nova animação "Holographic Nexus" (V9) ---
 const processingModal = document.getElementById('processing-modal');
