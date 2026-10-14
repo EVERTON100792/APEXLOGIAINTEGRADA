@@ -621,6 +621,14 @@
         
         // NOVO: Atualiza o cache global imediatamente para não precisar recarregar a planilha/página
         window._apexAdminVehicleConfig = config;
+        // CORRECAO APEX v3: espelha no localStorage p/ montagem respeitar na hora (ex: Fiorino hard 1.9 bloqueia 2.5)
+        try {
+            localStorage.setItem('apexVehicleConfig', JSON.stringify(config));
+            // Atualiza thresholds globais na hora
+            if (window.vehicleAskThresholds) {
+                vehicles.forEach(v => { if (config[v] && config[v].askThreshold > 0) window.vehicleAskThresholds[v] = config[v].askThreshold; });
+            }
+        } catch (e) {}
 
         await logAction('Atualizar limites de veículos', 0);
         showAdminAlert('✅ Limites de peso salvos no banco de dados com sucesso!', 'success');
@@ -739,22 +747,38 @@
         const sb = window.supabaseClient || window.supabase;
 
         // 1. Fiorino cities
-        const { data: fcData } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'fiorino_cities_extra').single();
-                let fiorinoMap = fcData?.config_value;
-        if (!fiorinoMap || Object.keys(fiorinoMap).length === 0) fiorinoMap = window.rotasEspeciaisFiorino || {};
-        renderFiorinoCities(fiorinoMap);
+        try {
+            const { data: fcData } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'fiorino_cities_extra').single();
+            let fiorinoMap = fcData?.config_value;
+            if (!fiorinoMap || Object.keys(fiorinoMap).length === 0) fiorinoMap = window.rotasEspeciaisFiorino || {};
+            renderFiorinoCities(fiorinoMap);
+        } catch (e) { renderFiorinoCities(window.rotasEspeciaisFiorino || {}); }
 
-        // 2. Special clients
-        const { data: scData } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'special_clients_extra').single();
-                let clients = scData?.config_value;
-        if (!clients || clients.length === 0) clients = window.specialClientNames || [];
-        renderSpecialClients(clients);
+        // 2. Special clients — CORRECAO APEX: fallback em cascata para nunca ficar "bugado/vazio"
+        try {
+            const { data: scData } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'special_clients_extra').single();
+            let clients = scData?.config_value;
+            if (!clients || !Array.isArray(clients) || clients.length === 0) {
+                clients = (window.specialClientNames && window.specialClientNames.length > 0)
+                    ? window.specialClientNames
+                    : (window.specialClientPrefixes || []);
+            }
+            renderSpecialClients(clients);
+        } catch (e) {
+            renderSpecialClients(window.specialClientNames || window.specialClientPrefixes || []);
+        }
 
-        // 3. Agendamento overrides
-                const { data: agData } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'agendamento_overrides').single();
-        window._apexAgendamentoOverrides = agData?.config_value;
-        if (!window._apexAgendamentoOverrides || Object.keys(window._apexAgendamentoOverrides).length === 0) {
-            window._apexAgendamentoOverrides = {"39615":"Sim","218486":"Nao"};
+        // 3. Agendamento overrides — CORRECAO APEX v5: protegido contra falha (antes derrubava o resto do painel)
+        try {
+            const { data: agData } = await sb.from('apex_admin_config').select('config_value').eq('config_key', 'agendamento_overrides').single();
+            window._apexAgendamentoOverrides = agData?.config_value;
+            if (!window._apexAgendamentoOverrides || Object.keys(window._apexAgendamentoOverrides).length === 0) {
+                window._apexAgendamentoOverrides = {"39615":"Sim","218486":"Nao"};
+            }
+        } catch (e) {
+            if (!window._apexAgendamentoOverrides || Object.keys(window._apexAgendamentoOverrides).length === 0) {
+                window._apexAgendamentoOverrides = {"39615":"Sim","218486":"Nao"};
+            }
         }
         renderAgendamento(window._apexAgendamentoOverrides);
 
@@ -829,12 +853,20 @@
     function renderSpecialClients(clients) {
         const container = document.getElementById('acc-special-clients-list');
         if (!container) return;
-        container.innerHTML = clients.map((name, i) => `
+        const list = Array.isArray(clients) ? clients.filter(Boolean) : [];
+        // CORRECAO APEX: empty-state + escape HTML + contador (antes ficava em branco parecendo bugado)
+        if (list.length === 0) {
+            container.innerHTML = '<p style="color:#64748b;font-size:0.82rem">Nenhum cliente especial cadastrado. Adicione acima (ex: SUPERMERCADO SANTAREM).</p>';
+            window._apexSpecialClientsLocal = [];
+            return;
+        }
+        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        container.innerHTML = `<p style="color:#64748b;font-size:0.75rem;margin:0 0 0.5rem">${list.length} cliente(s) especial(is) — regra: máx 2 lojas por carga.</p>` + list.map((name, i) => `
             <div class="acc-tag-row">
-                <span class="acc-tag">${name}</span>
-                <button class="acc-btn acc-btn-danger acc-btn-sm" onclick="accRemoverClienteEspecial(${i})">X</button>
+                <span class="acc-tag">${esc(name)}</span>
+                <button class="acc-btn acc-btn-danger acc-btn-sm" onclick="accRemoverClienteEspecial(${i})" title="Remover">X</button>
             </div>`).join('');
-        window._apexSpecialClientsLocal = [...clients];
+        window._apexSpecialClientsLocal = [...list];
     }
 
     window.accAdicionarClienteEspecial = async function () {
@@ -848,10 +880,12 @@
         // Apply locally
         if (window.specialClientNames) window.specialClientNames.push(input);
         if (window.specialClientPrefixes && !window.specialClientPrefixes.includes(input)) window.specialClientPrefixes.push(input);
+        // CORRECAO APEX v3: espelha no localStorage p/ novos cadastros valerem de imediato e apos F5
+        try { localStorage.setItem('apexSpecialClients', JSON.stringify(window.specialClientNames || clients)); } catch (e) {}
         renderSpecialClients(clients);
         document.getElementById('acc-sc-new').value = '';
         await logAction('Adicionar cliente especial: ' + input, 0);
-        showAdminAlert('Cliente especial adicionado.', 'success');
+        showAdminAlert('Cliente especial adicionado. Novas montagens ja respeitam (max 2 lojas/carga).', 'success');
     };
 
     window.accRemoverClienteEspecial = async function (idx) {
@@ -868,6 +902,8 @@
             const pi = window.specialClientPrefixes.indexOf(removed);
             if (pi >= 0) window.specialClientPrefixes.splice(pi, 1);
         }
+        // CORRECAO APEX v3: espelha remocao no localStorage
+        try { localStorage.setItem('apexSpecialClients', JSON.stringify(window.specialClientNames || clients)); } catch (e) {}
         renderSpecialClients(clients);
         await logAction('Remover cliente especial: ' + removed, 0);
         showAdminAlert('Cliente removido.', 'success');
@@ -898,7 +934,8 @@
         const overrides = window._apexAgendamentoOverrides || {};
         overrides[code] = val;
         const sb = window.supabaseClient || window.supabase;
-        await sb.from('apex_admin_config').update({ config_value: overrides, updated_at: new Date().toISOString() }).eq('config_key', 'agendamento_overrides');
+        const { error: agSaveError } = await sb.from('apex_admin_config').update({ config_value: overrides, updated_at: new Date().toISOString() }).eq('config_key', 'agendamento_overrides');
+        if (agSaveError) { showAdminAlert('Erro ao salvar: ' + agSaveError.message, 'danger'); return; }
         // Apply locally
         if (!window.agendamentoOverrides) window.agendamentoOverrides = {};
         window.agendamentoOverrides[code] = val;

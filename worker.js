@@ -162,7 +162,7 @@ async function getCityCoordinates(cidade, uf, apiKey) {
 
 
 
-let specialClientPrefixes = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA'];
+let specialClientPrefixes = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA', 'SUPERMERCADO SANTAREM', 'SANTAREM'];
 let askThresholds = { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
 
 const rotaVeiculoMap = {
@@ -187,10 +187,27 @@ function checkAgendamento(pedido) {
     pedido.Agendamento = agendamentoClientCodes.has(normalizedCode) ? 'Sim' : 'Não';
 }
 
+const apexStripName = (s) => String(s || "").normalize("NFD").split("").filter((c) => c.charCodeAt(0) < 128).join("").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const apexPrefixMatchesClient = (prefixNorm, clientNorm) => {
+    if (!prefixNorm || !clientNorm) return false;
+    if (clientNorm.indexOf(prefixNorm) === 0) return true;
+    if (clientNorm.indexOf(prefixNorm) !== -1) return true;
+    const stop = { LTDA: 1, SA: 1, S: 1, A: 1, ME: 1, EPP: 1, EIRELI: 1, CIA: 1, DE: 1, DA: 1, DO: 1, DOS: 1, DAS: 1, E: 1 };
+    const toks = prefixNorm.split(" ").filter((t) => t && !stop[t]);
+    if (toks.length === 0) return false;
+    if (toks.length === 1) return clientNorm.indexOf(toks[0]) !== -1;
+    return toks.every((t) => clientNorm.indexOf(t) !== -1);
+};
 const isSpecialClient = (p) => {
     if (!p || !p.Nome_Cliente) return false;
-    const clientNameUpper = p.Nome_Cliente.toUpperCase().trim();
-    return specialClientPrefixes.some(prefix => clientNameUpper.startsWith(prefix));
+    const clientNorm = apexStripName(p.Nome_Cliente);
+    if (!clientNorm) return false;
+    if (!specialClientPrefixes || specialClientPrefixes.length === 0) return false;
+    for (const prefix of specialClientPrefixes) {
+        if (!prefix) continue;
+        if (apexPrefixMatchesClient(apexStripName(prefix), clientNorm)) return true;
+    }
+    return false;
 };
 
 function isSaoPauloOrder(p) {
@@ -259,8 +276,8 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
         // Agrupa pedidos especiais pela empresa-mãe (usando o prefixo do nome)
         const specialOrdersGroupedByPrefix = {};
         for (const p of specialPedidos) {
-            const clientNameUpper = p.Nome_Cliente.toUpperCase().trim();
-            const matchingPrefix = specialClientPrefixes.find(prefix => clientNameUpper.startsWith(prefix));
+            const clientNameUpper = apexStripName(p.Nome_Cliente);
+            const matchingPrefix = specialClientPrefixes.find((prefix) => apexPrefixMatchesClient(apexStripName(prefix), clientNameUpper));
             if (matchingPrefix) {
                 if (!specialOrdersGroupedByPrefix[matchingPrefix]) {
                     specialOrdersGroupedByPrefix[matchingPrefix] = [];
@@ -281,8 +298,8 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
         }
     }
 
-    // REGRA DE AGENDAMENTO: Só bloqueia se clientes DIFERENTES ambos têm agendamento.
-    // Permite combinar agendamento do MESMO cliente na mesma carga.
+    // REGRA DE AGENDAMENTO (MAX 2 CLIENTES COM AGENDAMENTO - alinhado com thread principal):
+    // Permite misturar ate 2 clientes agendados distintos na mesma carga.
     const groupHasAgendamento = groupToAdd.pedidos.some(p => p.Agendamento === 'Sim');
     if (groupHasAgendamento) {
         const agendamentoClientIdsInLoad = new Set(
@@ -290,8 +307,11 @@ function isMoveValid(load, groupToAdd, vehicleType, configs) {
         );
         if (agendamentoClientIdsInLoad.size > 0) {
             const newClientId = normalizeClientId(groupToAdd.pedidos[0].Cliente);
-            if (!agendamentoClientIdsInLoad.has(newClientId)) {
-                return false;
+            if (newClientId && !agendamentoClientIdsInLoad.has(newClientId)) {
+                const projected = new Set([...agendamentoClientIdsInLoad, newClientId]).size;
+                if (projected > 2) {
+                    return false;
+                }
             }
         }
     }

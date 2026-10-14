@@ -39,7 +39,7 @@
     <script defer src="js/toll_logic.js?v=3.0.3"></script> <!-- Carregar lógica de pedágios ANTES do simulador -->
     <script defer src="js/route_simulator.js"></script> <!-- Script do Novo Simulador -->
 
-    <link rel="stylesheet" href="css/style.css?v=3.0.8">
+    <link rel="stylesheet" href="css/style.css?v=3.0.10-apex-layout">
     <link rel="stylesheet" href="css/email-generator.css">
 </head>
 <style>
@@ -3398,8 +3398,8 @@
         </div>
     </div>
 
-    <script src="js/script.js?v=3.0.43"></script>
-    <script defer src="js/freight_logic.js?v=3.1.1"></script>
+    <script src="js/script.js?v=3.0.50-apex-portaofinal"></script>
+    <script defer src="js/freight_logic.js?v=3.1.3-apex-stable"></script>
     <script defer src="js/email-generator.js?v=3.1.0"></script>
 
     <!-- Modal Novo Motorista -->
@@ -4453,7 +4453,6 @@
                                     id="acc-vc-toco-cubage" type="hidden"></div>
                         </div>
                     </div>
-                    </div>
                 </div>
 
                 <div class="acc-grid-2">
@@ -4496,7 +4495,7 @@
 
             <!-- PANE: Regras -->
             <div id="acc-pane-regras" class="acc-pane">
-                <div class="acc-grid-2">
+                <div class="acc-stack">
                     <!-- Cidades Fiorino -->
                     <div class="acc-card">
                         <div class="acc-card-header-row">
@@ -4531,7 +4530,7 @@
                     </div>
                 </div>
 
-                <div class="acc-grid-2 acc-mt">
+                <div class="acc-stack acc-mt">
                     <!-- Agendamento -->
                     <div class="acc-card">
                         <div class="acc-card-header-row">
@@ -4640,14 +4639,12 @@
             </div>
         </div>
     </div>
-    </div>
-    </div>
-    <script src="js/admin.js?v=3.0.10"></script>
+    <script src="js/admin.js?v=3.0.13-apex-save"></script>
     <!-- APEX_ADMIN_END -->
     <script src="js/trize-agendamentos.js"></script>
+    <script>
+        // Script bridge if needed for the admin panel to talk to main UI
+    </script>
 </body>
-<script>
-    // Script bridge if needed for the admin panel to talk to main UI
-</script>
 
 </html>

@@ -346,10 +346,32 @@ var agendamentoClientCodes = new Set([
 ]);
 
 // Lista de fallback de prefixos de clientes especiais, caso a do DB falhe
-const specialClientPrefixes_fallback = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA'];
+// CORRECAO APEX: SUPERMERCADO SANTAREM incluido como especial (regra max 2 lojas por carga)
+const specialClientPrefixes_fallback = ['IRMAOS MUFFATO', 'FINCO & FINCO', 'BOM DIA', 'CASA VISCARD', 'PRIMATO COOPERATIVA', 'SUPERMERCADO SANTAREM', 'SANTAREM'];
 // A lista definitiva de prefixos, que será preenchida dinamicamente
 window.specialClientPrefixes = [...specialClientPrefixes_fallback];
+window.specialClientNames = [...specialClientPrefixes_fallback];
 window.agendamentoClientCodes = agendamentoClientCodes;
+// CORRECAO APEX v3: hidrata SINCRONO do localStorage (painel salvo) antes de qualquer montagem.
+// Assim cubagem 1.9 e novos especiais cadastrados valem de imediato, sem esperar Supabase.
+try {
+    const lsSpec = JSON.parse(localStorage.getItem('apexSpecialClients') || 'null');
+    if (Array.isArray(lsSpec) && lsSpec.length > 0) {
+        window.specialClientNames = [...new Set([...window.specialClientNames, ...lsSpec])];
+        window.specialClientPrefixes = [...new Set([...window.specialClientPrefixes, ...lsSpec])];
+    }
+    const lsVeh = JSON.parse(localStorage.getItem('apexVehicleConfig') || 'null');
+    if (lsVeh && typeof lsVeh === 'object') {
+        window._apexAdminVehicleConfig = lsVeh;
+        const dThr = { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
+        window.vehicleAskThresholds = window.vehicleAskThresholds || {};
+        for (const v of ['fiorino', 'van', 'tresQuartos', 'toco']) {
+            const cfg = lsVeh[v] || {};
+            if (typeof cfg.askThreshold === 'number' && cfg.askThreshold > 0) window.vehicleAskThresholds[v] = cfg.askThreshold;
+            else if (window.vehicleAskThresholds[v] == null) window.vehicleAskThresholds[v] = dThr[v];
+        }
+    }
+} catch (eCache) { console.warn('[APEX] cache local painel indisponivel:', eCache); }
 
 // Thresholds para pergunta de carga abaixo do mínimo (defaults, sobrescritos pelo loadRouteOverrides)
 const vehicleAskThresholdsDefaults = { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
@@ -454,6 +476,8 @@ async function loadRouteOverrides() {
             const extraClients = configs['special_clients_extra'] || [];
             window.specialClientNames = [...new Set([...(window.specialClientNames || []), ...extraClients])];
             window.specialClientPrefixes = [...new Set([...window.specialClientPrefixes, ...extraClients])];
+            // CORRECAO APEX v3: espelha no localStorage p/ valer apos F5 e p/ novos cadastros
+            try { localStorage.setItem('apexSpecialClients', JSON.stringify(window.specialClientNames)); } catch (e) {}
         }
 
         // 5. Apply Agendamento Overrides
@@ -473,6 +497,8 @@ async function loadRouteOverrides() {
         // 7. Apply Vehicle Config (incl. askThreshold)
         if (configs['vehicle_config']) {
             window._apexAdminVehicleConfig = configs['vehicle_config'];
+            // CORRECAO APEX v3: espelha no localStorage p/ montagem respeitar cubagem do painel (ex: Fiorino 1.9) mesmo offline/antes do Supabase
+            try { localStorage.setItem('apexVehicleConfig', JSON.stringify(configs['vehicle_config'])); } catch (e) {}
             // Build global askThresholds map with defaults
             const defaults = { fiorino: 350, van: 1000, tresQuartos: 2500, toco: 4500 };
             window.vehicleAskThresholds = {};
@@ -623,11 +649,143 @@ function checkAgendamento(pedido) {
     return status;
 }
 
+const apexStripName = (s) => String(s || "").normalize("NFD").split("").filter((c) => c.charCodeAt(0) < 128).join("").toUpperCase().replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+const apexPrefixMatchesClient = (prefixNorm, clientNorm) => {
+    if (!prefixNorm || !clientNorm) return false;
+    if (clientNorm.indexOf(prefixNorm) === 0) return true;
+    if (clientNorm.indexOf(prefixNorm) !== -1) return true;
+    const stop = { LTDA: 1, SA: 1, S: 1, A: 1, ME: 1, EPP: 1, EIRELI: 1, CIA: 1, DE: 1, DA: 1, DO: 1, DOS: 1, DAS: 1, E: 1 };
+    const toks = prefixNorm.split(" ").filter((t) => t && !stop[t]);
+    if (toks.length === 0) return false;
+    if (toks.length === 1) return clientNorm.indexOf(toks[0]) !== -1;
+    return toks.every((t) => clientNorm.indexOf(t) !== -1);
+};
 const isSpecialClient = (p) => {
     if (!p || !p.Nome_Cliente) return false;
-    const clientNameUpper = p.Nome_Cliente.toUpperCase().trim();
-    // Usa a lista de prefixos global e dinâmica
-    return window.specialClientPrefixes.some(prefix => clientNameUpper.startsWith(prefix));
+    // CORRECAO APEX v2: matching a prova de variacao (prefixo, contem, ou todos os tokens).
+    // Ex: painel "SUPERMERCADO SANTAREM LTDA" casa com "SUPERMERCADO SANTAREM - LOJA 03",
+    // "SANTAREM SUPERMERCADO", etc. Sem depender de startsWith exato.
+    const clientNorm = apexStripName(p.Nome_Cliente);
+    if (!clientNorm) return false;
+    const list = window.specialClientPrefixes || [];
+    if (list.length === 0) return false;
+    for (const prefix of list) {
+        if (!prefix) continue;
+        const prefixNorm = apexStripName(prefix);
+        if (apexPrefixMatchesClient(prefixNorm, clientNorm)) return true;
+    }
+    return false;
+};
+window.apexStripName = apexStripName;
+window.apexPrefixMatchesClient = apexPrefixMatchesClient;
+// Helper de diagnostico: no console (F12) rode apexTestEspecial("SUPERMERCADO SANTAREM LTDA LOJA 01")
+window.apexTestEspecial = function (nome) {
+    const r = isSpecialClient({ Nome_Cliente: nome });
+    console.log(`[APEX teste] "${nome}" => especial=${r}. Prefixos:`, window.specialClientPrefixes);
+    return r;
+};
+// RAIO-X APEX: rode apexAuditLoads() no console (F12). Mostra TODAS as violacoes reais nas cargas montadas.
+window.apexAuditLoads = function () {
+    const out = { especiais: [], cubagem: [], configFiorino: null, prefixos: window.specialClientPrefixes || [], totalCargas: Object.keys(activeLoads || {}).length };
+    try { out.configFiorino = getVehicleConfigSafe('fiorino'); } catch (e) { out.configFiorino = 'erro: ' + e.message; }
+    try { out.lsSpecial = JSON.parse(localStorage.getItem('apexSpecialClients') || 'null'); } catch (e) { out.lsSpecial = 'erro'; }
+    try { out.lsVeh = JSON.parse(localStorage.getItem('apexVehicleConfig') || 'null'); } catch (e) { out.lsVeh = 'erro'; }
+    Object.values(activeLoads || {}).forEach(load => {
+        const peds = load.pedidos || [];
+        const esp = peds.filter(isSpecialClient);
+        const lojasEsp = [...new Set(esp.map(p => `${normalizeClientId(p.Cliente)}|${p.Nome_Cliente}`))];
+        if (lojasEsp.length > 2) {
+            out.especiais.push({ carga: load.numero || load.id, id: load.id, veiculo: load.vehicleType, kg: load.totalKg, cub: load.totalCubagem, qtdLojasEspeciais: lojasEsp.length, lojas: lojasEsp.slice(0, 10), totalPedidos: peds.length });
+        }
+        try {
+            const cfg = getVehicleConfigSafe(load.vehicleType);
+            if (cfg && (Number(load.totalCubagem) > Number(cfg.hardMaxCubage) + 1e-9)) {
+                out.cubagem.push({ carga: load.numero || load.id, id: load.id, veiculo: load.vehicleType, cubCarga: load.totalCubagem, hardPainel: cfg.hardMaxCubage, softPainel: cfg.softMaxCubage, kg: load.totalKg });
+            }
+        } catch (e) {}
+    });
+    console.log('[APEX AUDIT] ==== RAIO-X DAS CARGAS ====');
+    console.log('[APEX AUDIT] prefixos ativos:', out.prefixos);
+    console.log('[APEX AUDIT] localStorage apexSpecialClients:', out.lsSpecial);
+    console.log('[APEX AUDIT] fiorino config efetiva:', out.configFiorino);
+    console.log('[APEX AUDIT] fiorino localStorage:', out.lsVeh && out.lsVeh.fiorino);
+    console.log(`[APEX AUDIT] ${out.especiais.length} carga(s) com +2 lojas especiais:`, out.especiais);
+    console.log(`[APEX AUDIT] ${out.cubagem.length} carga(s) estourando cubagem:`, out.cubagem);
+    // Lista todos os nomes Santarem na planilha e se foram detectados
+    try {
+        const nomes = [...new Set((planilhaData || []).filter(p => String(p.Nome_Cliente || '').toUpperCase().indexOf('SANTAREM') !== -1).map(p => p.Nome_Cliente))];
+        console.log(`[APEX AUDIT] ${nomes.length} nome(s) com SANTAREM na planilha:`, nomes.slice(0, 20));
+        nomes.slice(0, 20).forEach(n => console.log(`[APEX AUDIT] isSpecial("${n}") = ${isSpecialClient({ Nome_Cliente: n })}`));
+    } catch (e) {}
+    const resumo = `Audit: ${out.totalCargas} cargas | ${out.especiais.length} com +2 especiais | ${out.cubagem.length} estourando cubagem. Ver console (F12).`;
+    if (typeof showToast === 'function') showToast(resumo, out.especiais.length + out.cubagem.length > 0 ? 'warning' : 'success');
+    return out;
+};
+// REPARO APEX: quebra cargas antigas que violam as regras (ex: F3 com 6 Santarem / cub 2.13 > 1.9).
+// Uso: apexFixViolations() no console. Divide em cargas de no max 2 lojas especiais respeitando o hard do painel.
+window.apexFixViolations = function () {
+    const audit = window.apexAuditLoads ? window.apexAuditLoads() : null;
+    const badIds = new Set([...(audit?.especiais || []).map(e => e.id), ...(audit?.cubagem || []).map(e => e.id)]);
+    if (badIds.size === 0) { console.log('[APEX FIX] Nenhuma violacao. Nada a fazer.'); return { fixed: 0 }; }
+    let created = 0, removed = 0;
+    badIds.forEach(badId => {
+        const bad = activeLoads[badId];
+        if (!bad) return;
+        const vt = bad.vehicleType || 'fiorino';
+        // Agrupa por loja (Cliente)
+        const groupsMap = {};
+        (bad.pedidos || []).forEach(p => {
+            const cid = normalizeClientId(p.Cliente) || ('__ped_' + p.Num_Pedido);
+            if (!groupsMap[cid]) groupsMap[cid] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p) };
+            groupsMap[cid].pedidos.push(p);
+            groupsMap[cid].totalKg += Number(p.Quilos_Saldo) || 0;
+            groupsMap[cid].totalCubagem += Number(p.Cubagem) || 0;
+        });
+        const groups = Object.values(groupsMap);
+        // Empacota ganancioso respeitando isMoveValid (max 2 especiais + hard painel)
+        const newLoads = [];
+        groups.forEach(g => {
+            let placed = false;
+            for (const nl of newLoads) {
+                if (isMoveValid(nl, g, vt)) {
+                    nl.pedidos.push(...g.pedidos);
+                    nl.totalKg += g.totalKg;
+                    nl.totalCubagem += g.totalCubagem;
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) newLoads.push({ pedidos: [...g.pedidos], totalKg: g.totalKg, totalCubagem: g.totalCubagem, vehicleType: vt });
+        });
+        // Remove a carga ruim
+        delete activeLoads[badId];
+        document.querySelectorAll(`[data-load-id="${badId}"]`).forEach(el => el.remove());
+        const cardEl = document.getElementById(`load-card-${badId}`) || document.querySelector(`[id*="${badId}"]`);
+        if (cardEl && cardEl.parentElement && Object.keys(activeLoads).length >= 0) { try { cardEl.closest('.load-card, .card')?.remove(); } catch (e) {} }
+        removed++;
+        // Registra as novas
+        newLoads.forEach((nl, i) => {
+            const nid = `${vt}-fix-${Date.now()}-${Math.floor(Math.random() * 999)}-${i}`;
+            nl.id = nid;
+            nl.numero = (bad.numero || 'F') + `.${i + 1}`;
+            nl.fixedFrom = badId;
+            activeLoads[nid] = nl;
+            created++;
+        });
+        console.log(`[APEX FIX] Carga ${bad.numero || badId} (${vt}) quebrada: ${groups.length} loja(s) -> ${newLoads.length} carga(s).`);
+    });
+    try {
+        if (typeof reRenderActiveLoads === 'function') reRenderActiveLoads(processedRouteContexts);
+        if (typeof renderActiveLoadCards === 'function') renderActiveLoadCards();
+        if (typeof renderRoteiroLoads === 'function') renderRoteiroLoads();
+        if (typeof updateTabCounts === 'function') updateTabCounts();
+        if (typeof saveStateToLocalStorage === 'function') saveStateToLocalStorage();
+    } catch (e) { console.warn('[APEX FIX] re-render parcial:', e); }
+    const msg = `Reparo: ${removed} carga(s) ruim(ns) -> ${created} nova(s) dentro da regra (max 2 especiais + cub painel).`;
+    console.log('[APEX FIX] ' + msg);
+    if (typeof showToast === 'function') showToast(msg, 'success');
+    if (window.apexAuditLoads) window.apexAuditLoads();
+    return { fixed: removed, created };
 };
 
 function isSaoPauloOrder(p) {
@@ -676,12 +834,20 @@ function getVehicleConfig(vehicleType) {
         return defaultVal;
     };
 
+    const softCub = parseField(elAdminCub, 'Cubage', def.cubage);
+    const hardCubRaw = parseField(elAdminHardCub, 'HardCubage', null);
+    // CORRECAO APEX v3 cubagem: se hard vazio, usa o soft (estrito). Ex: painel soft 1.9 sem hard => hard 1.9, Fiorino 2.5 bloqueia.
+    const hardCub = (hardCubRaw !== null && !isNaN(hardCubRaw) && hardCubRaw > 0) ? hardCubRaw : softCub;
+    const softKg = parseField(elAdminSoft, 'MaxCapacity', def.softMaxKg);
+    const hardKgRaw = parseField(elAdminHard, 'HardMaxCapacity', null);
+    const hardKg = (hardKgRaw !== null && !isNaN(hardKgRaw) && hardKgRaw > 0) ? hardKgRaw : softKg;
+
     return {
         minKg: parseField(elAdminMin, 'MinCapacity', def.minKg),
-        softMaxKg: parseField(elAdminSoft, 'MaxCapacity', def.softMaxKg),
-        softMaxCubage: parseField(elAdminCub, 'Cubage', def.cubage),
-        hardMaxKg: parseField(elAdminHard, 'HardMaxCapacity', def.hardMaxKg),
-        hardMaxCubage: parseField(elAdminHardCub, 'HardCubage', def.hardCubage)
+        softMaxKg: softKg,
+        softMaxCubage: softCub,
+        hardMaxKg: hardKg,
+        hardMaxCubage: hardCub
     };
 }
 
@@ -703,12 +869,17 @@ function getVehicleConfigSafe(vehicleType) {
         const hardCubV = parseFloat(override.hardMaxCubage || override.hardCubage);
         const askV = parseFloat(override.askThreshold);
 
+        const softCubEff = (!isNaN(cubV) && cubV > 0) ? cubV : baseConfig.softMaxCubage;
+        // CORRECAO APEX v3: hard vazio herda o soft (estrito, igual ao worker). Nunca volta p/ default maior que o painel.
+        const hardCubEff = (!isNaN(hardCubV) && hardCubV > 0) ? hardCubV : softCubEff;
+        const softKgEff = (!isNaN(softV) && softV > 0) ? softV : baseConfig.softMaxKg;
+        const hardKgEff = (!isNaN(hardV) && hardV > 0) ? hardV : softKgEff;
         return {
             minKg: (!isNaN(minV) && minV > 0) ? minV : baseConfig.minKg,
-            softMaxKg: (!isNaN(softV) && softV > 0) ? softV : baseConfig.softMaxKg,
-            softMaxCubage: (!isNaN(cubV) && cubV > 0) ? cubV : baseConfig.softMaxCubage,
-            hardMaxKg: (!isNaN(hardV) && hardV > 0) ? hardV : baseConfig.hardMaxKg,
-            hardMaxCubage: (!isNaN(hardCubV) && hardCubV > 0) ? hardCubV : baseConfig.hardMaxCubage,
+            softMaxKg: softKgEff,
+            softMaxCubage: softCubEff,
+            hardMaxKg: hardKgEff,
+            hardMaxCubage: hardCubEff,
             askThreshold: (!isNaN(askV) && askV > 0) ? askV : (window.vehicleAskThresholds?.[vehicleType] || 0)
         };
     }
@@ -4436,9 +4607,8 @@ function isMoveValid(load, groupToAdd, vehicleType) {
         return true;
     }
 
-    if (vehicleType === 'truck') {
-        return true;
-    }
+    // CORRECAO APEX: regra de especial/agendamento vale para TODOS os veiculos (inclusive truck).
+    // O bypass antigo permitia 6 lojas especiais na mesma carga. Removido.
 
     const firstGroupPedido = groupPedidos[0];
     if (!firstGroupPedido) return true;
@@ -5686,6 +5856,16 @@ window.reaplicarRegrasPainelInterno = function() {
         return acc;
     }, {});
     let packableGroups = Object.values(clientGroupsMap);
+    // DIAGNOSTICO APEX: loga quantos grupos foram detectados como especiais (para conferir SANTAREM no console F12)
+    try {
+        const espGroups = packableGroups.filter(g => g.isSpecial);
+        console.log(`[APEX especiais] ${espGroups.length}/${packableGroups.length} grupos especiais. Prefixos ativos:`, window.specialClientPrefixes);
+        espGroups.slice(0, 10).forEach(g => console.log(`[APEX especiais] ESPECIAL detectado: Cliente=${g.pedidos[0]?.Cliente} Nome=${g.pedidos[0]?.Nome_Cliente}`));
+        const santaremGroups = packableGroups.filter(g => apexStripName(g.pedidos[0]?.Nome_Cliente || '').indexOf('SANTAREM') !== -1);
+        santaremGroups.forEach(g => {
+            if (!g.isSpecial) console.warn(`[APEX especiais] ATENCAO: SANTAREM nao detectado como especial! Cliente=${g.pedidos[0]?.Cliente} Nome=${g.pedidos[0]?.Nome_Cliente}`);
+        });
+    } catch (eDiag) {}
 
     // FIFO-PREDAT Melhoria 1: Calcula oldestDate usando Dat_Ped como primário (FIFO puro).
     // Predat é usado apenas como fallback se Dat_Ped estiver ausente.
@@ -5933,6 +6113,55 @@ window.reaplicarRegrasPainelInterno = function() {
     processingWorker.terminate();
 
     // ========================================================================
+    // CORRECAO APEX: revalidacao pos-worker com config ATUAL do painel.
+    // Garante que cubagem/peso do painel sejam respeitados mesmo se o worker
+    // usou config antiga, e que regra max-2 especiais nunca passe.
+    // Cargas invalidas voltam para sobras em vez de serem montadas.
+    // ========================================================================
+    try {
+        const cfgNow = getVehicleConfigSafe(vehicleType);
+        const validLoads = [];
+        const invalidAsLeftovers = [];
+        for (const ld of (optimizationResult.loads || [])) {
+            const kg = Number(ld.totalKg) || 0;
+            const cub = Number(ld.totalCubagem) || 0;
+            let ok = true;
+            let motivo = '';
+            if (kg > cfgNow.hardMaxKg + 1e-9) { ok = false; motivo = `peso ${kg} > hard ${cfgNow.hardMaxKg}`; }
+            if (cub > cfgNow.hardMaxCubage + 1e-9) { ok = false; motivo = `cubagem ${cub} > hard ${cfgNow.hardMaxCubage}`; }
+            // Regra especial: max 2 lojas especiais por carga
+            if (ok && Array.isArray(ld.pedidos)) {
+                const esp = ld.pedidos.filter(isSpecialClient);
+                if (esp.length > 0) {
+                    const lojas = new Set(esp.map(p => normalizeClientId(p.Cliente)).filter(Boolean));
+                    if (lojas.size > 2) { ok = false; motivo = `${lojas.size} lojas especiais > 2`; }
+                }
+            }
+            if (ok) validLoads.push(ld);
+            else {
+                console.warn(`[APEX revalidacao] Carga descartada para sobra (${vehicleType}): ${motivo}`, ld);
+                const grupos = {};
+                for (const p of (ld.pedidos || [])) {
+                    const cid = normalizeClientId(p.Cliente) || '__sem__';
+                    if (!grupos[cid]) grupos[cid] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: isSpecialClient(p), oldestDate: p.Dat_Ped || p.Predat };
+                    grupos[cid].pedidos.push(p);
+                    grupos[cid].totalKg += Number(p.Quilos_Saldo) || 0;
+                    grupos[cid].totalCubagem += Number(p.Cubagem) || 0;
+                }
+                invalidAsLeftovers.push(...Object.values(grupos));
+            }
+        }
+        if (invalidAsLeftovers.length > 0) {
+            optimizationResult.loads = validLoads;
+            optimizationResult.leftovers = [...(optimizationResult.leftovers || []), ...invalidAsLeftovers];
+            if (typeof showToast === 'function' && invalidAsLeftovers.length > 0 && validLoads.length !== undefined) {
+                // toast discreto apenas se houve descarte por cubagem/especial
+                console.log(`[APEX revalidacao] ${invalidAsLeftovers.length} grupo(s) devolvidos para sobra por limite do painel.`);
+            }
+        }
+    } catch (eReval) { console.warn('[APEX revalidacao] falhou (ignorado):', eReval); }
+
+    // ========================================================================
     // NOVO: Processar confirmações pendentes do worker (cargas < minKg mas >= threshold)
     // ========================================================================
     // DEBUG
@@ -6166,6 +6395,51 @@ window.reaplicarRegrasPainelInterno = function() {
             return;
         }
 
+        // PORTAO FINAL APEX v4: respeita o PAINEL (hard peso/cubagem) e max 2 lojas especiais.
+        // Vale para cargas confirmadas tambem: confirmacao cobre apenas peso abaixo do minimo.
+        let gateGroups = null;
+        try {
+            const overHard = (Number(load.totalKg) || 0) > (Number(config.hardMaxKg) || 0) + 1e-9 || (Number(load.totalCubagem) || 0) > (Number(config.hardMaxCubage) || 0) + 1e-9;
+            let espStores = 0;
+            try {
+                const espP = (load.pedidos || []).filter(isSpecialClient);
+                if (espP.length > 0) espStores = new Set(espP.map((p) => normalizeClientId(p.Cliente)).filter(Boolean)).size;
+            } catch (eG) {}
+            if (overHard || espStores > 2) {
+                console.warn("[APEX portao-final] carga acima do painel ou +2 especiais (" + load.vehicleType + " " + load.totalKg + "kg/" + load.totalCubagem + "cub " + espStores + " lojas). Reembalando...");
+                const byClient = {};
+                (load.pedidos || []).forEach((p) => {
+                    const cid = normalizeClientId(p.Cliente) || ("__ped_" + p.Num_Pedido);
+                    if (!byClient[cid]) byClient[cid] = { pedidos: [], totalKg: 0, totalCubagem: 0, isSpecial: false };
+                    byClient[cid].pedidos.push(p);
+                    byClient[cid].totalKg += Number(p.Quilos_Saldo) || 0;
+                    byClient[cid].totalCubagem += Number(p.Cubagem) || 0;
+                    try { if (isSpecialClient(p)) byClient[cid].isSpecial = true; } catch (eS) {}
+                });
+                const repacked = [];
+                Object.values(byClient).forEach((g) => {
+                    let placed = false;
+                    for (const nl of repacked) { if (isMoveValid(nl, g, load.vehicleType)) { nl.pedidos.push(...g.pedidos); nl.totalKg += g.totalKg; nl.totalCubagem += g.totalCubagem; placed = true; break; } }
+                    if (!placed) repacked.push({ pedidos: [...g.pedidos], totalKg: g.totalKg, totalCubagem: g.totalCubagem, vehicleType: load.vehicleType });
+                });
+                gateGroups = repacked;
+            }
+        } catch (eGate) { console.warn("[APEX portao-final] skip:", eGate); }
+        if (gateGroups) {
+            // Reembaladas ja respeitam hard + max2 (via isMoveValid). Aplica so a regra de minimo.
+            gateGroups.forEach((gl) => {
+                gl.routesKey = load.routesKey;
+                const okMin = (Number(gl.totalKg) || 0) >= (Number(config.minKg) || 0);
+                if (gl.pedidos.length > 0 && okMin) { finalValidLoads.push(gl); }
+                else {
+                    const one = { pedidos: [...gl.pedidos], totalKg: gl.totalKg, totalCubagem: gl.totalCubagem, isSpecial: false, oldestDate: null };
+                    try { one.oldestDate = calculateOldestDate(gl.pedidos); } catch (eD) {}
+                    finalLeftoverGroups.push(one);
+                }
+            });
+            console.warn("[APEX portao-final] carga reembalada em " + gateGroups.length + " parte(s).");
+            return;
+        }
         const containsPriority = load.pedidos.some(p => 
             pedidosPrioritarios.includes(String(p.Num_Pedido).trim()) || 
             pedidosRecall.includes(String(p.Num_Pedido).trim())
@@ -8469,6 +8743,14 @@ const apiQueue = {
 async function refreshLoadFreight(loadId) {
     const load = activeLoads[loadId];
     if (!load || !load.pedidos || load.pedidos.length === 0) return;
+    // CORRECAO APEX: nunca recalcula frete via API durante restauracao (F5). Preserva KM/valor salvos.
+    if (typeof isRestoringState !== 'undefined' && isRestoringState) return;
+    // CORRECAO APEX: se ja tem KM salvo, nao sobrescreve automaticamente (evita valores mudando sozinhos).
+    // Recalculo automatico so quando ainda nao ha KM.
+    if (load.distanceKm && Number(load.distanceKm) > 0) {
+        if (typeof updateLoadFreightDisplay === 'function') updateLoadFreightDisplay(loadId);
+        return;
+    }
 
     try {
         load.isCalculatingFreight = true;
@@ -12644,7 +12926,19 @@ async function montarTodasAsRotas() {
 
     window.currentActiveRouteKey = null;
     renderAllUI();
-    showToast("Montagem automática de todas as rotas concluída!", "success");
+    showToast("Montagem automatica de todas as rotas concluida!", "success");
+
+    // REDE FINAL APEX v4: qualquer violacao que tenha escapado de qualquer caminho e quebrada aqui.
+    try {
+        if (typeof window.apexAuditLoads === "function" && typeof window.apexFixViolations === "function") {
+            const aEnd = window.apexAuditLoads();
+            const nEnd = ((aEnd && aEnd.especiais && aEnd.especiais.length) || 0) + ((aEnd && aEnd.cubagem && aEnd.cubagem.length) || 0);
+            if (nEnd > 0) {
+                console.warn("[APEX rede-final] " + nEnd + " carga(s) violando regras apos AUTO MONTAR. Corrigindo...");
+                setTimeout(() => { try { window.apexFixViolations(); } catch (eRF) { console.warn("[APEX rede-final] falhou:", eRF); } }, 800);
+            }
+        }
+    } catch (eRF0) { console.warn("[APEX rede-final] skip:", eRF0); }
 
 }
 
@@ -12722,13 +13016,14 @@ async function executarMontagemSobrasGeograficas(pedidosParaProcessar, options =
                       (adminCfg && parseFloat(adminCfg.minKg) > 0 ? parseFloat(adminCfg.minKg) : def.minKg);
         const softMaxKg = (domSoft !== null && !isNaN(domSoft) && domSoft > 0) ? domSoft :
                          (adminCfg && parseFloat(adminCfg.softMaxKg) > 0 ? parseFloat(adminCfg.softMaxKg) : def.softMaxKg);
-        const hardMaxKg = (domHard !== null && !isNaN(domHard) && domHard > 0) ? domHard :
-                         (adminCfg && parseFloat(adminCfg.hardMaxKg) > 0 ? parseFloat(adminCfg.hardMaxKg) : def.hardMaxKg);
+        const hardRawKg = (domHard !== null && !isNaN(domHard) && domHard > 0) ? domHard :
+                         (adminCfg && parseFloat(adminCfg.hardMaxKg) > 0 ? parseFloat(adminCfg.hardMaxKg) : null);
+        const hardMaxKg = (hardRawKg !== null && !isNaN(hardRawKg) && hardRawKg > 0) ? hardRawKg : softMaxKg;
         const cubage = (domCub !== null && !isNaN(domCub) && domCub > 0) ? domCub :
                        (adminCfg && parseFloat(adminCfg.softMaxCubage || adminCfg.cubage) > 0 ? parseFloat(adminCfg.softMaxCubage || adminCfg.cubage) : def.cubage);
-        const hardMaxCubage = (domHardCub !== null && !isNaN(domHardCub) && domHardCub > 0) ? domHardCub :
-                           (adminCfg && parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) > 0 ? parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) : def.hardCubage);
-
+        const hardRawCub = (domHardCub !== null && !isNaN(domHardCub) && domHardCub > 0) ? domHardCub :
+                           (adminCfg && parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) > 0 ? parseFloat(adminCfg.hardMaxCubage || adminCfg.hardCubage) : null);
+        const hardMaxCubage = (hardRawCub !== null && !isNaN(hardRawCub) && hardRawCub > 0) ? hardRawCub : cubage;
         return { minKg, softMaxKg, softMaxCubage: cubage, cubage, hardMaxKg, hardMaxCubage, hardCubage: hardMaxCubage };
     };
 
@@ -13163,6 +13458,33 @@ if ((candidateLoad.totalKg + candidateGroup.totalKg) > cfg.hardMaxKg) continue;
             load.totalCubagem -= (Number(removedOrder.Cubagem) || 0);
             allFinalLeftovers.push(removedOrder);
         }
+
+        // TRAVA APEX v4: max 2 lojas especiais por carga (vale p/ novos cadastros do painel).
+        // Remove grupos inteiros (por Cliente) excedentes para a sobra.
+        try {
+            const espInLoad = (load.pedidos || []).filter(isSpecialClient);
+            if (espInLoad.length > 0) {
+                const seenStores = [];
+                const extraStores = new Set();
+                espInLoad.forEach((p) => {
+                    const cid = normalizeClientId(p.Cliente);
+                    if (seenStores.indexOf(cid) === -1) { seenStores.push(cid); if (seenStores.length > 2) extraStores.add(cid); }
+                });
+                if (extraStores.size > 0) {
+                    const keep = [];
+                    load.pedidos.forEach((p) => {
+                        const cid = normalizeClientId(p.Cliente);
+                        if (isSpecialClient(p) && extraStores.has(cid)) {
+                            load.totalKg -= (Number(p.Quilos_Saldo) || 0);
+                            load.totalCubagem -= (Number(p.Cubagem) || 0);
+                            allFinalLeftovers.push(p);
+                        } else { keep.push(p); }
+                    });
+                    load.pedidos = keep;
+                    console.warn("[APEX juncao] carga teve loja(s) especial(is) excedente(s) movida(s) p/ sobra:", [...extraStores].join(","));
+                }
+            }
+        } catch (eEsp) { console.warn("[APEX juncao] trava especiais skip:", eEsp); }
 
         if (load.totalKg >= cfg.minKg && load.totalKg <= cfg.hardMaxKg && load.totalCubagem <= cfg.hardMaxCubage) {
             load.usedHardLimit = (load.totalKg > cfg.softMaxKg || load.totalCubagem > cfg.cubage);
@@ -13605,10 +13927,26 @@ async function loadStateFromLocalStorage() {
         updateTabCounts();
         if (Object.keys(kpiData).length > 0) updateAndRenderKPIs();
         updateAndRenderChart();
-        recalcAllFreights();
+        // CORRECAO APEX frete: na restauracao (F5) apenas re-renderiza valores salvos, sem chamadas de API.
+        // Evita "somar outro valor / valores antigos" a cada refresh.
+        if (typeof recalcAllFreights === 'function') recalcAllFreights({ allowApi: false });
 
         console.log("Estado da aplicação restaurado do Local Storage.");
         isRestoringState = false;
+        // CORRECAO APEX v4: quarentena automatica de cargas antigas restauradas que violam as regras
+        // (ex: F3 montada com codigo velho: 6 Santarem / cub 2.13 > 1.9). Quebra sozinho, sem o usuario precisar.
+        try {
+            if (typeof window.apexAuditLoads === 'function' && typeof window.apexFixViolations === 'function') {
+                const a0 = window.apexAuditLoads();
+                const n0 = (a0?.especiais?.length || 0) + (a0?.cubagem?.length || 0);
+                if (n0 > 0) {
+                    console.warn(`[APEX quarentena] ${n0} carga(s) antiga(s) violando regras. Corrigindo automaticamente...`);
+                    setTimeout(() => {
+                        try { window.apexFixViolations(); } catch (eFix) { console.warn('[APEX quarentena] falhou:', eFix); }
+                    }, 800);
+                }
+            }
+        } catch (eQ) { console.warn('[APEX quarentena] skip:', eQ); }
         // SAFEGUARD: Ensure Cloud Modal is CLOSED after restoration
         const cloudModal = document.getElementById('cloudModal');
         if (cloudModal) {

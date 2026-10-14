@@ -4836,6 +4836,31 @@
         }
 
         /* Regras de Negocio tab extra styles */
+        /* CORRECAO APEX: containers que estavam sem estilo (lista empilhava e parecia desconfigurado) */
+        .acc-regra-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 380px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 0.25rem;
+        }
+
+        .acc-tag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            max-height: 380px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 0.25rem;
+            background: rgba(5, 12, 26, 0.5);
+            border: 1px solid #1e3a5f;
+            border-radius: 6px;
+            min-height: 80px;
+        }
+
         .acc-regra-row {
             display: flex;
             flex-direction: column;
@@ -4870,19 +4895,25 @@
         }
 
         .acc-tag-row {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 0.4rem;
             margin-bottom: 0.25rem;
+            max-width: 100%;
         }
 
         .acc-tag {
             background: #0f2044;
             border: 1px solid #1e3a5f;
             border-radius: 20px;
-            color: #94a3b8;
-            font-size: 0.85rem;
-            padding: 0.2rem 0.6rem;
+            color: #e2e8f0;
+            font-size: 0.78rem;
+            font-weight: 600;
+            padding: 0.25rem 0.65rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 260px;
         }
 
         .acc-badge-yes {
@@ -5998,3 +6029,47 @@ tr.search-highlight > td, tr.search-highlight > th {
     background: rgba(255, 255, 255, 0.12);
     color: #f1f5f9;
 }
+
+/* ============================================================================
+   APEX FIX VISUAL v5 — Regras de Negocio + Saude responsivos (somente CSS).
+   Escopo #apex-command-center: ganha das duas copias acima por especificidade.
+   ============================================================================ */
+#apex-command-center .acc-container { width: 100%; max-width: 1200px; margin: 0 auto; padding-left: 0.5rem; padding-right: 0.5rem; box-sizing: border-box; }
+#apex-command-center .acc-header { flex-wrap: wrap; gap: 0.75rem; }
+#apex-command-center .acc-tabs { flex-wrap: wrap; row-gap: 0.25rem; }
+#apex-command-center .acc-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+#apex-command-center .acc-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+#apex-command-center .acc-grid-2 > *, #apex-command-center .acc-grid-3 > * { min-width: 0; max-width: 100%; }
+#apex-command-center .acc-card { max-width: 100%; min-width: 0; overflow: hidden; box-sizing: border-box; }
+#apex-command-center .acc-card-header-row { flex-wrap: wrap; gap: 0.5rem; }
+#apex-command-center .acc-row-inline { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+#apex-command-center .acc-row-inline .acc-input { flex: 1 1 140px; width: auto; min-width: 0; }
+#apex-command-center .acc-row-inline .acc-select { flex: 0 1 auto; min-width: 0; }
+#apex-command-center .acc-row-inline .acc-btn { flex: 0 0 auto; }
+#apex-command-center .acc-input, #apex-command-center .acc-select, #apex-command-center .acc-textarea { max-width: 100%; box-sizing: border-box; }
+#apex-command-center .acc-table-scroll { overflow-x: auto; max-width: 100%; }
+#apex-command-center #acc-pane-regras .acc-table-scroll { overflow-x: auto !important; }
+#apex-command-center .acc-table { width: 100%; }
+#apex-command-center .acc-table th, #apex-command-center .acc-table td { overflow-wrap: anywhere; }
+#apex-command-center .acc-regra-list { min-width: 0; }
+#apex-command-center .acc-tag-container { min-width: 0; }
+#apex-command-center .acc-stat-card { min-width: 0; overflow: hidden; }
+#apex-command-center .acc-stat-value { overflow-wrap: anywhere; word-break: break-word; line-height: 1.2; }
+#apex-command-center .acc-mono { overflow-wrap: anywhere; word-break: break-word; }
+#apex-command-center .acc-error-item { overflow-wrap: anywhere; word-break: break-word; }
+#apex-command-center .acc-hint { overflow-wrap: break-word; }
+@media (max-width: 900px) {
+    #apex-command-center .acc-grid-2 { grid-template-columns: minmax(0, 1fr); }
+    #apex-command-center { padding: 0.5rem; }
+    #apex-command-center .acc-card { padding: 1rem; }
+}
+
+/* APEX LAYOUT v6 — Regras em coluna unica + lista vertical (inquebravel) */
+#apex-command-center .acc-stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+#apex-command-center .acc-stack > * { min-width: 0; max-width: 100%; }
+#apex-command-center #acc-pane-regras .acc-tag-container { display: flex; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 0.4rem; max-height: 300px; }
+#apex-command-center #acc-pane-regras .acc-tag-row { display: flex; align-items: center; gap: 0.5rem; width: 100%; max-width: 100%; margin: 0; }
+#apex-command-center #acc-pane-regras .acc-tag { flex: 1 1 auto; min-width: 0; max-width: none; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+#apex-command-center #acc-pane-regras .acc-tag-row .acc-btn { flex: 0 0 auto; }
+#apex-command-center #acc-pane-regras table.acc-table { table-layout: auto !important; }
+#apex-command-center #acc-pane-regras .acc-table th:last-child, #apex-command-center #acc-pane-regras .acc-table td:last-child { white-space: nowrap; }

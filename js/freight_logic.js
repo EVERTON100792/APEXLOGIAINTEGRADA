@@ -432,7 +432,13 @@ function generateFreightContainerHtml(load, vehicleType) {
     
     let valueHtml = "";
     if (distKm) {
-        const freightValue = typeof calculateFreightValue === 'function' ? calculateFreightValue(vehicleType, distKm) : 0;
+        // CORRECAO APEX: prefere o valor salvo (estavel entre F5); so calcula se ainda nao houver.
+        // Evita que troca de tabela/config mude o valor exibido a cada refresh ("valores antigos").
+        let freightValue = (load.freightValue !== undefined && load.freightValue !== null && load.freightValue !== '') ? parseFloat(load.freightValue) : NaN;
+        if (isNaN(freightValue) && typeof calculateFreightValue === 'function') {
+            freightValue = calculateFreightValue(vehicleType, distKm);
+        }
+        if (!freightValue) freightValue = 0;
         
         if (isRodado) {
             // Acima do limite: Frete Rodado
@@ -507,19 +513,35 @@ function calculateFreightValue(vehicleType, distanceKm) {
 function updateLoadFreightDisplay(loadId, distanceKm = null) {
     const load = activeLoads[loadId];
     if (!load) return;
+    const restoring = (typeof isRestoringState !== 'undefined' && isRestoringState);
 
-    // Atualiza a distância no objeto load se fornecida
+    // Atualiza a distância no objeto load se fornecida (ação explícita do usuário/sistema)
     if (distanceKm !== null) {
-        console.log(`UpdateFreight: Recebido ${distanceKm}km para carga ${loadId} (${load.vehicleType})`);
-        load.distanceKm = parseFloat(distanceKm);
-        if (typeof debouncedSaveState === 'function') debouncedSaveState();
-        else saveStateToLocalStorage();
-    }
-
-    if (load.distanceKm) {
-        load.freightValue = calculateFreightValue(load.vehicleType, parseFloat(load.distanceKm));
-        if (typeof debouncedSaveState === 'function') debouncedSaveState();
-        else saveStateToLocalStorage();
+        const km = parseFloat(distanceKm);
+        // CORRECAO APEX: idempotente — se KM igual ao salvo, não recalcula nem salva (evita "somar" a cada refresh)
+        if (load.distanceKm && Math.abs(parseFloat(load.distanceKm) - km) < 1e-9 && load.freightValue) {
+            const containerEl0 = document.getElementById(`freight-container-${loadId}`);
+            if (containerEl0) containerEl0.innerHTML = generateFreightContainerHtml(load, load.vehicleType);
+            return;
+        }
+        console.log(`UpdateFreight: Recebido ${km}km para carga ${loadId} (${load.vehicleType})`);
+        load.distanceKm = km;
+        load.freightValue = calculateFreightValue(load.vehicleType, km);
+        if (!restoring) {
+            if (typeof debouncedSaveState === 'function') debouncedSaveState();
+            else if (typeof saveStateToLocalStorage === 'function') saveStateToLocalStorage();
+        }
+    } else {
+        // CORRECAO APEX: sem KM novo, NÃO recalcula por cima do valor salvo.
+        // Só calcula se ainda não houver freightValue (primeira exibição).
+        // Isso impede que F5 troque o valor por "valores antigos" da tabela/API.
+        if (load.distanceKm && (load.freightValue === undefined || load.freightValue === null || load.freightValue === '')) {
+            load.freightValue = calculateFreightValue(load.vehicleType, parseFloat(load.distanceKm));
+            if (!restoring) {
+                if (typeof debouncedSaveState === 'function') debouncedSaveState();
+                else if (typeof saveStateToLocalStorage === 'function') saveStateToLocalStorage();
+            }
+        }
     }
 
     const containerEl = document.getElementById(`freight-container-${loadId}`);
@@ -528,15 +550,23 @@ function updateLoadFreightDisplay(loadId, distanceKm = null) {
     }
 }
 
-function recalcAllFreights() {
+function recalcAllFreights(opts) {
+    const allowApi = !(opts && opts.allowApi === false) && !((typeof isRestoringState !== 'undefined') && isRestoringState);
     Object.keys(activeLoads).forEach(loadId => {
         const load = activeLoads[loadId];
         if (!load) return;
         if (load.distanceKm) {
+            // CORRECAO APEX: na restauracao apenas re-renderiza o valor salvo, sem API e sem recalculo.
             updateLoadFreightDisplay(loadId);
-        } else if (!load.isCalculatingFreight && load.pedidos && load.pedidos.length > 0) {
+        } else if (allowApi && !load.isCalculatingFreight && load.pedidos && load.pedidos.length > 0) {
             if (typeof refreshLoadFreight === 'function') {
                 refreshLoadFreight(loadId);
+            }
+        } else if (load && !load.distanceKm) {
+            // Sem KM e sem API permitida: apenas garante o placeholder sem disparar calculo
+            const containerEl = document.getElementById(`freight-container-${loadId}`);
+            if (containerEl && typeof generateFreightContainerHtml === 'function') {
+                try { containerEl.innerHTML = generateFreightContainerHtml(load, load.vehicleType); } catch (e) {}
             }
         }
     });
