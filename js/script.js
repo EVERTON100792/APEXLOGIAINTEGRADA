@@ -3863,7 +3863,7 @@ function createPrintWindow(title, bodyContent) {
     const formattedDateTime = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     
     let processedBodyContent = bodyContent;
-    const apexDriverFallbackHtml = `<div class="apex-driver-block"><span class="apex-driver-label">Motorista contratado:</span><span class="apex-driver-print">_______________________________________________________________</span></div>`;
+    const apexDriverFallbackHtml = `<div class="apex-driver-block"><span class="apex-driver-label">Motorista contratado:</span><span class="apex-driver-print">&nbsp;</span></div>`;
     
     try {
         const parser = new DOMParser();
@@ -4229,7 +4229,7 @@ function createPrintWindow(title, bodyContent) {
                     display: none; /* Oculta por padrão, controlado pelas regras abaixo */
                 }
 
-                /* REGRAS PARA CARGA COM MUITOS PEDIDOS (MAIS DE 16) */
+                /* REGRAS PARA CARGA COM MUITOS PEDIDOS (MAIS DE 14) */
                 .has-many-orders .print-info-top {
                     display: flex !important;
                 }
@@ -4255,7 +4255,7 @@ function createPrintWindow(title, bodyContent) {
                     break-inside: avoid !important;
                 }
 
-                /* REGRAS PARA CARGA NORMAL (16 OU MENOS PEDIDOS - VOLTA ONDE ESTAVA) */
+                /* REGRAS PARA CARGA NORMAL (14 OU MENOS PEDIDOS - VOLTA ONDE ESTAVA) */
                 .premium-load-card:not(.has-many-orders) .print-info-top {
                     display: none !important;
                 }
@@ -4381,6 +4381,30 @@ function createPrintWindow(title, bodyContent) {
                 .apex-driver-block[data-driver-for] {
                     display: none !important;
                 }
+                /* APEX Motorista no topo (primeira folha) — escondido por padrão */
+                .apex-driver-top {
+                    display: none !important;
+                    margin: 8px 0 6px 0 !important;
+                    padding: 6px 10px !important;
+                    border: 1px solid #0f172a !important;
+                    border-radius: 6px !important;
+                    background: #fff !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+                /* 2 folhas (has-many-orders): mostra no topo junto do VEÍCULO, esconde o do rodapé */
+                .has-many-orders .apex-driver-top {
+                    display: block !important;
+                }
+                .has-many-orders .premium-card-body > .apex-driver-block:not([data-driver-for]),
+                .has-many-orders > .apex-driver-block:not([data-driver-for]) {
+                    display: none !important;
+                }
+                /* 1 folha: mantém onde está (rodapé), esconde o do topo */
+                .premium-load-card:not(.has-many-orders) .apex-driver-top,
+                .load-card:not(.has-many-orders) .apex-driver-top {
+                    display: none !important;
+                }
                 .apex-driver-label {
                     display: block !important;
                     font-size: 7pt !important;
@@ -4395,8 +4419,35 @@ function createPrintWindow(title, bodyContent) {
                     font-size: 13pt !important;
                     color: #0f172a !important;
                     border-bottom: 1px solid #0f172a !important;
-                    min-height: 20px !important;
-                    padding-bottom: 2px !important;
+                    min-height: 22px !important;
+                    height: 22px !important;
+                    line-height: 22px !important;
+                    padding-bottom: 0 !important;
+                    white-space: nowrap !important;
+                    overflow: hidden !important;
+                    text-overflow: clip !important;
+                }
+                .apex-driver-top .apex-driver-label {
+                    display: block !important;
+                    font-size: 7pt !important;
+                    font-weight: 700 !important;
+                    text-transform: uppercase !important;
+                    color: #475569 !important;
+                    margin-bottom: 2px !important;
+                }
+                .apex-driver-print-top {
+                    display: block !important;
+                    font-family: 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive !important;
+                    font-size: 13pt !important;
+                    color: #0f172a !important;
+                    border-bottom: 1px solid #0f172a !important;
+                    min-height: 22px !important;
+                    height: 22px !important;
+                    line-height: 22px !important;
+                    padding-bottom: 0 !important;
+                    white-space: nowrap !important;
+                    overflow: hidden !important;
+                    text-overflow: clip !important;
                 }
             </style>
             <script>
@@ -4555,7 +4606,7 @@ function imprimirCargasGeneric(divId, title) {
 // APEX: linha de impressão do motorista contratado (injetada só na hora de imprimir).
 function apexDriverPrintHtml(nome) {
     const esc = String(nome == null ? '' : nome).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    const txt = esc || '_______________________________________________________________';
+    const txt = esc || '&nbsp;';
     return `<div class="apex-driver-block"><span class="apex-driver-label">Motorista contratado:</span><span class="apex-driver-print">${txt}</span></div>`;
 }
 function imprimirTocoIndividual(cf) {
@@ -7620,7 +7671,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
 
 
 
-    const hasManyOrders = totalDeliveries > 16;
+    const hasManyOrders = totalDeliveries > 14 || (load.pedidos && load.pedidos.length > 14);
     const manyOrdersClass = hasManyOrders ? 'has-many-orders' : '';
 
     // Calcular limites dinâmicos de capacidade (Glow Progress)
@@ -7783,6 +7834,7 @@ function renderLoadCard(load, vehicleType, vInfo) {
                         <span class="footer-vehicle-type">VEÍCULO: ${vehiclePrintLabel}</span>
                     </div>
                 </div>
+                ${(() => { const drvTop = (load.motoristaContratado || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); const txtTop = drvTop || '&nbsp;'; return `<div class="apex-driver-top" style="display: none;"><span class="apex-driver-label">Motorista contratado:</span><span class="apex-driver-print-top">${txtTop}</span></div>`; })()}
 
                 ${deliverySummaryHtml}
 
@@ -8814,8 +8866,7 @@ window.apexSalvarMotorista = function (loadId, val) {
     if (load) load.motoristaContratado = clean;
     try {
         const card = document.getElementById(loadId);
-        const sp = card ? card.querySelector('.apex-driver-print') : null;
-        if (sp) sp.textContent = clean || '_______________________________________________________________';
+        if (card) card.querySelectorAll('.apex-driver-print, .apex-driver-print-top').forEach(sp => { sp.textContent = clean || '\u00a0'; });
     } catch (e) {}
     if (!load) return;
     if (typeof debouncedSaveState === 'function') debouncedSaveState();
