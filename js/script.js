@@ -4640,8 +4640,15 @@ function imprimirTocoIndividual(cf) {
     };
     
     if (typeof renderLoadCard === 'function') {
-        const contentToPrint = renderLoadCard(loadFake, 'toco', vInfo) + apexDriverPrintHtml(loadFake.motoristaContratado);
-        createPrintWindow('Imprimir Carga Toco CF: ' + cf, contentToPrint);
+        // APEX: injeta a linha dentro do card (igual às outras cargas) p/ caber em 1 folha.
+        const cardHtml = renderLoadCard(loadFake, 'toco', vInfo);
+        const tmpBox = document.createElement('div');
+        tmpBox.innerHTML = cardHtml;
+        try {
+            const bodyBox = tmpBox.querySelector('.premium-card-body');
+            if (bodyBox && typeof apexDriverPrintHtml === 'function') bodyBox.insertAdjacentHTML('beforeend', apexDriverPrintHtml(loadFake.motoristaContratado));
+        } catch (e) {}
+        createPrintWindow('Imprimir Carga Toco CF: ' + cf, tmpBox.innerHTML);
     } else {
         const totalKgFormatado = grupo.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         const totalCubagemFormatado = grupo.totalCubagem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
