@@ -915,6 +915,7 @@ let gruposPorCFGlobais = {};
 let pedidosComCFNumericoIsolado = [];
 let pedidosManualmenteBloqueadosAtuais = [];
 let pedidosPrioritarios = [];
+window.pedidosPrioritarios = pedidosPrioritarios;
 let pedidosRecall = [];
 let pedidosBloqueados = new Set();
 let pedidosEspeciaisProcessados = new Set();
@@ -1069,6 +1070,7 @@ function limparEstadoAtual() {
         pedidosComCFNumericoIsolado = [];
         pedidosManualmenteBloqueadosAtuais = [];
         pedidosPrioritarios = [];
+        window.pedidosPrioritarios = pedidosPrioritarios;
         pedidosRecall = [];
         pedidosBloqueados = new Set();
         pedidosEspeciaisProcessados = new Set();
@@ -2447,6 +2449,11 @@ function processar() {
             if (planilhaData.length === 0) { throw new Error("Nenhum dado de planilha carregado."); }
 
             resetarEstadoGlobal();
+
+            // Sincroniza prioridades importadas do TXT de Rolândia se existirem
+            if (typeof window.reaplicarPrioridadesTxtRolandia === 'function') {
+                window.reaplicarPrioridadesTxtRolandia();
+            }
 
             // Verificação de segurança para elementos de filtro de rota
             const rotaInicioSelect = document.getElementById('rotaInicioSelect');
@@ -11955,6 +11962,60 @@ function processarPriorizacaoEmMassa() {
     } else { showToast("Todos os pedidos informados já eram prioritários.", "info"); }
 }
 
+// Funções globais de apoio para priorização de pedidos no sistema APEX
+window.priorizarListaPedidos = function (orderNumbers, silenciarToast = false) {
+    if (!Array.isArray(orderNumbers) || orderNumbers.length === 0) return 0;
+    let countAdded = 0;
+    orderNumbers.forEach(num => {
+        const strNum = String(num).trim();
+        if (strNum && !pedidosPrioritarios.includes(strNum)) {
+            pedidosPrioritarios.push(strNum);
+            countAdded++;
+        }
+    });
+    window.pedidosPrioritarios = pedidosPrioritarios;
+    if (countAdded > 0) {
+        saveStateToLocalStorage();
+        if (typeof renderAllUI === 'function') renderAllUI();
+        if (!silenciarToast && typeof showToast === 'function') {
+            showToast(`${countAdded} pedido(s) priorizado(s) no sistema com sucesso!`, "success");
+        }
+        if (window.triggerLogActivity) window.triggerLogActivity('PRIORIZACAO_EM_MASSA', { qtd: countAdded });
+    }
+    return countAdded;
+};
+
+window.despriorizarListaPedidos = function (orderNumbers) {
+    if (!Array.isArray(orderNumbers) || orderNumbers.length === 0) return 0;
+    let countRemoved = 0;
+    orderNumbers.forEach(num => {
+        const strNum = String(num).trim();
+        const idx = pedidosPrioritarios.indexOf(strNum);
+        if (idx > -1) {
+            pedidosPrioritarios.splice(idx, 1);
+            countRemoved++;
+        }
+    });
+    window.pedidosPrioritarios = pedidosPrioritarios;
+    if (countRemoved > 0) {
+        saveStateToLocalStorage();
+        if (typeof renderAllUI === 'function') renderAllUI();
+        if (typeof showToast === 'function') {
+            showToast(`${countRemoved} pedido(s) despriorizado(s) com sucesso.`, "info");
+        }
+    }
+    return countRemoved;
+};
+
+window.isPedidoPrioritario = function (num) {
+    return pedidosPrioritarios.includes(String(num).trim());
+};
+
+window.getPedidosPrioritarios = function () {
+    window.pedidosPrioritarios = pedidosPrioritarios;
+    return [...pedidosPrioritarios];
+};
+
 /**
  * NOVO: Função para montar cargas automaticamente baseadas nos pedidos prioritários.
  * Identifica as rotas que possuem pedidos marcados como prioridade e processa apenas elas.
@@ -11976,10 +12037,39 @@ async function montarCargasPrioritarias() {
     // Ordena as rotas usando o critério padrão do varejo
     const rotasOrdenadas = getSortedVarejoRoutes(rotasComPrioritarios);
 
-    const confirmMsg = `Encontrei ${pedidosPrioritariosDisponiveis.length} pedido(s) prioritário(s) distribuído(s) em ${rotasOrdenadas.length} rota(s):\n\nRotas: ${rotasOrdenadas.join(', ')} 
-\nDeseja montar as cargas para essas rotas agora? O sistema tentará incluir os prioritários e completar a carga com outros pedidos da rota.`;
+    window.rotasPrioritariasParaExecutar = rotasOrdenadas;
 
-    if (!confirm(confirmMsg)) return;
+    // Abre modal de confirmação customizado com padrão visual APEX
+    const modalEl = document.getElementById("confirmMontarPrioritariosModal");
+    if (modalEl && typeof bootstrap !== "undefined") {
+        const qtdPedEl = document.getElementById("confirm-prioritarios-qtd-pedidos");
+        const qtdRotasEl = document.getElementById("confirm-prioritarios-qtd-rotas");
+        const listaRotasEl = document.getElementById("confirm-prioritarios-lista-rotas");
+
+        if (qtdPedEl) qtdPedEl.innerText = `${pedidosPrioritariosDisponiveis.length} pedido(s)`;
+        if (qtdRotasEl) qtdRotasEl.innerText = `${rotasOrdenadas.length} rota(s)`;
+        if (listaRotasEl) {
+            listaRotasEl.innerHTML = rotasOrdenadas.map(r => 
+                `<span class="badge bg-dark border border-warning text-warning font-monospace px-2 py-1 shadow-sm"><i class="bi bi-geo-alt-fill me-1"></i>${r}</span>`
+            ).join(" ");
+        }
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+    } else {
+        executarMontagemCargasPrioritariasConfirmada();
+    }
+}
+
+async function executarMontagemCargasPrioritariasConfirmada() {
+    const modalEl = document.getElementById("confirmMontarPrioritariosModal");
+    if (modalEl && typeof bootstrap !== "undefined") {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    }
+
+    const rotasOrdenadas = window.rotasPrioritariasParaExecutar;
+    if (!rotasOrdenadas || rotasOrdenadas.length === 0) return;
 
     showToast(`Iniciando montagem automática para ${rotasOrdenadas.length} rotas...`, "info");
 
@@ -18365,3 +18455,5 @@ function parseSobrasToPrint(html) {
     return output;
 }
 
+
+window.executarMontagemCargasPrioritariasConfirmada = executarMontagemCargasPrioritariasConfirmada;

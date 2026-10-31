@@ -1186,6 +1186,15 @@
                     </div>
                 </div>
 
+                <!-- TXT Atrasos Rolândia Button -->
+                <div class="px-3 mb-2" style="cursor: pointer;" onclick="abrirModalTxtAtraso()">
+                    <div class="p-2 rounded-3 text-center border border-dashed border-warning hover-border-warning transition-all position-relative overflow-hidden group" style="background: rgba(245, 158, 11, 0.08);">
+                        <i class="bi bi-file-earmark-text-fill text-warning fs-5 d-block mb-1 group-hover-white"></i>
+                        <span class="small text-light d-block group-hover-white fw-bold" style="font-size: 0.75rem;">TXT Atrasos (Rolândia)</span>
+                        <span class="text-muted d-block" style="font-size: 0.65rem;" id="sidebar-txt-atrasos-status">Importar e Priorizar</span>
+                    </div>
+                </div>
+
                 <!-- Processar Button -->
                 <div class="px-3 mb-3">
                     <button id="processarBtn" class="btn btn-primary w-100 p-2 position-relative" onclick="processar()"
@@ -1677,6 +1686,11 @@
                         <div class="workspace-header">
                             <h2 class="workspace-title"><i class="bi bi-database-check"></i>Banco de Pedidos</h2>
                             <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-warning" onclick="abrirModalTxtAtraso()"
+                                    title="Importar TXT Atrasos (Rolândia) e Priorizar">
+                                    <i class="bi bi-file-earmark-text-fill text-warning"></i>
+                                    <span class="d-none d-md-inline ms-1 fw-bold text-warning">TXT Atrasos</span>
+                                </button>
                                 <button class="btn btn-sm btn-outline-warning" onclick="montarCargasPrioritarias()"
                                     title="Montar Prioritários">
                                     <i class="bi bi-lightning-charge-fill"></i>
@@ -3132,6 +3146,323 @@
         </div>
     </div>
 
+    <!-- Input oculto para carregar arquivo TXT de atrasos -->
+    <input type="file" id="txtAtrasoFileInput" class="d-none" accept=".txt,text/plain" onchange="handleTxtAtrasoFile(this.files[0])">
+
+    <!-- Modal de Confirmação para Montagem de Cargas Prioritárias -->
+    <div class="modal fade" id="confirmMontarPrioritariosModal" tabindex="-1" aria-hidden="true" style="z-index: 1065;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+            <div class="modal-content" style="background: rgba(18, 22, 36, 0.98); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85); backdrop-filter: blur(14px);">
+                <div class="modal-body text-center p-4">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center p-3 mb-3 shadow-sm" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); width: 68px; height: 68px;">
+                        <i class="bi bi-truck-front-fill text-warning fs-2"></i>
+                    </div>
+                    <h5 class="text-light fw-bold mb-1">Montar Cargas dos Prioritários?</h5>
+                    <p class="text-secondary small mb-3">
+                        O sistema identificou pedidos prioritários disponíveis nas rotas abaixo:
+                    </p>
+
+                    <!-- Painel de Detalhes -->
+                    <div class="p-3 rounded-3 bg-dark bg-opacity-60 border border-secondary border-opacity-20 mb-3 text-start">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-secondary small fw-medium">Pedidos Prioritários:</span>
+                            <span class="badge bg-warning text-dark fw-bold px-2 py-1" id="confirm-prioritarios-qtd-pedidos">0 pedidos</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-secondary small fw-medium">Rotas com Prioridade:</span>
+                            <span class="badge bg-primary text-white fw-bold px-2 py-1" id="confirm-prioritarios-qtd-rotas">0 rotas</span>
+                        </div>
+                        <div class="border-top border-secondary border-opacity-15 pt-2 mt-2">
+                            <span class="text-muted small d-block mb-2" style="font-size: 0.75rem;">Rotas que serão montadas:</span>
+                            <div class="d-flex flex-wrap gap-2" id="confirm-prioritarios-lista-rotas" style="max-height: 120px; overflow-y: auto;">
+                                <!-- Badges das rotas -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-dark border-secondary border-opacity-20 text-start py-2 px-3 mb-4 rounded-3" style="background: rgba(255, 255, 255, 0.02);">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-info-circle text-info fs-5"></i>
+                            <span class="text-secondary small" style="font-size: 0.75rem; line-height: 1.4;">
+                                O sistema alocará os prioritários no topo da carga e completará a capacidade dos veículos com os outros pedidos disponíveis da rota.
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-outline-secondary px-4 text-light py-2" data-bs-dismiss="modal">
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-warning text-dark px-4 fw-bold py-2 shadow-sm" onclick="executarMontagemCargasPrioritariasConfirmada()">
+                            <i class="bi bi-play-circle-fill me-1.5"></i>Iniciar Montagem
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação para Limpar Dados TXT -->
+    <div class="modal fade" id="confirmLimparTxtModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+            <div class="modal-content" style="background: rgba(18, 22, 36, 0.98); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.85); backdrop-filter: blur(12px);">
+                <div class="modal-body text-center p-4">
+                    <div class="rounded-circle d-inline-flex align-items-center justify-content-center p-3 mb-3 shadow-sm" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.35); width: 68px; height: 68px;">
+                        <i class="bi bi-trash3-fill text-danger fs-2"></i>
+                    </div>
+                    <h5 class="text-light fw-bold mb-2">Limpar Arquivo TXT?</h5>
+                    <p class="text-secondary small mb-4" style="line-height: 1.5;">
+                        Os dados do relatório de atrasos de Rolândia serão descarregados da visualização. Se você já priorizou pedidos no sistema, as prioridades salvas na Mesa serão mantidas.
+                    </p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-outline-secondary px-4 text-light py-2" data-bs-dismiss="modal">
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-danger px-4 fw-bold py-2 shadow-sm" onclick="confirmarLimpezaDadosTxtAtraso()">
+                            <i class="bi bi-trash3 me-1.5"></i>Sim, Limpar Dados
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Pedidos em Atraso (TXT - Rolândia) -->
+    <div class="modal fade" id="modalTxtAtraso" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered" style="max-width: 95vw;">
+            <div class="modal-content" style="background: rgba(18, 22, 36, 0.98); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);">
+                <!-- Modal Header -->
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-3 px-4">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="rounded-circle p-2 d-flex align-items-center justify-content-center" style="background: rgba(245, 158, 11, 0.15); width: 40px; height: 40px;">
+                            <i class="bi bi-file-earmark-text-fill text-warning fs-5"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title text-light fw-bold mb-0">Pedidos em Atraso (TXT) - Exclusivo ROLÂNDIA</h5>
+                            <span class="text-secondary small">Identificação de atrasos pendentes de romaneio e priorização no sistema</span>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary text-secondary hover-white" onclick="limparDadosTxtAtraso()" title="Limpar TXT carregado">
+                            <i class="bi bi-trash3 me-1"></i>Limpar
+                        </button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="modal-body p-4">
+                    <!-- Área de Upload / Dropzone -->
+                    <div class="mb-4">
+                        <div class="p-4 rounded-3 text-center border border-2 border-dashed border-secondary hover-border-warning transition-all position-relative"
+                             style="background: rgba(255, 255, 255, 0.02); cursor: pointer;"
+                             onclick="document.getElementById('txtAtrasoFileInput').click()"
+                             ondragover="event.preventDefault(); this.style.borderColor='#f59e0b';"
+                             ondragleave="this.style.borderColor='';"
+                             ondrop="event.preventDefault(); this.style.borderColor=''; if(event.dataTransfer.files.length) handleTxtAtrasoFile(event.dataTransfer.files[0]);">
+                            <i class="bi bi-cloud-arrow-up-fill text-warning fs-1 d-block mb-2"></i>
+                            <h6 class="text-light fw-bold mb-1">Clique para selecionar ou arraste o arquivo TXT de atrasos aqui</h6>
+                            <p class="text-muted small mb-2">O sistema filtrará automaticamente apenas os pedidos da empresa <strong>ROLANDIA</strong> e identificará os que estão sem romaneio.</p>
+                            <span class="btn btn-sm btn-warning text-dark fw-bold px-3">
+                                <i class="bi bi-folder2-open me-1"></i>Procurar Arquivo TXT (.txt)
+                            </span>
+                        </div>
+                        <div class="mt-2 d-flex justify-content-between align-items-center">
+                            <a class="text-decoration-none small text-warning" data-bs-toggle="collapse" href="#collapsePasteTxtAtrasos" role="button" aria-expanded="false">
+                                <i class="bi bi-clipboard-plus me-1"></i>Ou colar texto do arquivo manualmente...
+                            </a>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="txtAtrasosAutoPriorizarCheck" checked>
+                                <label class="form-check-label text-secondary small" for="txtAtrasosAutoPriorizarCheck">
+                                    Priorizar automaticamente os pedidos não romaneados ao carregar
+                                </label>
+                            </div>
+                        </div>
+                        <div class="collapse mt-2" id="collapsePasteTxtAtrasos">
+                            <div class="card card-body bg-dark border-secondary border-opacity-30 p-3">
+                                <label class="form-label text-muted small mb-1">Cole aqui o conteúdo completo do relatório TXT:</label>
+                                <textarea id="txtAtrasoTextareaInput" class="form-control bg-dark-glass text-light font-monospace small mb-2" rows="6" placeholder="Cole o texto que contenha as linhas de ROLANDIA..."></textarea>
+                                <div class="text-end">
+                                    <button type="button" class="btn btn-sm btn-warning text-dark fw-bold" onclick="processarTextoColadoTxt()">
+                                        <i class="bi bi-check-circle me-1"></i>Processar Conteúdo Colado
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Empty State quando nenhum arquivo foi carregado ainda -->
+                    <div id="txt-atrasos-empty-state" class="text-center py-5">
+                        <div class="empty-state">
+                            <i class="bi bi-file-earmark-text text-secondary opacity-50" style="font-size: 3.5rem;"></i>
+                            <h5 class="text-muted mt-3">Nenhum arquivo TXT de atrasos carregado</h5>
+                            <p class="text-secondary small mb-0">Carregue o arquivo acima para visualizar os pedidos de Rolândia e priorizar os não romaneados.</p>
+                        </div>
+                    </div>
+
+                    <!-- Cards de Resumo e Indicadores (KPIs) -->
+                    <div id="txt-atrasos-kpis-container" class="d-none mb-4">
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6 col-xl">
+                                <div class="p-3 rounded-3 border border-secondary border-opacity-20 h-100" style="background: rgba(255, 255, 255, 0.03);">
+                                    <span class="text-secondary small d-block mb-1">Total Pedidos Rolândia</span>
+                                    <div class="d-flex align-items-baseline gap-2">
+                                        <h3 class="fw-bold text-light mb-0" id="kpi-rolandia-total">0</h3>
+                                        <span class="badge bg-secondary">TXT</span>
+                                    </div>
+                                    <span class="text-muted small mt-1 d-block" style="font-size: 0.7rem;">Pedidos de Rolândia no arquivo</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-xl">
+                                <div class="p-3 rounded-3 border border-warning border-opacity-30 h-100" style="background: rgba(245, 158, 11, 0.08);">
+                                    <span class="text-warning small d-block mb-1 fw-bold">🛒 Varejo Sem Romaneio</span>
+                                    <div class="d-flex align-items-baseline gap-2">
+                                        <h3 class="fw-bold text-warning mb-0" id="kpi-rolandia-varejo-sem-rom">0</h3>
+                                        <span class="badge bg-warning text-dark">Montar</span>
+                                    </div>
+                                    <span class="text-warning-emphasis small mt-1 d-block" style="font-size: 0.7rem;">Pedidos de Varejo para roteirizar</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-xl">
+                                <div class="p-3 rounded-3 border border-danger border-opacity-40 h-100" style="background: rgba(239, 68, 68, 0.1);">
+                                    <span class="text-danger small d-block mb-1 fw-bold">🚫 NÃO VAREJO</span>
+                                    <div class="d-flex align-items-baseline gap-2">
+                                        <h3 class="fw-bold text-danger mb-0" id="kpi-rolandia-nao-varejo">0</h3>
+                                        <span class="badge bg-danger text-white">CF / Especial</span>
+                                    </div>
+                                    <span class="text-danger-emphasis small mt-1 d-block" style="font-size: 0.7rem;">Cargas Fechadas / FOB / Transf</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-xl">
+                                <div class="p-3 rounded-3 border border-success border-opacity-30 h-100" style="background: rgba(16, 185, 129, 0.08);">
+                                    <span class="text-success small d-block mb-1 fw-bold">✅ Romaneados no TXT</span>
+                                    <div class="d-flex align-items-baseline gap-2">
+                                        <h3 class="fw-bold text-success mb-0" id="kpi-rolandia-com-rom">0</h3>
+                                        <span class="badge bg-success">ROM = sim</span>
+                                    </div>
+                                    <span class="text-success-emphasis small mt-1 d-block" style="font-size: 0.7rem;">Já romaneados na origem</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-xl">
+                                <div class="p-3 rounded-3 border border-info border-opacity-30 h-100" style="background: rgba(59, 130, 246, 0.08);">
+                                    <span class="text-info small d-block mb-1 fw-bold">⭐ Priorizados no Sistema</span>
+                                    <div class="d-flex align-items-baseline gap-2">
+                                        <h3 class="fw-bold text-info mb-0" id="kpi-rolandia-prioritarios">0</h3>
+                                        <span class="badge bg-info text-dark">Prioridade</span>
+                                    </div>
+                                    <span class="text-info-emphasis small mt-1 d-block" style="font-size: 0.7rem;">Com prioridade ativa no APEX</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela e Toolbar de Ações -->
+                    <div id="txt-atrasos-table-wrapper" class="d-none">
+                        <!-- Toolbar Superior -->
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 p-3 rounded-3 bg-dark bg-opacity-30 border border-secondary border-opacity-10">
+                            <!-- Ações em Lote -->
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <button type="button" id="btn-priorizar-sem-rom-header" class="btn btn-danger fw-bold shadow-sm" onclick="priorizarNaoRomaneadosRolandia()">
+                                    <i class="bi bi-lightning-charge-fill me-1"></i>Priorizar Não Romaneados
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm" onclick="priorizarSelecionadosTxtRolandia()">
+                                    <i class="bi bi-star-fill me-1"></i>Priorizar Selecionados
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="despriorizarSelecionadosTxtRolandia()">
+                                    <i class="bi bi-star me-1"></i>Despriorizar Selecionados
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="montarCargasDosPrioritariosTxt()">
+                                    <i class="bi bi-truck-front me-1"></i>Montar Cargas dos Prioritários
+                                </button>
+                                <span id="txt-atrasos-selecionados-count" class="badge bg-secondary d-none">0 selecionados</span>
+                            </div>
+
+                            <!-- Filtros e Busca -->
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-secondary btn-filtro-atraso active" data-filtro="varejo_sem_rom" onclick="setFiltroAtrasos('varejo_sem_rom')">
+                                        🛒 Varejo Sem ROM
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-filtro-atraso" data-filtro="nao_varejo" onclick="setFiltroAtrasos('nao_varejo')">
+                                        🚫 Não Varejo
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-filtro-atraso" data-filtro="sem_rom" onclick="setFiltroAtrasos('sem_rom')">
+                                        ⚠️ Todos Sem ROM
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-filtro-atraso" data-filtro="todos" onclick="setFiltroAtrasos('todos')">
+                                        📋 Todos
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-filtro-atraso" data-filtro="com_rom" onclick="setFiltroAtrasos('com_rom')">
+                                        ✅ Romaneados
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-filtro-atraso" data-filtro="priorizados" onclick="setFiltroAtrasos('priorizados')">
+                                        ⭐ Priorizados
+                                    </button>
+                                </div>
+                                <div class="input-group input-group-sm" style="width: 220px;">
+                                    <span class="input-group-text bg-dark border-secondary border-opacity-30 text-secondary"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control bg-dark border-secondary border-opacity-30 text-light" placeholder="Buscar pedido, cliente, rota..." oninput="filtrarTabelaAtrasosInput(this.value)">
+                                </div>
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="exportarAtrasosRolandiaExcel()" title="Exportar para Excel">
+                                    <i class="bi bi-file-earmark-excel me-1"></i>Excel
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Indicador de total filtrado -->
+                        <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                            <span class="text-secondary small font-monospace" id="txt-atrasos-filtered-count">0 pedidos listados</span>
+                            <span class="text-muted small" style="font-size: 0.72rem;">* Apenas pedidos com empresa ROLÂNDIA são exibidos neste painel</span>
+                        </div>
+
+                        <!-- Tabela Responsiva de Pedidos -->
+                        <div class="table-responsive border border-secondary border-opacity-10 rounded-3" style="max-height: 520px; overflow-y: auto;">
+                            <table class="table table-dark table-hover table-sm mb-0 font-sans" style="font-size: 0.8rem;">
+                                <thead class="sticky-top bg-dark border-bottom border-secondary border-opacity-20" style="z-index: 2;">
+                                    <tr class="text-secondary small text-nowrap">
+                                        <th class="text-center py-2" style="width: 40px;">
+                                            <input type="checkbox" class="form-check-input" onchange="toggleSelectAllAtrasos(this)">
+                                        </th>
+                                        <th class="py-2">Tipo / Segmento</th>
+                                        <th class="py-2">Pedido</th>
+                                        <th class="py-2">Cód. Cliente</th>
+                                        <th class="py-2">Cliente</th>
+                                        <th class="py-2">Data Entrega</th>
+                                        <th class="text-center py-2">Atraso</th>
+                                        <th class="text-center py-2">Dia Fat</th>
+                                        <th class="text-center py-2">Lib Blq</th>
+                                        <th class="text-center py-2">Res</th>
+                                        <th class="text-center py-2">Rom (TXT)</th>
+                                        <th class="text-center py-2">Fat</th>
+                                        <th class="py-2">Rota</th>
+                                        <th class="py-2">Status no Sistema</th>
+                                        <th class="text-end py-2 pe-3">Prioridade</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="txt-atrasos-table-body">
+                                    <!-- Linhas geradas dinamicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-3 px-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary text-light px-4" data-bs-dismiss="modal">Fechar</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-warning text-dark fw-bold px-4" onclick="priorizarVarejoNaoRomaneadosRolandia()">
+                            <i class="bi bi-lightning-charge-fill me-1"></i>Priorizar Varejo Pendente de Rolândia
+                        </button>
+                        <button type="button" class="btn btn-primary fw-bold px-4" onclick="montarCargasDosPrioritariosTxt()">
+                            <i class="bi bi-truck-front-fill me-1"></i>Montar Cargas
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal de Roteirização e Montagem por Lista -->
     <div class="modal fade" id="roteirizacaoModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
@@ -3402,6 +3733,7 @@
     </div>
 
     <script src="js/script.js?v=3.0.56-apex-driverpapel"></script>
+    <script src="js/atrasos_rolandia.js?v=1.0.0"></script>
     <script defer src="js/freight_logic.js?v=3.1.3-apex-stable"></script>
     <script defer src="js/email-generator.js?v=3.1.0"></script>
 
