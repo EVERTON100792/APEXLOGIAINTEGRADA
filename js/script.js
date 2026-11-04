@@ -421,14 +421,14 @@ function isPedidoBloqueado(pedido) {
     // 1. Bloqueio manual pelo usuário
     if (pedidosBloqueados.has(String(pedido.Num_Pedido))) return true;
 
-    // 2. Bloqueio financeiro (C) ou comercial (V) direto na planilha
+    // 2. Bloqueio financeiro (C), comercial (V) ou qualquer bloqueio indicado na coluna BLOQ. da planilha
     const bloqueioPlanilha = String(pedido['BLOQ.'] || '').trim().toUpperCase();
-    if (bloqueioPlanilha === 'C' || bloqueioPlanilha === 'V') return true;
+    if (bloqueioPlanilha !== '') return true;
 
-    // 3. Bloqueio por regra de negócio (cliente tem outro pedido com CF numérico e bloqueio)
-    const clientesComBloqueioRegra = new Set(pedidosComCFNumericoIsolado.map(p => normalizeClientId(p.Cliente)));
-    const clienteId = normalizeClientId(pedido.Cliente);
-    return clienteId && clientesComBloqueioRegra.has(clienteId);
+    // 3. Se o próprio pedido estiver na lista de bloqueados
+    if (pedidosComCFNumericoIsolado && pedidosComCFNumericoIsolado.some(p => String(p.Num_Pedido) === String(pedido.Num_Pedido))) return true;
+
+    return false;
 }
 
 // NOVA FUNÇÃO CENTRALIZADA: Carrega todas as regras de negócio do Supabase
@@ -2727,11 +2727,12 @@ function processar() {
                     gruposPorCFGlobais[chaveRota2000].pedidos.push(p);
                     gruposPorCFGlobais[chaveRota2000].totalKg += p.Quilos_Saldo;
                     gruposPorCFGlobais[chaveRota2000].totalCubagem += p.Cubagem;
-                } else if (clientesComBloqueio.has(normalizeClientId(p.Cliente))) { 
-                    // Cliente com bloqueio → Bloqueados por Regra
+                } else if (p['BLOQ.'] != null && String(p['BLOQ.']).trim() !== '') { 
+                    // REGRA ATUALIZADA: Apenas o pedido bloqueado de fato fica em Bloqueados
                     pedidosComCFNumericoIsolado.push(p);
                 } else { 
-                    // O que sobra é Varejo
+                    // Pedidos liberados (mesmo se o cliente possuir outros pedidos bloqueados) vão para os disponíveis para montar
+                    // O agrupamento de clientes é mantido normalmente para os pedidos liberados
                     pedidosParaProcessamentoVarejo.push(p);
                 }
             });
