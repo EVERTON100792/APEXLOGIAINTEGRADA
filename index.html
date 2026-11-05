@@ -1388,20 +1388,45 @@
                             </div>
                         </div>
                         <div class="card-body p-0">
-                            <!-- Botões de Ações Centralizados no Card -->
-                            <div class="d-flex justify-content-center gap-3 p-3 border-bottom border-secondary border-opacity-10" style="background: rgba(255, 255, 255, 0.01);">
-                                <button class="btn btn-magic px-4 py-2.5 d-flex align-items-center gap-2 shadow" 
-                                        onclick="abrirModalAutoMontar()" 
-                                        style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.35); box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
-                                    <i class="bi bi-stars text-warning fs-5"></i>
-                                    <span>AUTO MONTAR ROTAS</span>
-                                </button>
-                                <button class="btn btn-outline-warning px-4 py-2.5 d-flex align-items-center gap-2 shadow" 
-                                        onclick="executarImpressaoResumoAutoMontarEstilosa()" 
-                                        style="border-radius: 12px; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.25);">
-                                    <i class="bi bi-printer-fill text-warning fs-5"></i>
-                                    <span>IMPRIMIR PREVISÃO</span>
-                                </button>
+                            <!-- Barra Unificada de Operações de Cargas -->
+                            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 p-3 border-bottom border-secondary border-opacity-10" style="background: rgba(255, 255, 255, 0.015);">
+                                <!-- Ações Principais -->
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <button class="btn btn-magic px-3.5 py-2 d-flex align-items-center gap-2 shadow" 
+                                            onclick="abrirModalAutoMontar()" 
+                                            style="border-radius: 10px; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.5px; border: 1px solid rgba(255, 193, 7, 0.35); box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
+                                        <i class="bi bi-stars text-warning fs-5"></i>
+                                        <span>AUTO MONTAR ROTAS</span>
+                                    </button>
+                                    <button class="btn btn-warning text-dark px-3.5 py-2 d-flex align-items-center gap-2 shadow fw-bold" 
+                                            onclick="abrirModalImpressaoCargas()" 
+                                            style="border-radius: 10px; font-size: 0.9rem; letter-spacing: 0.5px; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.25);">
+                                        <i class="bi bi-printer-fill fs-5"></i>
+                                        <span>IMPRIMIR CARGAS</span>
+                                    </button>
+                                    <button class="btn btn-outline-warning px-3 py-2 d-flex align-items-center gap-2" 
+                                            onclick="executarImpressaoResumoAutoMontarEstilosa()" 
+                                            style="border-radius: 10px; font-size: 0.88rem; font-weight: 600; border: 1px solid rgba(255, 193, 7, 0.25);"
+                                            title="Imprimir Relatório de Previsão de Cargas">
+                                        <i class="bi bi-file-earmark-bar-graph text-warning"></i>
+                                        <span>Previsão</span>
+                                    </button>
+                                </div>
+
+                                <!-- Filtro Rápido na Tela (Segmented Control Elegante) -->
+                                <div class="d-flex align-items-center gap-1.5 ms-auto">
+                                    <div class="btn-group btn-group-sm p-1 rounded-3 shadow-sm" role="group" id="filter-cargas-priority-group" style="background: rgba(18, 22, 36, 0.9); border: 1px solid rgba(255, 255, 255, 0.1);">
+                                        <button type="button" class="btn btn-sm btn-outline-light active px-3 py-1.5 fw-semibold" id="btn-filter-cargas-todas" onclick="filtrarCargasPorPrioridade('todas')" style="border-radius: 6px; font-size: 0.82rem;">
+                                            Todas <span id="badge-count-todas" class="badge bg-secondary ms-1">0</span>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-warning px-3 py-1.5 fw-semibold" id="btn-filter-cargas-prioritarias" onclick="filtrarCargasPorPrioridade('prioritarias')" style="border-radius: 6px; font-size: 0.82rem;">
+                                            <i class="bi bi-star-fill text-warning me-1"></i>Prioritárias <span id="badge-count-prioritarias" class="badge bg-warning text-dark ms-1">0</span>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary px-3 py-1.5 fw-semibold" id="btn-filter-cargas-regulares" onclick="filtrarCargasPorPrioridade('regulares')" style="border-radius: 6px; font-size: 0.82rem;">
+                                            <i class="bi bi-box me-1"></i>Regulares <span id="badge-count-regulares" class="badge bg-dark border border-secondary text-light ms-1">0</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <ul class="nav nav-tabs-modern" id="vehicleTabs" role="tablist">
                                 <li class="nav-item" role="presentation"><button class="nav-link tab-fiorino active"
@@ -1467,16 +1492,8 @@
                             <div class="tab-content" id="vehicleTabsContent">
                                 <div class="tab-pane fade show active workspace-tab-pane" id="fiorino-tab-pane"
                                     role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
-                                            para montar as Fiorinos ou crie uma carga manual.</p>
-                                        <div class="btn-group">
-                                            <button class="btn btn-primary"
-                                                onclick="imprimirCargasGeneric('resultado-fiorino-geral', 'Cargas de Fiorino (Varejo)')">
-                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
-                                            </button>
-                                        </div>
+                                    <div class="mb-3 no-print">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota para montar as Fiorinos ou crie uma carga manual.</p>
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-fiorino">
                                         <div class="empty-state-premium">
@@ -1490,18 +1507,8 @@
                                     <div id="resultado-fiorino-geral" class="mt-3"></div>
                                 </div>
                                 <div class="tab-pane fade workspace-tab-pane" id="van-pr-tab-pane" role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
-                                            <strong>(Paraná)</strong> para montar as cargas de Van.
-                                        </p>
-                                        <div class="btn-group">
-                                            <!-- Botão de Exportar Sobras removido a pedido do usuário -->
-                                            <button class="btn btn-primary"
-                                                onclick="imprimirCargasGeneric('resultado-van-pr', 'Cargas de Van - PR')">
-                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
-                                            </button>
-                                        </div>
+                                    <div class="mb-3 no-print">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota <strong>(Paraná)</strong> para montar as cargas de Van.</p>
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-van-pr">
                                         <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
@@ -1513,17 +1520,8 @@
                                     <div id="resultado-van-pr" class="mt-3"></div>
                                 </div>
                                 <div class="tab-pane fade workspace-tab-pane" id="van-sp-tab-pane" role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
-                                            <strong>(São Paulo)</strong> para montar as cargas de Van.
-                                        </p>
-                                        <div class="btn-group">
-                                            <button class="btn btn-primary"
-                                                onclick="imprimirCargasGeneric('resultado-van-sp', 'Cargas de Van - SP')">
-                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
-                                            </button>
-                                        </div>
+                                    <div class="mb-3 no-print">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota <strong>(São Paulo)</strong> para montar as cargas de Van.</p>
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-van-sp">
                                         <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
@@ -1536,17 +1534,8 @@
                                 </div>
 
                                 <div class="tab-pane fade workspace-tab-pane" id="van-ms-tab-pane" role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota
-                                            <strong>(Mato Grosso do Sul)</strong> para montar as cargas de Van.
-                                        </p>
-                                        <div class="btn-group">
-                                            <button class="btn btn-primary"
-                                                onclick="imprimirCargasGeneric('resultado-van-ms', 'Cargas de Van - MS')">
-                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
-                                            </button>
-                                        </div>
+                                    <div class="mb-3 no-print">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Selecione uma rota <strong>(Mato Grosso do Sul)</strong> para montar as cargas de Van.</p>
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-van-ms">
                                         <div class="empty-state"><i class="bi bi-truck-front-fill"></i>
@@ -1559,16 +1548,8 @@
                                 </div>
 
                                 <div class="tab-pane fade" id="toco-tab-pane" role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Gerencie as cargas de
-                                            Toco.</p>
-                                        <div class="btn-group">
-                                            <button class="btn btn-primary"
-                                                onclick="imprimirCargasGeneric('resultado-toco', 'Cargas de Toco')">
-                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
-                                            </button>
-                                        </div>
+                                    <div class="mb-3 no-print">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Gerencie as cargas de Toco montadas no sistema.</p>
                                     </div>
                                     <div id="resultado-toco">
                                         <div class="empty-state"><i class="bi bi-inboxes-fill"></i>
@@ -1577,15 +1558,8 @@
                                     </div>
                                 </div>
                                 <div class="tab-pane fade" id="truck-tab-pane" role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
+                                    <div class="mb-3 no-print">
                                         <p class="card-subtitle text-body-secondary small mb-0">Gerencie as cargas consolidadas de Truck.</p>
-                                        <div class="btn-group">
-                                            <button class="btn btn-primary"
-                                                onclick="imprimirCargasGeneric('resultado-truck', 'Cargas de Truck')">
-                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
-                                            </button>
-                                        </div>
                                     </div>
                                     <div id="resultado-truck">
                                         <div class="empty-state"><i class="bi bi-truck"></i>
@@ -1609,13 +1583,8 @@
                                     </div>
                                 </div>
                                 <div class="tab-pane fade" id="roteirizados-tab-pane" role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Cargas geradas por
-                                            Junção Automática de Rotas e Sobras Geográficas.</p>
-                                        <button class="btn btn-sm btn-outline-light"
-                                            onclick="imprimirCargasGeneric('resultado-roteirizados', 'Cargas Automáticas (Junção de Rotas)')"><i
-                                                class="bi bi-printer-fill me-1"></i>Imprimir Cargas</button>
+                                    <div class="mb-3 no-print">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Cargas geradas por Junção Automática de Rotas e Sobras Geográficas.</p>
                                     </div>
                                     <div id="resultado-roteirizados" class="mt-3">
                                         <div class="empty-state"><i class="bi bi-diagram-3"></i>
@@ -1624,16 +1593,8 @@
                                     </div>
                                 </div>
                                 <div class="tab-pane fade workspace-tab-pane" id="montagens-especiais-tab-pane" role="tabpanel">
-                                    <div
-                                        class="d-flex flex-wrap justify-content-between align-items-center mb-3 no-print gap-2">
-                                        <p class="card-subtitle text-body-secondary small mb-0">Gerencie as cargas
-                                            criadas manualmente e montagens especiais.</p>
-                                        <div class="btn-group">
-                                            <button class="btn btn-primary"
-                                                onclick="imprimirCargasGeneric('resultado-montagens-especiais', 'Cargas Manuais')">
-                                                <i class="bi bi-printer-fill me-1"></i>IMPRIMIR CARGAS MONTADAS
-                                            </button>
-                                        </div>
+                                    <div class="mb-3 no-print">
+                                        <p class="card-subtitle text-body-secondary small mb-0">Gerencie as cargas criadas manualmente e montagens especiais.</p>
                                     </div>
                                     <div class="mb-3 no-print" id="botoes-manuais">
                                         <div class="empty-state-premium">
@@ -3197,6 +3158,97 @@
                             <i class="bi bi-play-circle-fill me-1.5"></i>Iniciar Montagem
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL OPÇÕES DE IMPRESSÃO DE CARGAS (TODAS AS ABAS) -->
+    <div class="modal fade" id="modalOpcoesImpressaoCargas" tabindex="-1" aria-hidden="true" style="z-index: 1065;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
+            <div class="modal-content" style="background: rgba(18, 22, 36, 0.98); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; box-shadow: 0 25px 70px rgba(0, 0, 0, 0.85); backdrop-filter: blur(14px);">
+                <div class="modal-header border-bottom border-secondary border-opacity-20 pb-3 pt-3 px-4">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="background: rgba(245, 158, 11, 0.15); width: 40px; height: 40px; border: 1px solid rgba(245, 158, 11, 0.3);">
+                            <i class="bi bi-printer-fill text-warning fs-5"></i>
+                        </div>
+                        <div>
+                            <h5 class="text-light fw-bold mb-0">Imprimir Cargas Montadas</h5>
+                            <span class="text-secondary small" style="font-size: 0.8rem;">Imprime as cargas de todas as abas (Fiorino, Vans, Toco, Truck e Manuais)</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="d-flex flex-column gap-3">
+                        <!-- Opção 1: Todas as Cargas Montadas -->
+                        <div class="card p-3 border border-secondary border-opacity-30 rounded-3 text-start position-relative card-print-option" 
+                             id="card-print-todas"
+                             onclick="executarImpressaoCargasSelecionadas('todas')"
+                             style="background: rgba(255, 255, 255, 0.03); cursor: pointer; border-left: 5px solid #3b82f6 !important;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center p-2" style="background: rgba(59, 130, 246, 0.15); width: 46px; height: 46px;">
+                                        <i class="bi bi-collection-fill text-primary fs-4"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="text-light fw-bold mb-1">Todas as Cargas Montadas</h6>
+                                        <p class="text-secondary small mb-0" style="font-size: 0.8rem;">
+                                            Imprime todas as cargas de todas as abas (prioridades e regulares juntas).
+                                        </p>
+                                    </div>
+                                </div>
+                                <span class="badge bg-primary text-white fw-bold px-3 py-2 fs-6 rounded-pill shadow-sm" id="modalPrintCountTodas">0 cargas</span>
+                            </div>
+                        </div>
+
+                        <!-- Opção 2: Apenas Cargas com Prioridade -->
+                        <div class="card p-3 border border-warning border-opacity-30 rounded-3 text-start position-relative card-print-option" 
+                             id="card-print-prioritarias"
+                             onclick="executarImpressaoCargasSelecionadas('prioritarias')"
+                             style="background: rgba(245, 158, 11, 0.07); cursor: pointer; border-left: 5px solid #f59e0b !important;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center p-2" style="background: rgba(245, 158, 11, 0.2); width: 46px; height: 46px;">
+                                        <i class="bi bi-star-fill text-warning fs-4"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="text-warning fw-bold mb-1 d-flex align-items-center gap-2">
+                                            <span>⭐ Apenas com Prioridades</span>
+                                        </h6>
+                                        <p class="text-secondary small mb-0" style="font-size: 0.8rem;">
+                                            Imprime de todas as abas somente as cargas que contêm pedidos urgentes em atraso.
+                                        </p>
+                                    </div>
+                                </div>
+                                <span class="badge bg-warning text-dark fw-bold px-3 py-2 fs-6 rounded-pill shadow-sm" id="modalPrintCountPrio">0 cargas</span>
+                            </div>
+                        </div>
+
+                        <!-- Opção 3: Apenas Cargas Regulares -->
+                        <div class="card p-3 border border-secondary border-opacity-30 rounded-3 text-start position-relative card-print-option" 
+                             id="card-print-regulares"
+                             onclick="executarImpressaoCargasSelecionadas('regulares')"
+                             style="background: rgba(255, 255, 255, 0.03); cursor: pointer; border-left: 5px solid #0dcaf0 !important;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center p-2" style="background: rgba(13, 202, 240, 0.15); width: 46px; height: 46px;">
+                                        <i class="bi bi-box-seam text-info fs-4"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="text-light fw-bold mb-1">Apenas Cargas Regulares</h6>
+                                        <p class="text-secondary small mb-0" style="font-size: 0.8rem;">
+                                            Imprime de todas as abas somente as cargas normais (sem pedidos prioritários).
+                                        </p>
+                                    </div>
+                                </div>
+                                <span class="badge bg-dark border border-secondary text-light fw-bold px-3 py-2 fs-6 rounded-pill shadow-sm" id="modalPrintCountReg">0 cargas</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-20 py-2.5 px-4 d-flex justify-content-end">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Fechar</button>
                 </div>
             </div>
         </div>

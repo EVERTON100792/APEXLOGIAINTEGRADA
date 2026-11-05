@@ -1933,84 +1933,12 @@ function despriorizarPedido(numPedido) {
 }
 
 /**
- * Garante que rotas combinadas (ex: 11501, 11502, 11511 e 11721, 11731)
- * compartilhem a prioridade de seus pedidos de forma sincronizada.
- * Se uma das rotas parceiras possui pedidos marcados como prioritários,
- * os pedidos das outras rotas do mesmo grupo combinado também recebem a marcação.
+ * Desativado: Apenas pedidos explicitamente priorizados pelo usuário ou importados
+ * pelo TXT devem ser marcados como prioritários.
+ * Não propagar prioridade artificialmente para outros pedidos normais da mesma rota ou grupo combinado.
  */
 function sincronizarPrioridadesRotasCombinadas() {
-    if (!pedidosPrioritarios || pedidosPrioritarios.length === 0) return false;
-
-    const setPrioritarios = new Set(pedidosPrioritarios.map(p => String(p).trim()));
-    const rotasComPrioridade = new Set();
-
-    // 1. Coleta rotas que possuem pedidos prioritários em pedidosGeraisAtuais
-    if (Array.isArray(pedidosGeraisAtuais)) {
-        pedidosGeraisAtuais.forEach(p => {
-            if (p && p.Num_Pedido && setPrioritarios.has(String(p.Num_Pedido).trim())) {
-                rotasComPrioridade.add(String(p.Cod_Rota).trim());
-            }
-        });
-    }
-
-    // 2. Coleta rotas que possuem pedidos prioritários em activeLoads
-    if (typeof activeLoads === 'object' && activeLoads !== null) {
-        Object.values(activeLoads).forEach(load => {
-            if (load && Array.isArray(load.pedidos)) {
-                const hasPrio = load.pedidos.some(p => setPrioritarios.has(String(p.Num_Pedido).trim()));
-                if (hasPrio) {
-                    load.pedidos.forEach(p => {
-                        if (p && p.Cod_Rota) rotasComPrioridade.add(String(p.Cod_Rota).trim());
-                    });
-                }
-            }
-        });
-    }
-
-    let alterou = false;
-
-    // 3. Para cada rota identificada, se ela for parte de um grupo combinado, propaga prioridade para todas as rotas do grupo
-    rotasComPrioridade.forEach(rota => {
-        const cfg = window.rotaVeiculoMap?.[rota];
-        if (cfg?.combined && Array.isArray(cfg.combined)) {
-            const grupoCombinado = new Set([rota, ...cfg.combined.map(r => String(r).trim())]);
-
-            // Propaga nos pedidos disponíveis (pedidosGeraisAtuais)
-            if (Array.isArray(pedidosGeraisAtuais)) {
-                pedidosGeraisAtuais.forEach(p => {
-                    if (p && p.Cod_Rota && grupoCombinado.has(String(p.Cod_Rota).trim())) {
-                        const idStr = String(p.Num_Pedido).trim();
-                        if (!setPrioritarios.has(idStr)) {
-                            pedidosPrioritarios.push(idStr);
-                            setPrioritarios.add(idStr);
-                            alterou = true;
-                        }
-                    }
-                });
-            }
-
-            // Propaga nas cargas ativas (para que ganhem o badge Prioridade)
-            if (typeof activeLoads === 'object' && activeLoads !== null) {
-                Object.values(activeLoads).forEach(load => {
-                    if (load && Array.isArray(load.pedidos)) {
-                        const ehDoGrupo = load.pedidos.some(p => grupoCombinado.has(String(p.Cod_Rota).trim()));
-                        if (ehDoGrupo) {
-                            load.pedidos.forEach(p => {
-                                const idStr = String(p.Num_Pedido).trim();
-                                if (!setPrioritarios.has(idStr)) {
-                                    pedidosPrioritarios.push(idStr);
-                                    setPrioritarios.add(idStr);
-                                    alterou = true;
-                                }
-                            });
-                        }
-                    }
-                });
-            }
-        }
-    });
-
-    return alterou;
+    return false;
 }
 
 function highlightPedido(numPedido, viewId, tabId, collapseId, cardId = null) {
@@ -3075,6 +3003,7 @@ function renderAllUI() {
     updateAndRenderKPIs();
     updateAndRenderChart();
     updateTabCounts(); // Atualiza os contadores das abas
+    if (typeof aplicarFiltroCargasVisiveis === 'function') aplicarFiltroCargasVisiveis();
 
     // 5. Salva o estado consistente no Local Storage
     saveStateToLocalStorage();
@@ -4554,38 +4483,206 @@ function imprimirSobras(title) {
     createPrintWindow(title, contentToPrint);
 }
 
-function imprimirCargasGeneric(divId, title) {
-    const containerDiv = document.getElementById(divId);
-    if (!containerDiv) return;
+// ================================================================================================
+// GESTÃO DE FILTRAGEM RÁPIDA E IMPRESSÃO SELETIVA DE CARGAS (PRIORITÁRIAS / REGULARES / TODAS)
+// ================================================================================================
+window.filtroCargasPrioridadeAtual = 'todas';
+window.modalImpressaoContext = { containerId: null, title: 'Cargas Montadas' };
 
-    // CORREÇÃO: Busca todos os cards de carga dentro do container geral da aba (ex: 'resultado-fiorino-geral'),
-    // incluindo tanto os gerados pelo sistema quanto os manuais.
-    const cardsParaImprimir = containerDiv.querySelectorAll('div[data-load-id]');
+function filtrarCargasPorPrioridade(filtro) {
+    window.filtroCargasPrioridadeAtual = filtro;
 
-    if (cardsParaImprimir.length === 0) { alert(`Nenhuma carga montada para imprimir na seção "${title}".`); return; }
+    const btnTodas = document.getElementById('btn-filter-cargas-todas');
+    const btnPrio = document.getElementById('btn-filter-cargas-prioritarias');
+    const btnReg = document.getElementById('btn-filter-cargas-regulares');
 
+    if (btnTodas) btnTodas.classList.toggle('active', filtro === 'todas');
+    if (btnPrio) btnPrio.classList.toggle('active', filtro === 'prioritarias');
+    if (btnReg) btnReg.classList.toggle('active', filtro === 'regulares');
+
+    aplicarFiltroCargasVisiveis();
+}
+
+// Helper centralizado: obtém a lista de todas as cargas ativas montadas no sistema (mesma fonte do updateTabCounts)
+function getTodasCargasMontadasList() {
+    const list = [];
+    Object.values(activeLoads || {}).forEach(l => {
+        if (!l || !l.id) return;
+        // Tocos estáticos da planilha (sem routesKey associado a uma rota): têm aba própria
+        const isStaticToco = typeof l.id === 'string' && l.id.startsWith('toco-') && !l.routesKey && !l.id.startsWith('toco-auto-');
+        if (isStaticToco) return;
+        list.push(l);
+    });
+    return list;
+}
+
+function isLoadWithPriority(load) {
+    if (!load || !Array.isArray(load.pedidos)) return false;
+    const prioList = window.pedidosPrioritarios || pedidosPrioritarios || [];
+    const recallList = typeof pedidosRecall !== 'undefined' ? pedidosRecall : [];
+    return load.pedidos.some(p => {
+        const num = String(p.Num_Pedido).trim();
+        return prioList.includes(num) || recallList.includes(num);
+    });
+}
+
+function aplicarFiltroCargasVisiveis() {
+    const filtro = window.filtroCargasPrioridadeAtual || 'todas';
+    const allCards = document.querySelectorAll('.premium-load-card');
+
+    // 1. Aplica o filtro de visibilidade nos cards renderizados
+    allCards.forEach(card => {
+        const hasPriority = card.getAttribute('data-has-priority') === 'true';
+        if (filtro === 'todas') {
+            card.style.display = '';
+        } else if (filtro === 'prioritarias') {
+            card.style.display = hasPriority ? '' : 'none';
+        } else if (filtro === 'regulares') {
+            card.style.display = !hasPriority ? '' : 'none';
+        }
+    });
+
+    // 2. Contadores sincronizados diretamente com activeLoads (igual ao updateTabCounts)
+    const todasCargas = getTodasCargasMontadasList();
+    const totalTodas = todasCargas.length;
+    const totalPrio = todasCargas.filter(isLoadWithPriority).length;
+    const totalReg = totalTodas - totalPrio;
+
+    const badgeTodas = document.getElementById('badge-count-todas');
+    const badgePrio = document.getElementById('badge-count-prioritarias');
+    const badgeReg = document.getElementById('badge-count-regulares');
+
+    if (badgeTodas) badgeTodas.innerText = totalTodas;
+    if (badgePrio) badgePrio.innerText = totalPrio;
+    if (badgeReg) badgeReg.innerText = totalReg;
+}
+
+function abrirModalImpressaoCargas() {
+    const modalEl = document.getElementById('modalOpcoesImpressaoCargas');
+    if (!modalEl || typeof bootstrap === 'undefined') {
+        executarImpressaoCargasFallback();
+        return;
+    }
+
+    // Garante que todas as cargas estejam renderizadas no DOM antes de imprimir
+    if (window.currentActiveRouteKey) {
+        window.currentActiveRouteKey = null;
+        renderActiveLoadCards();
+    }
+
+    atualizarContadoresModalImpressao();
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+}
+
+function getCardsParaModalImpressao() {
+    // Garante que todas as cargas estejam renderizadas no DOM
+    if (window.currentActiveRouteKey) {
+        window.currentActiveRouteKey = null;
+        renderActiveLoadCards();
+    }
+
+    const allCards = Array.from(document.querySelectorAll('.tab-pane .premium-load-card'));
+    const seen = new Set();
+    const uniqueCards = [];
+    allCards.forEach(card => {
+        const id = card.getAttribute('data-load-id') || card.id;
+        if (id && !seen.has(id)) {
+            seen.add(id);
+            uniqueCards.push(card);
+        }
+    });
+    return uniqueCards;
+}
+
+function atualizarContadoresModalImpressao() {
+    const todasCargas = getTodasCargasMontadasList();
+    const totalTodas = todasCargas.length;
+    const countPrio = todasCargas.filter(isLoadWithPriority).length;
+    const countReg = totalTodas - countPrio;
+
+    const elPrio = document.getElementById('modalPrintCountPrio');
+    const elReg = document.getElementById('modalPrintCountReg');
+    const elTodas = document.getElementById('modalPrintCountTodas');
+    const cardPrio = document.getElementById('card-print-prioritarias');
+    const cardReg = document.getElementById('card-print-regulares');
+    const cardTodas = document.getElementById('card-print-todas');
+
+    if (elPrio) elPrio.innerText = `${countPrio} carga(s)`;
+    if (elReg) elReg.innerText = `${countReg} carga(s)`;
+    if (elTodas) elTodas.innerText = `${totalTodas} carga(s)`;
+
+    if (cardPrio) {
+        cardPrio.style.opacity = countPrio === 0 ? '0.5' : '1';
+        cardPrio.style.pointerEvents = countPrio === 0 ? 'none' : 'auto';
+    }
+    if (cardReg) {
+        cardReg.style.opacity = countReg === 0 ? '0.5' : '1';
+        cardReg.style.pointerEvents = countReg === 0 ? 'none' : 'auto';
+    }
+    if (cardTodas) {
+        cardTodas.style.opacity = totalTodas === 0 ? '0.5' : '1';
+        cardTodas.style.pointerEvents = totalTodas === 0 ? 'none' : 'auto';
+    }
+}
+
+function executarImpressaoCargasSelecionadas(tipo) {
+    const modalEl = document.getElementById('modalOpcoesImpressaoCargas');
+    if (modalEl && typeof bootstrap !== 'undefined') {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    }
+
+    const cards = getCardsParaModalImpressao();
+    if (cards.length === 0) {
+        showToast("Nenhuma carga encontrada para imprimir.", "warning");
+        return;
+    }
+
+    const filteredCards = cards.filter(card => {
+        const hasPriority = card.getAttribute('data-has-priority') === 'true';
+        if (tipo === 'prioritarias') return hasPriority;
+        if (tipo === 'regulares') return !hasPriority;
+        return true;
+    });
+
+    if (filteredCards.length === 0) {
+        const tipoNome = tipo === 'prioritarias' ? 'com prioridade' : 'regulares';
+        showToast(`Nenhuma carga ${tipoNome} encontrada para imprimir.`, "info");
+        return;
+    }
+
+    let baseTitle = 'Todas as Cargas Montadas';
+    if (tipo === 'prioritarias') {
+        baseTitle = 'Cargas Montadas - ⭐ Prioritárias';
+    } else if (tipo === 'regulares') {
+        baseTitle = 'Cargas Montadas - Regulares';
+    }
+
+    executarImpressaoCargasExecucao(filteredCards, baseTitle);
+}
+
+function executarImpressaoCargasExecucao(cardsParaImprimir, title) {
     const containerClone = document.createElement('div');
+    let finalTitle = title;
 
-    let finalTitle = title; // Começa com o título padrão
-
-    // LÓGICA APRIMORADA: Verifica se QUALQUER carga a ser impressa contém rotas de SP, independentemente da aba.
     let isSaoPauloRoute = false;
     const spRoutes = new Set(['2555', '2560', '2561', '2571', '2575', '2705', '2735', '2745']);
     for (const card of cardsParaImprimir) {
         const loadId = card.dataset.loadId;
         if (activeLoads[loadId] && activeLoads[loadId].pedidos.some(p => spRoutes.has(String(p.Cod_Rota)))) {
             isSaoPauloRoute = true;
-            break; // Encontrou uma, já pode parar
+            break;
         }
     }
 
-    // Se for uma rota de SP, altera o título para refletir isso.
-    if (isSaoPauloRoute) {
-        finalTitle = `${title} (São Paulo)`;
+    if (isSaoPauloRoute && !finalTitle.includes('São Paulo')) {
+        finalTitle = `${finalTitle} (São Paulo)`;
     }
 
     cardsParaImprimir.forEach(originalCard => {
         const cardClone = originalCard.cloneNode(true);
+        cardClone.style.display = ''; // Garante visibilidade no clone impresso
         const loadId = cardClone.dataset.loadId;
         const observationText = activeLoads[loadId]?.observation || '';
         const clonePrintDiv = cardClone.querySelector('.print-only-observation');
@@ -4596,19 +4693,27 @@ function imprimirCargasGeneric(divId, title) {
                 clonePrintDiv.style.display = 'block';
             }
         }
-        // APEX: linha do motorista só na impressão (nunca duplicada na tela)
         try {
             const bodyBox = cardClone.querySelector('.premium-card-body');
-            if (bodyBox && typeof apexDriverPrintHtml === 'function') bodyBox.insertAdjacentHTML('beforeend', apexDriverPrintHtml(activeLoads[loadId]?.motoristaContratado));
+            if (bodyBox && typeof apexDriverPrintHtml === 'function') {
+                bodyBox.insertAdjacentHTML('beforeend', apexDriverPrintHtml(activeLoads[loadId]?.motoristaContratado));
+            }
         } catch (e) {}
         containerClone.appendChild(cardClone);
     });
 
-    // Remove sufixo (Varejo) do título da aba/documento
     const cleanTitle = finalTitle.replace(/\s*\(Varejo\)/gi, '');
-    
-    // O usuário solicitou a remoção completa do título principal <h3> do corpo da página impressa para evitar redundância com o cabeçalho dos cards.
     createPrintWindow(cleanTitle, containerClone.innerHTML);
+}
+
+function executarImpressaoCargasFallback(divId, title) {
+    const containerDiv = divId ? document.getElementById(divId) : null;
+    const cards = containerDiv ? containerDiv.querySelectorAll('div[data-load-id]') : document.querySelectorAll('.tab-pane div[data-load-id]');
+    executarImpressaoCargasExecucao(Array.from(cards), title || 'Cargas Montadas');
+}
+
+function imprimirCargasGeneric(divId, title) {
+    abrirModalImpressaoCargas(divId, title);
 }
 
 // APEX: linha de impressão do motorista contratado (injetada só na hora de imprimir).
@@ -7443,11 +7548,10 @@ function renderLoadCard(load, vehicleType, vInfo) {
 
     const totalKgFormatado = load.totalKg.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const totalCubagemFormatado = (load.totalCubagem || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const isPriorityLoad = load.pedidos.some(p => pedidosPrioritarios.includes(String(p.Num_Pedido)) || pedidosRecall.includes(String(p.Num_Pedido)));
+    const isPriorityLoad = load.pedidos.some(p => (window.pedidosPrioritarios && window.pedidosPrioritarios.includes(String(p.Num_Pedido))) || (typeof pedidosRecall !== 'undefined' && pedidosRecall.includes(String(p.Num_Pedido))));
+    const qtdPrioritariosNaCarga = load.pedidos.filter(p => (window.pedidosPrioritarios && window.pedidosPrioritarios.includes(String(p.Num_Pedido))) || (typeof pedidosRecall !== 'undefined' && pedidosRecall.includes(String(p.Num_Pedido)))).length;
 
-
-
-    const priorityBadge = isPriorityLoad ? '<span class="badge-neon-priority"><i class="bi bi-star-fill"></i> Prioridade</span>' : '';
+    const priorityBadge = isPriorityLoad ? `<span class="badge-neon-priority badge-carga-prioridade" title="${qtdPrioritariosNaCarga} pedido(s) prioritário(s) nesta carga"><i class="bi bi-star-fill text-warning me-1"></i>⭐ CARGA COM PRIORIDADE</span>` : '';
     const hardLimitBadge = load.usedHardLimit ? '<span class="badge-neon-danger"><i class="bi bi-exclamation-triangle-fill"></i> Excesso</span>' : '';
 
     // FIFO-PREDAT: Badge de urgência para cargas com Predat atrasado
@@ -7780,9 +7884,10 @@ function renderLoadCard(load, vehicleType, vInfo) {
 
     return `
         <div id="${load.id}" 
-             class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow' : ''} ${manyOrdersClass} ${collapseClass}" 
+             class="premium-load-card drop-zone-card vehicle-${vehicleType} animated-entry ${isPriorityLoad ? 'priority-glow has-priority-load' : 'regular-load'} ${manyOrdersClass} ${collapseClass}" 
              data-load-id="${load.id}" 
              data-vehicle-type="${vehicleType}"
+             data-has-priority="${isPriorityLoad ? 'true' : 'false'}"
              ondragover="dragOver(event)" 
              ondragleave="dragLeave(event)" 
              ondrop="drop(event)">
@@ -12133,19 +12238,9 @@ async function executarMontagemCargasPrioritariasConfirmada() {
         await new Promise(r => setTimeout(r, 500));
     }
 
-    // 4. Atualiza a interface geral para garantir que tudo esteja sincronizado
+    // 4. Atualiza a interface geral exibindo todas as cargas montadas de todas as rotas
+    window.currentActiveRouteKey = null;
     renderAllUI();
-
-    // NOVO: Exibe as cargas da última rota montada de forma automática
-    if (rotasOrdenadas.length > 0) {
-        const ultimaRota = rotasOrdenadas[rotasOrdenadas.length - 1];
-        let config = window.rotaVeiculoMap?.[ultimaRota];
-        let routesKey = ultimaRota;
-        if (config && config.combined) {
-            routesKey = [ultimaRota, ...config.combined].sort().join(',');
-        }
-        exibirCargasDaRota(routesKey);
-    }
 
     // 5. Verifica se restou algum prioritário pendente na lista de disponíveis
     const prioritariosRestantes = pedidosGeraisAtuais.filter(p =>
