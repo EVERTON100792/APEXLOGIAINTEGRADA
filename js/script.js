@@ -2359,7 +2359,7 @@ function processar() {
     statusDiv.innerHTML = '<div class="d-flex align-items-center justify-content-center"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div><span class="text-primary">Processando...</span></div>';
     processarBtn.disabled = true;
 
-    setTimeout(() => {
+    setTimeout(async () => {
         const resultadoGeralDiv = document.getElementById('resultado-geral');
         const resultadoTocoDiv = document.getElementById('resultado-toco');
         const resultadoCfNumericoDiv = document.getElementById('resultado-cf-numerico');
@@ -2706,11 +2706,24 @@ function processar() {
                 }
             }
 
+            // APEX: sincroniza o histórico de pedidos bloqueados (coluna BLOQ.) com o
+            // Supabase ANTES de renderizar, para que os badges saiam já nesta passada.
+            let apexResumoBloqueios = null;
+            try {
+                apexResumoBloqueios = await apexSincronizarBloqueiosAposProcessar(dadosParaProcessar);
+            } catch (e) {
+                console.warn('[APEX bloqueios] Falha ao sincronizar histórico de bloqueados:', e);
+            }
+
             renderAllUI(); // NOVO: Chama a função de renderização centralizada
 
             // --- A INTEGRAÇÃO SUPABASE VAREJO FOI REMOVIDA CONFORME SOLICITADO ---
 
             statusDiv.innerHTML = `<p class="text-success">Processamento concluído!</p>`;
+
+            if (apexResumoBloqueios && apexResumoBloqueios.desbloqueadosAgora > 0 && typeof showToast === 'function') {
+                showToast(`🔓 ${apexResumoBloqueios.desbloqueadosAgora} pedido(s) liberado(s) do bloqueio nesta importação — priorizados no topo de Disponíveis`, 'info');
+            }
 
             // Grava o data/hora do "Ultimo Processamento"
             if (window.apexAdmin && typeof window.apexAdmin.logLastProcessar === 'function') {
@@ -3369,6 +3382,13 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
         const clienteIdNormalizado = normalizeClientId(p.Cliente);
         const isLastMoved = window.lastMovedClientId && clienteIdNormalizado === window.lastMovedClientId;
         const animationClass = isLastMoved ? 'new-inserted-row' : '';
+
+        // APEX: registro do histórico de bloqueios (coluna BLOQ. da planilha) deste pedido
+        const regBloqueio = (window.apexBloqueios || {})[String(p.Num_Pedido)];
+        const isExBloqueadoLiberado = sourceId === 'geral' && !!(regBloqueio && regBloqueio.desbloqueadoEm);
+        // Ex-bloqueado liberado ganha uma barra lateral ciano na linha (apenas em Disponíveis)
+        const rowStyleAttr = isExBloqueadoLiberado ? ' style="box-shadow: inset 3px 0 0 #0dcaf0;"' : '';
+
         table += `<tr id="pedido-${p.Num_Pedido}"
                                      class="${rowClass} order-item-row ${animationClass}"
                                      data-cliente-id="${clienteIdNormalizado}" 
@@ -3378,7 +3398,7 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
                                      onclick="highlightClientRows(event); selectOrder(this, '${p.Num_Pedido}')"
                                      draggable="${isDraggable}"
                                      ondragstart="dragStart(event, '${p.Num_Pedido}', '${clienteIdNormalizado}', '${sourceId}')"
-                                     ondragend="dragEnd(event)">`;
+                                     ondragend="dragEnd(event)"${rowStyleAttr}>`;
         table += `<td><input type="checkbox" class="form-check-input row-checkbox" value="${p.Num_Pedido}" onclick="updateBulkActionsPanel(event)"></td>`;
         colunasExibir.forEach(c => {
             let cellContent = p[c] === undefined || p[c] === null ? '' : p[c];
@@ -3395,7 +3415,21 @@ function createTable(pedidos, columnsToDisplay, sourceId = '') {
                         ? ' <span class="badge bg-danger text-white animated pulse infinite"><i class="bi bi-exclamation-circle-fill me-1"></i>Recall Pendente</span>' 
                         : ' <span class="badge bg-info">Recall</span>';
                 }
-                table += `<td>${cellContent}${priorityBadge}</td>`;
+
+                // APEX: badges do histórico de bloqueios (coluna BLOQ. da planilha)
+                let bloqueioBadge = '';
+                if (isExBloqueadoLiberado) {
+                    const diasDisponivel = regBloqueio.desbloqueadoEm ? apexDiasDesdeIso(regBloqueio.desbloqueadoEm) : null;
+                    const parteDisponivel = (diasDisponivel !== null) ? ` · há ${apexTextoDiasBloqueado(diasDisponivel)} disponível` : '';
+                    bloqueioBadge = ` <span class="badge bg-info text-dark" title="Pedido estava bloqueado (BLOQ.) e foi liberado — prioridade de montagem"><i class="bi bi-unlock-fill me-1"></i>liberado após ${apexTextoDiasBloqueado(regBloqueio.diasBloqueado)} bloqueado${parteDisponivel}</span>`;
+                } else if (sourceId === 'bloqueados-regra' && regBloqueio) {
+                    const diasBloqAtual = (typeof apexDiasBloqueadoAtual === 'function')
+                        ? apexDiasBloqueadoAtual(regBloqueio)
+                        : apexDiasDesdeIso(apexBaseBloqueioRegistro ? apexBaseBloqueioRegistro(regBloqueio) : regBloqueio.primeiraVezBloqueado);
+                    bloqueioBadge = ` <span class="badge bg-secondary" title="Dias bloqueado desde a Data do Pedido (Dat_Ped) até o processamento"><i class="bi bi-lock-fill me-1"></i>bloqueado há ${apexTextoDiasBloqueado(diasBloqAtual)}</span>`;
+                }
+
+                table += `<td>${cellContent}${priorityBadge}${bloqueioBadge}</td>`;
             } else if (c === 'Agendamento' && cellContent === 'Sim') {
                 table += `<td><span class="badge bg-warning text-dark">${cellContent}</span></td>`;
             } else if (c === 'Predat' || c === 'Dat_Ped') {
@@ -3614,6 +3648,20 @@ if (!div) { console.warn('displayGerais: div nao encontrada no DOM.'); return fa
             badgePrioritario = `<span class="badge bg-danger text-white ms-2 animate-pulse"><i class="bi bi-exclamation-octagon-fill me-1"></i>Prioritário Pendente</span>`;
         }
 
+        // APEX: pedidos liberados do bloqueio (BLOQ.) — badge na rota e destaque sutil
+        // no card (a prioridade vermelha de Recall/Prioritário continua mandando)
+        const exBloqueadosNoGrupo = grupo.pedidos.filter(p => {
+            const reg = (window.apexBloqueios || {})[String(p.Num_Pedido)];
+            return !!(reg && reg.desbloqueadoEm);
+        });
+        let badgeExBloqueados = '';
+        if (exBloqueadosNoGrupo.length > 0) {
+            badgeExBloqueados = `<span class="badge bg-info text-dark ms-2"><i class="bi bi-unlock-fill me-1"></i>${exBloqueadosNoGrupo.length} liberado(s) do bloqueio</span>`;
+            if (!contemPrioritarioDisponivel) {
+                itemStyle = 'style="border: 1px solid rgba(13, 202, 240, 0.35) !important; background: rgba(13, 202, 240, 0.04) !important; border-radius: 6px; margin-bottom: 8px;"';
+            }
+        }
+
         let bodyHtml = '';
         if (grupo.totalKg >= 8000) {
             bodyHtml += `
@@ -3624,9 +3672,9 @@ if (!div) { console.warn('displayGerais: div nao encontrada no DOM.'); return fa
                     </button>
                 </div>`;
         }
-        bodyHtml += createTable(grupo.pedidos, null, 'geral');
+        bodyHtml += createTable(apexOrdenarExBloqueadosNoTopo(grupo.pedidos), null, 'geral');
 
-        accordionHtml += `<div class="accordion-item" ${itemStyle}><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" ${buttonStyle} type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; ${badgePrioritario} <span class="badge bg-secondary ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span><span class="badge bg-warning text-dark ms-2 selected-metrics-badge" id="selected-badge-${collapseId}" style="display: none; font-size: 0.8rem; padding: 3px 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.15);"></span></button></h2>
+        accordionHtml += `<div class="accordion-item" ${itemStyle}><h2 class="accordion-header"><button class="accordion-button collapsed ${veiculoClass}" ${buttonStyle} type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}"><strong>${rotaDisplay}</strong> &nbsp; ${badgePrioritario}${badgeExBloqueados} <span class="badge bg-secondary ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2" style="font-size: 0.8rem; padding: 3px 8px; font-weight: 700;"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span><span class="badge bg-warning text-dark ms-2 selected-metrics-badge" id="selected-badge-${collapseId}" style="display: none; font-size: 0.8rem; padding: 3px 8px; font-weight: 700; border: 1px solid rgba(0,0,0,0.15);"></span></button></h2>
                                   <div id="${collapseId}" class="accordion-collapse collapse" data-bs-parent="#accordionGeral">
                                     <div class="accordion-body">${bodyHtml}</div></div></div>`;
     });
@@ -3709,7 +3757,7 @@ function displayAccordionGerais(div, grupos) {
 
         accordionHtml += `<div class="accordion-item"><h2 class="accordion-header" id="headingGeral${index}"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGeral${index}"><strong>${rotaDisplay}</strong> &nbsp; <span class="badge bg-secondary ms-2"><i class="bi bi-box me-1"></i>${grupo.pedidos.length}</span> <span class="badge bg-light text-dark ms-2"><i class="bi bi-database me-1"></i>${totalKgFormatado} kg</span></button></h2>
                                   <div id="collapseGeral${index}" class="accordion-collapse collapse" data-bs-parent="#accordionGeral">
-                                    <div class="accordion-body">${createTable(grupo.pedidos, null, 'geral')}</div></div></div>`;
+                                    <div class="accordion-body">${createTable(apexOrdenarExBloqueadosNoTopo(grupo.pedidos), null, 'geral')}</div></div></div>`;
     });
     accordionHtml += '</div>';
     div.innerHTML = accordionHtml;
@@ -18553,3 +18601,379 @@ function parseSobrasToPrint(html) {
 
 
 window.executarMontagemCargasPrioritariasConfirmada = executarMontagemCargasPrioritariasConfirmada;
+
+//  APEX - HISTORICO DE BLOQUEADOS (BLOQ.)
+// ═════════════════════════════════════════════════════════════════════════════
+//  Registra no Supabase (tabela apex_admin_config, chave 'apex_bloqueios_historico')
+//  os pedidos que aparecem com a coluna BLOQ. preenchida (aba "Bloqueados").
+//  Na importação seguinte:
+//    • pedido que saiu da lista de bloqueados = liberado → badge
+//      "🔓 liberado após X dias bloqueado" + sobe para o topo do seu grupo em
+//      Disponíveis (apenas ordenação/marcação — NENHUMA montagem automática);
+//    • pedido que continua bloqueado mostra "🔒 bloqueado há X dias" na aba
+//      Bloqueados;
+//    • rebloqueio reinicia a contagem de dias (não acumula);
+//    • registro é descartado ~30 dias após o desbloqueio (limpeza automática).
+//  Persistência: Supabase quando logado (merge com o que já está lá) +
+//  fallback/complemento no localStorage ('apexBloqueiosHistoricoV1').
+// ═════════════════════════════════════════════════════════════════════════════
+
+const APEX_BLOQUEIOS_LS_KEY = 'apexBloqueiosHistoricoV1';
+const APEX_BLOQUEIOS_SB_KEY = 'apex_bloqueios_historico';
+const APEX_BLOQUEIOS_DIA_MS = 24 * 60 * 60 * 1000;
+const APEX_BLOQUEIOS_PRUNE_APOS_DESBLOQUEIO_MS = 30 * APEX_BLOQUEIOS_DIA_MS; // limpa ~30d depois de liberar
+const APEX_BLOQUEIOS_PRUNE_STALE_MS = 60 * APEX_BLOQUEIOS_DIA_MS; // limpa registro "fantasma" sem atualização há 60d
+
+// Mapa: Num_Pedido (string) -> registro de bloqueio
+window.apexBloqueios = window.apexBloqueios || {};
+window._apexBloqueiosCarregados = false;
+window._apexBloqueiosAuthHooked = false;
+
+// Referência de "hoje" para o cálculo = data/hora do último processamento da planilha
+// (definida em apexSincronizarBloqueiosAposProcessar). Se ainda não processou nesta
+// sessão, usa Date.now() como fallback.
+window._apexDataProcessamentoBloqueios = window._apexDataProcessamentoBloqueios || null;
+
+function apexRefProcessamentoDate(refDate) {
+    if (refDate instanceof Date && !isNaN(refDate.getTime())) return refDate;
+    const parsed = apexParseDataSegura(refDate);
+    if (parsed) return parsed;
+    if (window._apexDataProcessamentoBloqueios instanceof Date && !isNaN(window._apexDataProcessamentoBloqueios.getTime())) {
+        return window._apexDataProcessamentoBloqueios;
+    }
+    return new Date();
+}
+
+function apexParseDataSegura(valor) {
+    if (!valor) return null;
+    if (valor instanceof Date) return isNaN(valor.getTime()) ? null : valor;
+    // Suporta serial numérico do Excel (caso chegue sem cellDates em algum fluxo)
+    if (typeof valor === 'number' && Number.isFinite(valor) && valor > 20000 && valor < 60000) {
+        const d = new Date(Math.round((valor - 25569) * 86400 * 1000));
+        return isNaN(d.getTime()) ? null : d;
+    }
+    const str = String(valor).trim();
+    if (!str) return null;
+    // dd/mm/aaaa ou dd-mm-aaaa (comum em exibição)
+    const br = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s.*)?$/);
+    if (br) {
+        let ano = parseInt(br[3], 10);
+        if (ano < 100) ano += 2000;
+        const d = new Date(ano, parseInt(br[2], 10) - 1, parseInt(br[1], 10));
+        return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+}
+
+function apexDataBaseIsoDePedido(pedido) {
+    if (!pedido) return null;
+    // Base do cálculo: Dat_Ped (Data do pedido) — ex.: 06/10
+    const d = apexParseDataSegura(pedido.Dat_Ped || pedido.dat_ped || pedido['Data_Ped'] || pedido['Data do Pedido']);
+    return d ? d.toISOString() : null;
+}
+
+function apexBaseBloqueioRegistro(reg) {
+    if (!reg) return null;
+    // Base oficial = Dat_Ped do pedido; fallback para registros antigos
+    return reg.dataBaseBloqueio || reg.datPedBase || reg.datPed || reg.primeiraVezBloqueado || null;
+}
+
+function apexDiasDesdeIso(iso, refDate) {
+    const d = apexParseDataSegura(iso);
+    if (!d) return 0;
+    const ref = apexRefProcessamentoDate(refDate);
+    return Math.max(0, Math.floor((ref.getTime() - d.getTime()) / APEX_BLOQUEIOS_DIA_MS));
+}
+
+function apexDiasBloqueadoAtual(reg, refDate) {
+    return apexDiasDesdeIso(apexBaseBloqueioRegistro(reg), refDate);
+}
+
+function apexTextoDiasBloqueado(dias) {
+    dias = Number.isFinite(dias) ? Math.max(0, Math.floor(dias)) : 0;
+    if (dias < 1) return 'menos de 1 dia';
+    if (dias === 1) return '1 dia';
+    return `${dias} dias`;
+}
+
+// Merge de dois mapas de bloqueios mantendo, por pedido, o registro mais
+// recentemente atualizado (updatedAt). Usado para juntar localStorage + Supabase.
+function apexMergeBloqueios(a, b) {
+    const saida = {};
+    const baseA = (a && typeof a === 'object') ? a : {};
+    const baseB = (b && typeof b === 'object') ? b : {};
+    const numeros = new Set([...Object.keys(baseA), ...Object.keys(baseB)]);
+    numeros.forEach(num => {
+        const ra = baseA[num], rb = baseB[num];
+        if (!ra) { saida[num] = rb; return; }
+        if (!rb) { saida[num] = ra; return; }
+        const ta = (apexParseDataSegura(ra.updatedAt) || new Date(0)).getTime();
+        const tb = (apexParseDataSegura(rb.updatedAt) || new Date(0)).getTime();
+        saida[num] = (tb >= ta) ? rb : ra;
+    });
+    return saida;
+}
+
+// Carrega o mapa: localStorage sempre; Supabase quando houver sessão. Deixa o
+// resultado mesclado nos dois lugares.
+async function apexCarregarBloqueios() {
+    let mapaLocal = {};
+    try {
+        const raw = localStorage.getItem(APEX_BLOQUEIOS_LS_KEY);
+        if (raw) mapaLocal = JSON.parse(raw);
+        if (!mapaLocal || typeof mapaLocal !== 'object' || Array.isArray(mapaLocal)) mapaLocal = {};
+    } catch (e) {
+        console.warn('[APEX bloqueios] localStorage corrompido, ignorando:', e);
+        mapaLocal = {};
+    }
+
+    let mapa = mapaLocal;
+    const sb = window.supabaseClient || window.supabase;
+    if (sb) {
+        try {
+            const { data, error } = await sb
+                .from('apex_admin_config')
+                .select('config_value')
+                .eq('config_key', APEX_BLOQUEIOS_SB_KEY)
+                .maybeSingle();
+            if (!error && data && data.config_value && typeof data.config_value === 'object') {
+                mapa = apexMergeBloqueios(data.config_value, mapaLocal);
+            } else if (error) {
+                // Sem login/RLS: segue com o fallback local, silenciosamente
+                console.info('[APEX bloqueios] Usando apenas histórico local (Supabase indisponível).');
+            }
+        } catch (e) {
+            console.warn('[APEX bloqueios] Falha ao ler do Supabase, usando local:', e);
+        }
+    }
+
+    window.apexBloqueios = mapa;
+    window._apexBloqueiosCarregados = true;
+    try { localStorage.setItem(APEX_BLOQUEIOS_LS_KEY, JSON.stringify(mapa)); } catch (e) { /* quota */ }
+    return mapa;
+}
+
+// Persiste o mapa: localStorage sempre; Supabase com merge read-modify-write
+// (não sobrescreve registros de outro usuário que estejam mais recentes).
+async function apexSalvarBloqueios() {
+    const mapa = window.apexBloqueios || {};
+    let mapaFinal = mapa;
+
+    const sb = window.supabaseClient || window.supabase;
+    if (sb) {
+        try {
+            const { data, error } = await sb
+                .from('apex_admin_config')
+                .select('config_value')
+                .eq('config_key', APEX_BLOQUEIOS_SB_KEY)
+                .maybeSingle();
+            if (!error && data && data.config_value && typeof data.config_value === 'object') {
+                mapaFinal = apexMergeBloqueios(data.config_value, mapa);
+            }
+            const { error: erroUpsert } = await sb
+                .from('apex_admin_config')
+                .upsert({
+                    config_key: APEX_BLOQUEIOS_SB_KEY,
+                    config_value: mapaFinal,
+                    updated_at: new Date().toISOString()
+                }, { onConflict: 'config_key' });
+            if (erroUpsert) {
+                console.warn('[APEX bloqueios] Supabase não salvou (fallback local mantido):', erroUpsert.message);
+            }
+        } catch (e) {
+            console.warn('[APEX bloqueios] Falha ao salvar no Supabase (mantido local):', e);
+        }
+    }
+
+    window.apexBloqueios = mapaFinal;
+    try { localStorage.setItem(APEX_BLOQUEIOS_LS_KEY, JSON.stringify(mapaFinal)); } catch (e) { /* quota */ }
+    return mapaFinal;
+}
+
+// Sincroniza o histórico após processar a planilha.
+// Base do cálculo = Dat_Ped (Data do pedido). Referência "hoje" = momento do Processar.
+// universoProcessado: pedidos considerados nesta passada do processar() (respeita
+// o filtro de rotas). Pedido fora dele é simplesmente ignorado — não é marcado
+// como desbloqueado "no escuro".
+async function apexSincronizarBloqueiosAposProcessar(universoProcessado) {
+    if (!window._apexBloqueiosCarregados) {
+        await apexCarregarBloqueios();
+    }
+
+    const agora = new Date();
+    const agoraIso = agora.toISOString();
+    window._apexDataProcessamentoBloqueios = agora; // referência "hoje" = momento do Processar
+    const mapa = window.apexBloqueios;
+
+    // 1. Bloqueados desta importação = o que está na aba "Bloqueados" (BLOQ. preenchida)
+    const bloqueadosAtuais = {};
+    (pedidosComCFNumericoIsolado || []).forEach(p => {
+        const numero = String(p.Num_Pedido || '').trim();
+        const motivoBloq = String(p['BLOQ.'] || '').trim();
+        if (!numero || !motivoBloq) return;
+        bloqueadosAtuais[numero] = p;
+    });
+
+    // 2. Universo considerado nesta importação
+    const numerosNoUniverso = new Set(
+        (Array.isArray(universoProcessado) ? universoProcessado : (planilhaData || []))
+            .map(p => String(p.Num_Pedido || '').trim())
+            .filter(Boolean)
+    );
+
+    let desbloqueadosAgora = 0;
+
+    // 3. Registra/renova os bloqueados atuais.
+    //    Base = Dat_Ped (data do pedido). Se o pedido voltar a ficar bloqueado,
+    //    a contagem permanece desde a Dat_Ped (tempo total desde o pedido).
+    Object.entries(bloqueadosAtuais).forEach(([numero, p]) => {
+        const reg = mapa[numero];
+        const datPedBase = apexDataBaseIsoDePedido(p) || (reg ? apexBaseBloqueioRegistro(reg) : null) || agoraIso;
+
+        if (!reg) {
+            mapa[numero] = {
+                cliente: p.Cliente ?? '',
+                nome: p.Nome_Cliente ?? '',
+                rota: p.Cod_Rota ?? '',
+                uf: p.UF ?? '',
+                cidade: p.Cidade ?? '',
+                kg: p.Quilos_Saldo ?? null,
+                bloq: String(p['BLOQ.'] || '').trim(),
+                datPed: p.Dat_Ped instanceof Date ? p.Dat_Ped.toISOString() : (p.Dat_Ped ?? null),
+                dataBaseBloqueio: datPedBase,
+                primeiraVezBloqueado: datPedBase,
+                ultimaVezBloqueado: agoraIso,
+                desbloqueadoEm: null,
+                diasBloqueado: null,
+                updatedAt: agoraIso
+            };
+        } else {
+            // Continua bloqueado OU voltou a bloquear: mantém a base em Dat_Ped
+            reg.cliente = p.Cliente ?? reg.cliente ?? '';
+            reg.nome = p.Nome_Cliente ?? reg.nome ?? '';
+            reg.rota = p.Cod_Rota ?? reg.rota ?? '';
+            reg.uf = p.UF ?? reg.uf ?? '';
+            reg.cidade = p.Cidade ?? reg.cidade ?? '';
+            reg.kg = p.Quilos_Saldo ?? reg.kg ?? null;
+            reg.bloq = String(p['BLOQ.'] || '').trim();
+            if (!reg.datPed && p.Dat_Ped) reg.datPed = p.Dat_Ped instanceof Date ? p.Dat_Ped.toISOString() : p.Dat_Ped;
+            reg.dataBaseBloqueio = datPedBase; // ancora sempre na Dat_Ped
+            reg.primeiraVezBloqueado = datPedBase; // compatibilidade
+            reg.ultimaVezBloqueado = agoraIso;
+            reg.desbloqueadoEm = null;
+            reg.diasBloqueado = null; // recalculado dinamicamente enquanto bloqueado
+            reg.updatedAt = agoraIso;
+        }
+    });
+
+    // 4. Quem estava bloqueado, foi avaliado nesta importação e NÃO está mais na
+    //    lista de bloqueados = liberado (grava a data e quantos dias ficou desde Dat_Ped)
+    Object.keys(mapa).forEach(numero => {
+        const reg = mapa[numero];
+        if (!reg) { delete mapa[numero]; return; }
+        if (reg.desbloqueadoEm) return;              // já tinha sido liberado antes
+        if (bloqueadosAtuais[numero]) return;        // continua bloqueado
+        if (!numerosNoUniverso.has(numero)) return;  // não foi avaliado nesta passada
+
+        const base = apexParseDataSegura(apexBaseBloqueioRegistro(reg)) || agora;
+        reg.desbloqueadoEm = agoraIso;
+        reg.diasBloqueado = Math.max(0, Math.floor((agora - base) / APEX_BLOQUEIOS_DIA_MS));
+        reg.updatedAt = agoraIso;
+        desbloqueadosAgora++;
+    });
+
+    // 5. Limpeza: ~30 dias depois de liberar o registro vira lixo; bloqueados que
+    //    não aparecem há 60 dias também são descartados
+    Object.keys(mapa).forEach(numero => {
+        const reg = mapa[numero];
+        if (!reg) { delete mapa[numero]; return; }
+        const desbloq = apexParseDataSegura(reg.desbloqueadoEm);
+        if (desbloq && (agora - desbloq) > APEX_BLOQUEIOS_PRUNE_APOS_DESBLOQUEIO_MS) { delete mapa[numero]; return; }
+        const ultima = apexParseDataSegura(reg.ultimaVezBloqueado);
+        if (!desbloq && ultima && (agora - ultima) > APEX_BLOQUEIOS_PRUNE_STALE_MS) { delete mapa[numero]; return; }
+    });
+
+    // 6. Persiste (local + nuvem quando logado) — best effort
+    await apexSalvarBloqueios();
+
+    return { desbloqueadosAgora, bloqueadosAgora: Object.keys(bloqueadosAtuais).length };
+}
+
+// Ordena pedidos colocando ex-bloqueados liberados no topo (quem ficou mais dias
+// bloqueado vem primeiro). Devolve sempre um NOVO array quando há ex-bloqueados;
+// senão devolve o array original intocado.
+function apexOrdenarExBloqueadosNoTopo(pedidos) {
+    try {
+        if (!Array.isArray(pedidos) || pedidos.length === 0) return pedidos;
+        const mapa = window.apexBloqueios;
+        if (!mapa || Object.keys(mapa).length === 0) return pedidos;
+
+        const exBloqueados = [];
+        const demais = [];
+        pedidos.forEach(p => {
+            const reg = mapa[String(p.Num_Pedido || '').trim()];
+            if (reg && reg.desbloqueadoEm) exBloqueados.push(p);
+            else demais.push(p);
+        });
+        if (exBloqueados.length === 0) return pedidos;
+
+        exBloqueados.sort((a, b) => {
+            const da = Number((mapa[String(a.Num_Pedido || '').trim()] || {}).diasBloqueado) || 0;
+            const db = Number((mapa[String(b.Num_Pedido || '').trim()] || {}).diasBloqueado) || 0;
+            return db - da;
+        });
+        return [...exBloqueados, ...demais];
+    } catch (e) {
+        console.warn('[APEX bloqueios] Falha ao ordenar ex-bloqueados:', e);
+        return pedidos;
+    }
+}
+
+// Após login (ou restauro de sessão), recarrega o histórico da nuvem e, se algo
+// mudou, re-renderiza para os badges aparecerem no estado restaurado.
+async function apexRecarregarBloqueiosAposLogin() {
+    try {
+        const antes = JSON.stringify(window.apexBloqueios || {});
+        await apexCarregarBloqueios();
+        const mudou = JSON.stringify(window.apexBloqueios || {}) !== antes;
+        const temPedidos = (Array.isArray(pedidosGeraisAtuais) && pedidosGeraisAtuais.length > 0) ||
+            (Array.isArray(pedidosComCFNumericoIsolado) && pedidosComCFNumericoIsolado.length > 0);
+        if (mudou && temPedidos && typeof renderAllUI === 'function') {
+            renderAllUI();
+        }
+    } catch (e) {
+        console.warn('[APEX bloqueios] Falha ao recarregar pós-login:', e);
+    }
+}
+
+function apexHookAuthBloqueios() {
+    try {
+        const sb = window.supabaseClient || window.supabase;
+        if (!sb || !sb.auth || typeof sb.auth.onAuthStateChange !== 'function') return;
+        if (window._apexBloqueiosAuthHooked) return;
+        window._apexBloqueiosAuthHooked = true;
+
+        let timer = null;
+        sb.auth.onAuthStateChange((event) => {
+            if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') return;
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => { apexRecarregarBloqueiosAposLogin(); }, 600);
+        });
+    } catch (e) {
+        console.warn('[APEX bloqueios] Falha ao instalar hook de auth:', e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    apexHookAuthBloqueios();
+    // Carrega o histórico na inicialização (localStorage na hora; Supabase se já
+    // houver sessão) para os badges aparecerem no estado restaurado.
+    apexCarregarBloqueios().then(() => {
+        const temPedidos = (Array.isArray(pedidosGeraisAtuais) && pedidosGeraisAtuais.length > 0) ||
+            (Array.isArray(pedidosComCFNumericoIsolado) && pedidosComCFNumericoIsolado.length > 0);
+        if (Object.keys(window.apexBloqueios || {}).length > 0 && temPedidos && typeof renderAllUI === 'function') {
+            renderAllUI();
+        }
+    }).catch(e => console.warn('[APEX bloqueios] Falha na carga inicial:', e));
+});
